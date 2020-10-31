@@ -22,6 +22,7 @@ impl Zone{
     }
 
     pub fn parse_zone_file(&mut self)->Result<(),ParseZoneFileErr>{
+
         Err(ParseZoneFileErr::ParseZoneDataError)
     }
 

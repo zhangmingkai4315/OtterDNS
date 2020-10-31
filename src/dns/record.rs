@@ -1,7 +1,8 @@
 
 /// https://tools.ietf.org/html/rfc1035#section-3.2.4
 /// specify the class of the dns record data
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
+#[repr(u16)]
 pub enum RecordClass{
     IN = 1,  // 1 the Internet
     CS,      // 2 the CSNET class
@@ -9,7 +10,8 @@ pub enum RecordClass{
     HS,      // 4 Hesiod
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
+#[repr(u16)]
 pub enum DNSType{
     A = 1 ,
     NS = 2,
