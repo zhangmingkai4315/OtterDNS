@@ -131,7 +131,13 @@ impl ResourceRecord{
         if rr.r_data == "@".to_owned(){
             with_default_data = true;
         }
-
+        if with_default_ttl == true{
+            if default_ttl.is_none(){
+                return Err(ParseRRErr::NoDefaultTTL);
+            }else{
+                rr.ttl = default_ttl.unwrap();
+            }
+        }
         if with_default_data == true || with_default_domain == true{
             if default_domain.is_none() {
                 return Err(ParseRRErr::NoDefaultDomain)
@@ -146,13 +152,7 @@ impl ResourceRecord{
             }
         }
 
-        if with_default_ttl == true{
-            if default_ttl.is_none(){
-                return Err(ParseRRErr::NoDefaultTTL);
-            }else{
-                rr.ttl = default_ttl.unwrap();
-            }
-        }
+
         Ok(rr)
     }
 }
@@ -224,5 +224,17 @@ mod test{
             r_type: DNSType::NS,
             r_data: "mail".to_owned(),
         });
+        let s = "@  IN  NS  @";
+        let rr: Result<ResourceRecord,ParseRRErr>  = ResourceRecord::new(s, Some(1000), None);
+        assert_eq!(rr.is_err(), true);
+
+        let rr: Result<ResourceRecord,ParseRRErr>  = ResourceRecord::new(s, Some(1000), None);
+        assert_eq!(rr.unwrap_err(), ParseRRErr::NoDefaultDomain);
+
+        let rr: Result<ResourceRecord,ParseRRErr>  = ResourceRecord::new(s, None, Some("mail".to_owned()));
+        assert_eq!(rr.is_err(), true);
+
+        let rr: Result<ResourceRecord,ParseRRErr>  = ResourceRecord::new(s, None, Some("mail".to_owned()));
+        assert_eq!(rr.unwrap_err(), ParseRRErr::NoDefaultTTL);
     }
 }
