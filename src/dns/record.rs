@@ -1,9 +1,10 @@
-use std::str::FromStr;
 use itertools;
 
 #[derive(Debug, PartialEq)]
 pub enum ParseRRErr{
     TTLErr(u32),
+    NoDefaultTTL,
+    NoDefaultDomain,
     TypeErr(String),
     ClassErr(String),
     EmptyStrErr,
@@ -20,6 +21,10 @@ pub enum RecordClass{
     CH,      // 3 the CHAOS class
     HS,      // 4 Hesiod
 }
+impl Default for RecordClass {
+    fn default() -> Self { RecordClass::IN }
+}
+
 
 #[derive(Debug, PartialEq)]
 #[repr(u16)]
@@ -46,59 +51,47 @@ pub enum DNSType{
     Any = 255,  // Rfc1035: return all records of all types known to the dns server
 }
 
+impl Default for DNSType {
+    fn default() -> Self { DNSType::Undefined }
+}
 
-#[derive(Debug, PartialEq)]
+
+#[derive(Debug, PartialEq, Default)]
 pub struct ResourceRecord{
     name: String,
     ttl: u32,
     r_class: RecordClass,
     r_type: DNSType,
     r_data: String,
-    with_default_ttl: bool,
-    with_default_domain: bool,
+
 }
 
 impl ResourceRecord{
-    pub fn new(rr_str: String) -> Result<ResourceRecord, ParseRRErr>{
-        rr_str.parse()
-    }
-    pub fn default()-> ResourceRecord{
-        ResourceRecord{
-            name: "".to_owned(),
-            ttl: 0,
-            r_class: RecordClass::IN,
-            r_type: DNSType::Undefined,
-            r_data: "".to_owned(),
-            with_default_ttl: false,
-            with_default_domain: false,
-        }
-    }
-}
 
+    pub fn new(rr_str: &str, default_ttl: Option<u32>, default_domain: Option<String>) -> Result<ResourceRecord, ParseRRErr>{
+        let mut s_iter =  rr_str.split_whitespace();
+        let mut rr: ResourceRecord = Default::default();
 
-
-impl FromStr for ResourceRecord{
-    type Err = ParseRRErr;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut s_iter =  s.split_whitespace();
-        let mut rr = ResourceRecord::default();
         let mut is_ttl_set = false ;
         let mut is_domain_set = false;
+        let mut with_default_ttl = false;
+        let mut with_default_domain = false;
+        let mut with_default_data = false;
+
         'in_break: loop{
             let item = s_iter.next();
             match item {
-                Some(i) if i.to_lowercase() == "in" => {
+                Some(i) if i.to_lowercase() == "in".to_owned() => {
                     if is_ttl_set == false {
-                        rr.with_default_ttl = true;
+                        with_default_ttl = true;
                     }
                     if is_domain_set == false {
-                        rr.with_default_domain = true;
+                        with_default_domain = true;
                     }
                     break 'in_break;
                 },
                 Some("@") => {
-                    rr.with_default_domain = true;
+                    with_default_domain = true;
                     is_domain_set = true;
                 },
                 Some(s) => {
@@ -126,10 +119,44 @@ impl FromStr for ResourceRecord{
         }
 
         // rr.r_data = s_iter.flat_map(|s| s.chars()).collect();
-        rr.r_data = itertools::join(s_iter," ");
+        let mut rdata = vec![];
+        for i in s_iter{
+            if i == ";"{
+                break;
+            }else{
+                rdata.push(i);
+            }
+        }
+        rr.r_data = itertools::join(rdata.iter()," ");
+        if rr.r_data == "@".to_owned(){
+            with_default_data = true;
+        }
+
+        if with_default_data == true || with_default_domain == true{
+            if default_domain.is_none() {
+                return Err(ParseRRErr::NoDefaultDomain)
+            }else{
+                let domain = default_domain.unwrap();
+                if with_default_domain == true{
+                    rr.name = domain.to_owned();
+                }
+                if with_default_data == true{
+                    rr.r_data = domain.to_owned();
+                }
+            }
+        }
+
+        if with_default_ttl == true{
+            if default_ttl.is_none(){
+                return Err(ParseRRErr::NoDefaultTTL);
+            }else{
+                rr.ttl = default_ttl.unwrap();
+            }
+        }
         Ok(rr)
     }
 }
+
 
 
 
@@ -138,16 +165,64 @@ mod test{
     use crate::dns::record::*;
     #[test]
     fn test_parse_rr_from_str(){
-        let s = "mail    86400   IN  A     192.0.2.3";
-        let rr: Result<ResourceRecord,ParseRRErr>  = s.parse();
+        let s = "mail    86400   IN  A     192.0.2.3 ; this is a comment";
+        let rr: Result<ResourceRecord,ParseRRErr>  = ResourceRecord::new(s, None, None);
         assert_eq!(rr.unwrap(), ResourceRecord{
             name: "mail".to_owned(),
             ttl: 86400,
             r_class: RecordClass::IN,
             r_type: DNSType::A,
             r_data: "192.0.2.3".to_owned(),
-            with_default_ttl: false,
-            with_default_domain: false,
+        });
+
+        let s = " 86400 IN  A     192.0.2.3";
+        let rr: Result<ResourceRecord,ParseRRErr>  = ResourceRecord::new(s, None, Some("mail".to_owned()));
+        assert_eq!(rr.unwrap(), ResourceRecord{
+            name: "mail".to_owned(),
+            ttl: 86400,
+            r_class: RecordClass::IN,
+            r_type: DNSType::A,
+            r_data: "192.0.2.3".to_owned(),
+        });
+
+        let s = "  IN  A     192.0.2.3";
+        let rr: Result<ResourceRecord,ParseRRErr>  = ResourceRecord::new(s, Some(1000), Some("mail".to_owned()));
+        assert_eq!(rr.unwrap(), ResourceRecord{
+            name: "mail".to_owned(),
+            ttl: 1000,
+            r_class: RecordClass::IN,
+            r_type: DNSType::A,
+            r_data: "192.0.2.3".to_owned(),
+        });
+
+        let s = "  IN  NS     a.dns.cn";
+        let rr: Result<ResourceRecord,ParseRRErr>  = ResourceRecord::new(s, Some(1000), Some("mail".to_owned()));
+        assert_eq!(rr.unwrap(), ResourceRecord{
+            name: "mail".to_owned(),
+            ttl: 1000,
+            r_class: RecordClass::IN,
+            r_type: DNSType::NS,
+            r_data: "a.dns.cn".to_owned(),
+        });
+        //
+        let s = "  IN  SOA    localhost. root.localhost.  1999010100 ( 10800 900 604800 86400 ) ";
+        let rr: Result<ResourceRecord,ParseRRErr>  = ResourceRecord::new(s, Some(1000), Some("mail".to_owned()));
+        assert_eq!(rr.unwrap(), ResourceRecord{
+            name: "mail".to_owned(),
+            ttl: 1000,
+            r_class: RecordClass::IN,
+            r_type: DNSType::SOA,
+            r_data: "localhost. root.localhost. 1999010100 ( 10800 900 604800 86400 )".to_owned(),
+        });
+        //
+        let s = "@  86400  IN  NS    @";
+        let rr: Result<ResourceRecord,ParseRRErr>  = ResourceRecord::new(s, Some(1000), Some("mail".to_owned()));
+        assert_eq!(rr.unwrap(), ResourceRecord{
+            name: "mail".to_owned(),
+            ttl: 86400,
+            r_class: RecordClass::IN,
+            r_type: DNSType::NS,
+            r_data: "mail".to_owned(),
         });
     }
 }
