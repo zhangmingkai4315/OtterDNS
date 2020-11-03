@@ -1,7 +1,5 @@
 #![allow(dead_code)]
 
-use std::iter::FromIterator;
-
 /// fqdn return a fully qualified domain name.
 fn fqdn(domain: &str) -> String{
     if is_fqdn(domain){

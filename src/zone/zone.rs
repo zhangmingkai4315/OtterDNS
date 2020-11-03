@@ -12,7 +12,7 @@ pub struct Zone{
     data: Vec<ResourceRecord>,
 }
 
-impl Zone{
+impl<'a> Zone{
     pub fn new(filepath: &str, name:&str)->Zone{
         Zone{
             filepath: filepath.to_owned(),
