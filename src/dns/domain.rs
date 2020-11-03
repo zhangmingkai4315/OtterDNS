@@ -1,14 +1,14 @@
 #![allow(dead_code)]
 
 /// fqdn return a fully qualified domain name.
-fn fqdn(domain: &str) -> String{
+pub fn fqdn(domain: &str) -> String{
     if is_fqdn(domain){
         return domain.to_owned();
     }
     return domain.to_owned() + ".";
 }
 
-fn is_fqdn(domain: &str) -> bool{
+pub fn is_fqdn(domain: &str) -> bool{
     let domain_str = domain.trim_end_matches('.');
     // abc == abc
     if domain == domain_str{
@@ -21,7 +21,7 @@ fn is_fqdn(domain: &str) -> bool{
 static MAX_DOMAIN_LENGTH: usize= 255;
 
 
-fn valid_domain(domain: &str) -> bool{
+pub fn valid_domain(domain: &str) -> bool{
     let domain_str = fqdn(domain);
     if domain_str.len()>MAX_DOMAIN_LENGTH{
         return false
