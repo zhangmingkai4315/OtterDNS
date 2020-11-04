@@ -10,7 +10,6 @@ pub enum ParseRRErr {
     NoOriginDomain,
     GeneralFail(String),
     EmptyStrErr,
-
 }
 
 /// https://tools.ietf.org/html/rfc1035#section-3.2.4
