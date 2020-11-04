@@ -10,7 +10,6 @@ pub enum ParseRRErr {
     NoOriginDomain,
     GeneralFail(String),
     EmptyStrErr,
-    UnknownErr,
 
 }
 
@@ -19,7 +18,6 @@ pub enum ParseRRErr {
 #[derive(Debug, PartialEq, Copy, Clone)]
 #[repr(u16)]
 pub enum RecordClass {
-    Undefined = 0,
     IN = 1,
     // 1 the Internet
     CS,
@@ -38,7 +36,6 @@ impl Default for RecordClass {
 #[repr(u16)]
 #[derive(EnumString)]
 pub enum DNSType {
-    Undefined = 0,
     A = 1,
     NS = 2,
     CNAME = 5,
@@ -48,7 +45,6 @@ pub enum DNSType {
     MX = 15,
     TXT = 16,
     AAAA = 28,
-    // Rfc3596
     SRV = 33,
     DS = 43,
     RRSIG = 46,
@@ -61,7 +57,7 @@ pub enum DNSType {
 }
 
 impl Default for DNSType {
-    fn default() -> Self { DNSType::Undefined }
+    fn default() -> Self { DNSType::A }
 }
 
 
@@ -82,15 +78,15 @@ impl ResourceRecord {
                default_origin: Option<&str>,
     )
                -> Result<ResourceRecord, ParseRRErr> {
-        let mut is_ttl_set = false;
-        let mut is_domain_set = false;
-        let mut is_class_set = false;
+        let mut is_ttl_set;
+        let is_domain_set;
+        let is_class_set;
         let mut with_default_ttl = false;
         let mut with_default_domain = false;
         let default_record_class = {
-            if default_class.is_none(){
+            if default_class.is_none() {
                 RecordClass::IN
-            }else{
+            } else {
                 default_class.unwrap()
             }
         };
@@ -98,10 +94,12 @@ impl ResourceRecord {
         if rr_str.starts_with(|s| s == ' ' || s == '\t') {
             with_default_domain = true;
             is_domain_set = true;
+        }else{
+            is_domain_set = false;
         }
         let mut name: &str = "";
-        let mut r_type = DNSType::Undefined;
-        let mut r_data = String::new();
+        let r_type:DNSType;
+        let r_data: String;
         let mut r_class = default_record_class;
         let mut ttl = 0;
 
@@ -122,7 +120,6 @@ impl ResourceRecord {
                 // domain exist and been set with str
                 name = token;
             }
-            is_domain_set = true;
             // get a new token
             match s_iter.next() {
                 Some(t) => token = t,
@@ -138,17 +135,17 @@ impl ResourceRecord {
                 return Err(ParseRRErr::NoDefaultDomain);
             }
         }
-        let mut domain_fqdn = String::new();
-        if is_fqdn(name) != true{
-            if let Some(origin) = default_origin{
-                domain_fqdn = format!("{}.{}", name.to_owned() ,origin.to_owned());
-            }else{
-                return Err(ParseRRErr::NoOriginDomain)
+        let domain_fqdn: String;
+        if is_fqdn(name) != true {
+            if let Some(origin) = default_origin {
+                domain_fqdn = format!("{}.{}", name.to_owned(), origin.to_owned());
+            } else {
+                return Err(ParseRRErr::NoOriginDomain);
             }
-        }else{
+        } else {
             domain_fqdn = name.to_owned();
         }
-        if valid_domain(name) == false{
+        if valid_domain(name) == false {
             return Err(ParseRRErr::ValidDomainErr(format!("domain: {} not valid", name)));
         }
         // token must be ttl or class or type
@@ -156,38 +153,40 @@ impl ResourceRecord {
         if let Ok(t) = token.parse::<u32>() {
             is_ttl_set = true;
             ttl = t;
+        }else{
+            is_ttl_set = false;
         }
         if token == "IN" || token == "in" {
             is_class_set = true;
             r_class = RecordClass::IN;
-        }else if token == "CH" || token == "ch"{
+        } else if token == "CH" || token == "ch" {
             is_class_set = true;
             r_class = RecordClass::CH;
+        }else{
+            is_class_set = false;
         }
 
-        if is_ttl_set == false{
+        if is_ttl_set == false {
             is_ttl_set = true;
             with_default_ttl = true;
         }
 
-        if is_class_set == true{
+        if is_class_set == true {
             is_ttl_set = true;
             with_default_ttl = true;
         }
 
         let rtype: &str;
 
-        // there are two option for is_class_set == false
-        // 1. token is dns type
-        // 2. token is ttl when is_ttl_set = true and
+        // there are two options
+        // 1. token is ttl when is_ttl_set = true and with_default_ttl = false
+        // 2. token is dns type
         if is_class_set == false {
-
-            if is_ttl_set == true{
+            if is_ttl_set == true && with_default_ttl == false {
                 // current token must be ttl, get a new token
                 if let Some(token) = s_iter.next() {
                     // maybe class or type
                     if token == "IN" || token == "in" {
-                        is_class_set = true;
                         r_class = RecordClass::IN;
                         // get a new type
                         if let Some(token) = s_iter.next() {
@@ -196,8 +195,7 @@ impl ResourceRecord {
                         } else {
                             return Err(ParseRRErr::NoDomainType);
                         }
-                    }else if token == "CH" || token == "ch"{
-                        is_class_set = true;
+                    } else if token == "CH" || token == "ch" {
                         r_class = RecordClass::CH;
                         // get a new type
                         if let Some(token) = s_iter.next() {
@@ -206,18 +204,17 @@ impl ResourceRecord {
                         } else {
                             return Err(ParseRRErr::NoDomainType);
                         }
-                    }else{
+                    } else {
                         // current token is type
                         rtype = token.as_ref();
                     }
-                }else{
+                } else {
                     return Err(ParseRRErr::NoDomainType);
                 }
-            }else{
+            } else {
                 // this token is domain type
                 rtype = token.as_ref();
             }
-
         } else {
             // class is been set , so get a new token must be dns type
             if let Some(token) = s_iter.next() {
@@ -241,17 +238,17 @@ impl ResourceRecord {
 
         while let Some(v) = s_iter.next() {
             if begin_item_processed == false && v == "@" {
-                let mut fqdn = String::new();
+                let fqdn: String;
                 if let Some(default_domain_str) = default_domain {
                     // default_domain exist but may not be fqdn , we also need to get orgin
-                    if is_fqdn(default_domain_str) != true{
-                        if let Some(orign) = default_origin{
-                            fqdn = format!("{}.{}", default_domain_str,orign);
+                    if is_fqdn(default_domain_str) != true {
+                        if let Some(orign) = default_origin {
+                            fqdn = format!("{}.{}", default_domain_str, orign);
                             rest_rdata_vec.push(fqdn);
                         } else {
                             return Err(ParseRRErr::NoOriginDomain);
                         }
-                    }else{
+                    } else {
                         rest_rdata_vec.push(default_domain_str.to_owned())
                     }
                 } else {
@@ -286,198 +283,202 @@ impl ResourceRecord {
     }
 }
 
+#[test]
+fn test_parse_rr_from_str() {
+    let s = "mail.    86400   IN  A     192.0.2.3 ; this is a comment";
+    let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
+        s, None, None, None, None,
+    );
+    assert_eq!(rr.unwrap(), ResourceRecord {
+        name: "mail.".to_owned(),
+        ttl: 86400,
+        r_class: RecordClass::IN,
+        r_type: DNSType::A,
+        r_data: "192.0.2.3".to_owned(),
+    });
+    let s = "mail    86400   IN  A     192.0.2.3 ; this is a comment";
+    let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
+        s, None, None, None, Some("cnnic.cn"),
+    );
+    assert_eq!(rr.unwrap(), ResourceRecord {
+        name: "mail.cnnic.cn".to_owned(),
+        ttl: 86400,
+        r_class: RecordClass::IN,
+        r_type: DNSType::A,
+        r_data: "192.0.2.3".to_owned(),
+    });
 
-#[cfg(test)]
-mod test {
-    use crate::dns::record::*;
+    let s = "mail.    86400   IN  A     192.0.2.3 ; this is a comment";
+    let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
+        s, None, None, None, Some("cnnic.cn"),
+    );
+    assert_eq!(rr.unwrap(), ResourceRecord {
+        name: "mail.".to_owned(),
+        ttl: 86400,
+        r_class: RecordClass::IN,
+        r_type: DNSType::A,
+        r_data: "192.0.2.3".to_owned(),
+    });
 
-    #[test]
-    fn test_parse_rr_from_str() {
-        let s = "mail.    86400   IN  A     192.0.2.3 ; this is a comment";
-        let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
-            s, None, None,None,None,
-        );
-        assert_eq!(rr.unwrap(), ResourceRecord {
-            name: "mail.".to_owned(),
-            ttl: 86400,
-            r_class: RecordClass::IN,
-            r_type: DNSType::A,
-            r_data: "192.0.2.3".to_owned(),
-        });
-        let s = "mail    86400   IN  A     192.0.2.3 ; this is a comment";
-        let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
-            s, None, None,None,Some("cnnic.cn"),
-        );
-        assert_eq!(rr.unwrap(), ResourceRecord {
-            name: "mail.cnnic.cn".to_owned(),
-            ttl: 86400,
-            r_class: RecordClass::IN,
-            r_type: DNSType::A,
-            r_data: "192.0.2.3".to_owned(),
-        });
+    let s = " 86400 IN  A     192.0.2.3";
+    let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
+        s, Some(1000), None, Some("mail."), None,
+    );
+    assert_eq!(rr.unwrap(), ResourceRecord {
+        name: "mail.".to_owned(),
+        ttl: 86400,
+        r_class: RecordClass::IN,
+        r_type: DNSType::A,
+        r_data: "192.0.2.3".to_owned(),
+    });
 
-        let s = "mail.    86400   IN  A     192.0.2.3 ; this is a comment";
-        let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
-            s, None, None,None,Some("cnnic.cn"),
-        );
-        assert_eq!(rr.unwrap(), ResourceRecord {
-            name: "mail.".to_owned(),
-            ttl: 86400,
-            r_class: RecordClass::IN,
-            r_type: DNSType::A,
-            r_data: "192.0.2.3".to_owned(),
-        });
+    let s = "  IN  A     192.0.2.3";
+    let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
+        s, Some(1000), None, Some("mail."), None,
+    );
+    assert_eq!(rr.unwrap(), ResourceRecord {
+        name: "mail.".to_owned(),
+        ttl: 1000,
+        r_class: RecordClass::IN,
+        r_type: DNSType::A,
+        r_data: "192.0.2.3".to_owned(),
+    });
 
-        let s = " 86400 IN  A     192.0.2.3";
-        let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
-            s, Some(1000),None, Some("mail."),None,
-        );
-        assert_eq!(rr.unwrap(), ResourceRecord {
-            name: "mail.".to_owned(),
-            ttl: 86400,
-            r_class: RecordClass::IN,
-            r_type: DNSType::A,
-            r_data: "192.0.2.3".to_owned(),
-        });
+    let s = "  IN  NS     a.dns.cn";
+    let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
+        s, Some(1000), None, Some("mail."), None,
+    );
+    assert_eq!(rr.unwrap(), ResourceRecord {
+        name: "mail.".to_owned(),
+        ttl: 1000,
+        r_class: RecordClass::IN,
+        r_type: DNSType::NS,
+        r_data: "a.dns.cn".to_owned(),
+    });
+    //
+    let s = "  IN  SOA    localhost. root.localhost.  1999010100 ( 10800 900 604800 86400 ) ";
+    let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
+        s, Some(1000), None, Some("mail"), Some("google.com."),
+    );
+    assert_eq!(rr.unwrap(), ResourceRecord {
+        name: "mail.google.com.".to_owned(),
+        ttl: 1000,
+        r_class: RecordClass::IN,
+        r_type: DNSType::SOA,
+        r_data: "localhost. root.localhost. 1999010100 ( 10800 900 604800 86400 )".to_owned(),
+    });
 
-        let s = "  IN  A     192.0.2.3";
-        let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
-            s, Some(1000), None, Some("mail."),None,
-        );
-        assert_eq!(rr.unwrap(), ResourceRecord {
-            name: "mail.".to_owned(),
-            ttl: 1000,
-            r_class: RecordClass::IN,
-            r_type: DNSType::A,
-            r_data: "192.0.2.3".to_owned(),
-        });
+    let s = "in.    86400   IN  A     192.0.2.3 ; this is a comment";
+    let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
+        s, None, None, None, None,
+    );
+    assert_eq!(rr.unwrap(), ResourceRecord {
+        name: "in.".to_owned(),
+        ttl: 86400,
+        r_class: RecordClass::IN,
+        r_type: DNSType::A,
+        r_data: "192.0.2.3".to_owned(),
+    });
+    let s = "in    86400   IN  A     192.0.2.3 ; this is a comment";
+    let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
+        s, None, None, Some("default"), Some("google.com."),
+    );
+    assert_eq!(rr.unwrap(), ResourceRecord {
+        name: "in.google.com.".to_owned(),
+        ttl: 86400,
+        r_class: RecordClass::IN,
+        r_type: DNSType::A,
+        r_data: "192.0.2.3".to_owned(),
+    });
 
-        let s = "  IN  NS     a.dns.cn";
-        let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
-            s, Some(1000), None, Some("mail."),None,
-        );
-        assert_eq!(rr.unwrap(), ResourceRecord {
-            name: "mail.".to_owned(),
-            ttl: 1000,
-            r_class: RecordClass::IN,
-            r_type: DNSType::NS,
-            r_data: "a.dns.cn".to_owned(),
-        });
-        //
-        let s = "  IN  SOA    localhost. root.localhost.  1999010100 ( 10800 900 604800 86400 ) ";
-        let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
-            s, Some(1000), None, Some("mail"),Some("google.com."),
-        );
-        assert_eq!(rr.unwrap(), ResourceRecord {
-            name: "mail.google.com.".to_owned(),
-            ttl: 1000,
-            r_class: RecordClass::IN,
-            r_type: DNSType::SOA,
-            r_data: "localhost. root.localhost. 1999010100 ( 10800 900 604800 86400 )".to_owned(),
-        });
+    let s = "in    86400   CH  A     192.0.2.3 ; this is a comment";
+    let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
+        s, None, None, Some("default"), Some("google.com."),
+    );
+    assert_eq!(rr.unwrap(), ResourceRecord {
+        name: "in.google.com.".to_owned(),
+        ttl: 86400,
+        r_class: RecordClass::CH,
+        r_type: DNSType::A,
+        r_data: "192.0.2.3".to_owned(),
+    });
 
-        let s = "in.    86400   IN  A     192.0.2.3 ; this is a comment";
-        let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
-            s, None, None, None,None,
-        );
-        assert_eq!(rr.unwrap(), ResourceRecord {
-            name: "in.".to_owned(),
-            ttl: 86400,
-            r_class: RecordClass::IN,
-            r_type: DNSType::A,
-            r_data: "192.0.2.3".to_owned(),
-        });
-        let s = "in    86400   IN  A     192.0.2.3 ; this is a comment";
-        let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
-            s, None, None, Some("default"),Some("google.com."),
-        );
-        assert_eq!(rr.unwrap(), ResourceRecord {
-            name: "in.google.com.".to_owned(),
-            ttl: 86400,
-            r_class: RecordClass::IN,
-            r_type: DNSType::A,
-            r_data: "192.0.2.3".to_owned(),
-        });
+    let s = "  86400   IN  A     192.0.2.3 ; this is a comment";
+    let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
+        s, None, None, Some("default"), Some("google.com."),
+    );
+    assert_eq!(rr.unwrap(), ResourceRecord {
+        name: "default.google.com.".to_owned(),
+        ttl: 86400,
+        r_class: RecordClass::IN,
+        r_type: DNSType::A,
+        r_data: "192.0.2.3".to_owned(),
+    });
+    //
+    let s = "@  86400  IN  NS    @";
+    let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
+        s, Some(1000), None, Some("mail."), None,
+    );
+    assert_eq!(rr.unwrap(), ResourceRecord {
+        name: "mail.".to_owned(),
+        ttl: 86400,
+        r_class: RecordClass::IN,
+        r_type: DNSType::NS,
+        r_data: "mail.".to_owned(),
+    });
 
-        let s = "in    86400   CH  A     192.0.2.3 ; this is a comment";
-        let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
-            s, None, None, Some("default"),Some("google.com."),
-        );
-        assert_eq!(rr.unwrap(), ResourceRecord {
-            name: "in.google.com.".to_owned(),
-            ttl: 86400,
-            r_class: RecordClass::CH,
-            r_type: DNSType::A,
-            r_data: "192.0.2.3".to_owned(),
-        });
+    let s = "@  86400  IN  NS    @";
+    let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
+        s, Some(1000), None, Some("mail."), Some("google.com."),
+    );
+    assert_eq!(rr.unwrap(), ResourceRecord {
+        name: "mail.".to_owned(),
+        ttl: 86400,
+        r_class: RecordClass::IN,
+        r_type: DNSType::NS,
+        r_data: "mail.".to_owned(),
+    });
 
-        let s = "  86400   IN  A     192.0.2.3 ; this is a comment";
-        let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
-            s, None, None, Some("default"),Some("google.com."),
-        );
-        assert_eq!(rr.unwrap(), ResourceRecord {
-            name: "default.google.com.".to_owned(),
-            ttl: 86400,
-            r_class: RecordClass::IN,
-            r_type: DNSType::A,
-            r_data: "192.0.2.3".to_owned(),
-        });
-        //
-        let s = "@  86400  IN  NS    @";
-        let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
-            s, Some(1000), None, Some("mail."),None,
-        );
-        assert_eq!(rr.unwrap(), ResourceRecord {
-            name: "mail.".to_owned(),
-            ttl: 86400,
-            r_class: RecordClass::IN,
-            r_type: DNSType::NS,
-            r_data: "mail.".to_owned(),
-        });
+    let s = "@  86400  IN  NS    @";
+    let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
+        s, Some(1000), None, Some("mail"), Some("google.com."),
+    );
+    assert_eq!(rr.unwrap(), ResourceRecord {
+        name: "mail.google.com.".to_owned(),
+        ttl: 86400,
+        r_class: RecordClass::IN,
+        r_type: DNSType::NS,
+        r_data: "mail.google.com.".to_owned(),
+    });
+}
 
-        let s = "@  86400  IN  NS    @";
-        let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
-            s, Some(1000), None, Some("mail."),Some("google.com."),
-        );
-        assert_eq!(rr.unwrap(), ResourceRecord {
-            name: "mail.".to_owned(),
-            ttl: 86400,
-            r_class: RecordClass::IN,
-            r_type: DNSType::NS,
-            r_data: "mail.".to_owned(),
-        });
+#[test]
+fn test_parse_rr_from_str_err() {
+    let s = "@  IN  NS  @";
+    let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
+        s, Some(1000), None, None, None,
+    );
+    assert_eq!(rr.unwrap_err(), ParseRRErr::NoDefaultDomain);
 
-        let s = "@  86400  IN  NS    @";
-        let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
-            s, Some(1000), None, Some("mail"),Some("google.com."),
-        );
-        assert_eq!(rr.unwrap(), ResourceRecord {
-            name: "mail.google.com.".to_owned(),
-            ttl: 86400,
-            r_class: RecordClass::IN,
-            r_type: DNSType::NS,
-            r_data: "mail.google.com.".to_owned(),
-        });
 
-        let s = "@  IN  NS  @";
-        let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
-            s, Some(1000), None, None,None,
-        );
-        assert_eq!(rr.is_err(), true);
+    let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
+        s, Some(1000), None, Some("mail"), None,
+    );
+    assert_eq!(rr.unwrap_err(), ParseRRErr::NoOriginDomain);
 
-        let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
-            s, Some(1000), None, None,None,
-        );
-        assert_eq!(rr.unwrap_err(), ParseRRErr::NoDefaultDomain);
+    let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
+        s, None, None, Some("mail"), Some("google.com."),
+    );
+    assert_eq!(rr.unwrap_err(), ParseRRErr::NoDefaultTTL);
 
-        let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
-            s, None, None, Some("mail"),None,
-        );
-        assert_eq!(rr.is_err(), true);
+    let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
+        s, None, None, Some("-."), None,
+    );
+    assert_eq!(rr.unwrap_err(), ParseRRErr::ValidDomainErr("domain: -. not valid".to_owned()));
 
-        let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
-            s, None, None, Some("mail"), None,
-        );
-        assert_eq!(rr.unwrap_err(), ParseRRErr::NoOriginDomain);
-    }
+    let s = "mail. NS  ns1.google.com.";
+    let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
+        s, None, None, None, None,
+    );
+    assert_eq!(rr.unwrap_err(), ParseRRErr::NoDefaultTTL);
 }
