@@ -1,16 +1,5 @@
 use crate::dns::domain::{is_fqdn, valid_domain};
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum ParseRRErr {
-    ValidDomainErr(String),
-    ValidTypeErr(String),
-    NoDefaultTTL,
-    NoDefaultDomain,
-    NoDomainType,
-    NoOriginDomain,
-    GeneralFail(String),
-    EmptyStrErr,
-}
+use crate::dns::errors::*;
 
 /// https://tools.ietf.org/html/rfc1035#section-3.2.4
 /// specify the class of the dns record data
@@ -145,7 +134,7 @@ impl ResourceRecord {
             domain_fqdn = name.to_owned();
         }
         if valid_domain(name) == false {
-            return Err(ParseRRErr::ValidDomainErr(format!("domain: {} not valid", name)));
+            return Err(ParseRRErr::ValidDomainErr(name.to_owned()));
         }
         // token must be ttl or class or type
         // after this code, at least we don't need care about ttl.
@@ -473,7 +462,7 @@ fn test_parse_rr_from_str_err() {
     let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
         s, None, None, Some("-."), None,
     );
-    assert_eq!(rr.unwrap_err(), ParseRRErr::ValidDomainErr("domain: -. not valid".to_owned()));
+    assert_eq!(rr.unwrap_err(), ParseRRErr::ValidDomainErr("-.".to_owned()));
 
     let s = "mail. NS  ns1.google.com.";
     let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(
