@@ -51,11 +51,11 @@ impl Default for DNSType {
 
 #[derive(Debug, PartialEq, Default)]
 pub struct ResourceRecord {
-    name: String,
-    ttl: u32,
-    r_class: RecordClass,
-    r_type: DNSType,
-    r_data: String,
+    pub name: String,
+    pub ttl: u32,
+    pub r_class: RecordClass,
+    pub r_type: DNSType,
+    pub r_data: String,
 }
 
 impl ResourceRecord {

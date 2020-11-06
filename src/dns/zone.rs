@@ -4,7 +4,7 @@ use std::path::Path;
 
 use regex::Regex;
 use crate::dns::domain::{valid_domain, is_fqdn};
-use crate::dns::record::{RecordClass, ResourceRecord};
+use crate::dns::record::{RecordClass, ResourceRecord, DNSType};
 use crate::dns::errors::*;
 
 pub trait ZoneReader{
@@ -97,7 +97,7 @@ struct Zone<T> where T: Iterator<Item = String>{
 }
 
 impl<T> Zone<T> where T: Iterator<Item = String>{
-    fn new(&self, line_iterator: T, default_origin: Option<String>) -> Zone<T>{
+    fn new(line_iterator: T, default_origin: Option<String>) -> Zone<T>{
         Zone{
             line_iterator,
             current_domain: None,
@@ -350,6 +350,57 @@ www.a.shifen.com.	300	IN	A	61.135.169.121
     let mut iter = zone_str.into_iter();
     assert_eq!(iter.next(),None);
 }
+
+
+#[test]
+fn test_zone_iterator(){
+    let  zone_str = ZoneStr::new("ns      86400      IN  A     192.0.2.2             ; IPv4 address for ns.example.com
+              IN  AAAA  2001:db8:10::2        ; IPv6 address for ns.example.com");
+    let mut zone = Zone::new(zone_str, Some("google.com.".to_owned()));
+    match zone.next() {
+        Some(Ok(v)) => {
+            assert_eq!(v.name, "ns.google.com.".to_owned());
+            assert_eq!(v.r_class, RecordClass::IN);
+            assert_eq!(v.r_type, DNSType::A);
+            assert_eq!(v.r_data, "192.0.2.2".to_owned());
+        }
+        Some(Err(e)) => {
+            assert!(false);
+        }
+        None => { assert!(false) ; }
+    }
+
+
+    let  zone_str = ZoneStr::new("ns          IN  A     192.0.2.2             ; IPv4 address for ns.example.com
+              IN  AAAA  2001:db8:10::2        ; IPv6 address for ns.example.com");
+    let mut zone = Zone::new(zone_str, Some("google.com.".to_owned()));
+    match zone.next() {
+        Some(Ok(v)) => {
+            assert!(false);
+        }
+        Some(Err(e)) => {
+            assert_eq!(e, ParseZoneErr::ParseZoneDataError("parse rdata error: default ttl is not set".to_owned()))
+        }
+        None => { assert!(false) ; }
+    }
+
+    let  zone_str = ZoneStr::new("ns.    86400      IN  A     192.0.2.2             ; IPv4 address for ns.example.com
+              IN  AAAA  2001:db8:10::2        ; IPv6 address for ns.example.com");
+    let mut zone = Zone::new(zone_str, None);
+    match zone.next() {
+        Some(Ok(v)) => {
+            assert_eq!(v.name, "ns.".to_owned());
+            assert_eq!(v.r_class, RecordClass::IN);
+            assert_eq!(v.r_type, DNSType::A);
+            assert_eq!(v.r_data, "192.0.2.2".to_owned());
+        }
+        Some(Err(e)) => {
+            assert_eq!(e, ParseZoneErr::ParseZoneDataError("parse rdata error: default ttl is not set".to_owned()))
+        }
+        None => { assert!(false) ; }
+    }
+}
+
 
 
 
