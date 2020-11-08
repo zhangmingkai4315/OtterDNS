@@ -98,6 +98,12 @@ struct Zone<T> where T: Iterator<Item = String>{
 
 impl<T> Zone<T> where T: Iterator<Item = String>{
     fn new(line_iterator: T, default_origin: Option<String>) -> Zone<T>{
+        if let Some(ref origin) = default_origin{
+            // must be fqdn
+            if is_fqdn(origin.as_str())== false{
+                panic!("origin must be fqdn")
+            }
+        }
         Zone{
             line_iterator,
             current_domain: None,
@@ -162,7 +168,12 @@ impl<T> Iterator for Zone<T> where T: Iterator<Item = String>{
                                                     self.current_class,
                                                     self.current_domain.as_deref(),
                                                     self.current_origin.as_deref()){
-                         Ok(v) => return Some(Ok(v)),
+                         Ok(v) => return {
+                             self.current_domain = Some(v.name.clone());
+                             self.current_class = Some(v.r_class.clone());
+                             self.current_ttl = Some(v.ttl);
+                             Some(Ok(v))
+                         },
                          Err(e) => return Some(Err(ParseZoneErr::from(e))),
                      }
                 }
@@ -399,6 +410,216 @@ fn test_zone_iterator(){
         }
         None => { assert!(false) ; }
     }
+
+    let  zone_str = ZoneStr::new("\
+; otter.fun DNS zonefile
+$TTL 14400
+otter.fun. 86400 IN  SOA  ns1.domain.com.  user.mail.com. (
+				2020081601 ;Serial Number
+				3600 ;refresh
+				7200 ;retry
+				1209600 ;expire
+				86400 ;minimum
+        )
+otter.fun.   86400   IN	NS	ns1.domain.com.
+otter.fun.   86400   IN	NS	ns2.domain.com.
+otter.fun.   14400   IN	A	1.1.1.1
+otter.fun.   14400   IN	MX	0     g33k.fun.
+mail	    14400   IN	CNAME   otter.fun.
+www	    14400   IN	CNAME   otter.fun.
+ftp	    14400   IN	A       1.1.1.2
+otter.fun.   14400   IN  TXT	\"v=spf1 +a +mx +ip4:1.1.1.1 ~all\"
+default._domainkey  14400  IN   TXT   \"v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ;\"
+otter.fun.   14400   IN	TXT	google-site-verification=zxIkMo9ruPbMyGMy4KWbc0QkOoN9aF2iFPvDHc0o8Pg");
+    let mut zone = Zone::new(zone_str, Some("otter.fun.".to_owned()));
+    if let Some(Ok(v)) = zone.next(){
+        assert_eq!(v.name, "otter.fun.".to_owned());
+        assert_eq!(v.r_type, DNSType::SOA);
+        assert_eq!(v.r_class, RecordClass::IN);
+        assert_eq!(v.ttl, 86400);
+        assert_eq!(v.r_data, "ns1.domain.com. user.mail.com. ( 2020081601 3600 7200 1209600 86400 )");
+    }
+
+    if let Some(Ok(v)) = zone.next(){
+        assert_eq!(v.name, "otter.fun.".to_owned());
+        assert_eq!(v.r_type, DNSType::NS);
+        assert_eq!(v.r_class, RecordClass::IN);
+        assert_eq!(v.ttl, 86400);
+        assert_eq!(v.r_data, "ns1.domain.com.");
+    }
+    if let Some(Ok(v)) = zone.next(){
+        assert_eq!(v.name, "otter.fun.".to_owned());
+        assert_eq!(v.r_type, DNSType::NS);
+        assert_eq!(v.r_class, RecordClass::IN);
+        assert_eq!(v.ttl, 86400);
+        assert_eq!(v.r_data, "ns2.domain.com.");
+    }
+    if let Some(Ok(v)) = zone.next(){
+        assert_eq!(v.name, "otter.fun.".to_owned());
+        assert_eq!(v.r_type, DNSType::A);
+        assert_eq!(v.ttl, 14400);
+        assert_eq!(v.r_class, RecordClass::IN);
+        assert_eq!(v.r_data, "1.1.1.1");
+    }
+    if let Some(Ok(v)) = zone.next(){
+        assert_eq!(v.name, "otter.fun.".to_owned());
+        assert_eq!(v.r_type, DNSType::MX);
+        assert_eq!(v.r_class, RecordClass::IN);
+        assert_eq!(v.ttl, 14400);
+        assert_eq!(v.r_data, "0 g33k.fun.");
+    }
+    assert_eq!(zone.current_class, Some(RecordClass::IN));
+    assert_eq!(zone.current_ttl, Some(14400));
+    assert_eq!(zone.current_origin, Some("otter.fun.".to_owned()));
+    if let Some(Ok(v)) = zone.next(){
+        assert_eq!(v.name, "mail.otter.fun.".to_owned());
+        assert_eq!(v.r_type, DNSType::CNAME);
+        assert_eq!(v.ttl, 14400);
+        assert_eq!(v.r_class, RecordClass::IN);
+        assert_eq!(v.r_data, "otter.fun.");
+    }
+    if let Some(Ok(v)) = zone.next(){
+        assert_eq!(v.name, "www.otter.fun.".to_owned());
+        assert_eq!(v.r_type, DNSType::CNAME);
+        assert_eq!(v.ttl, 14400);
+        assert_eq!(v.r_class, RecordClass::IN);
+        assert_eq!(v.r_data, "otter.fun.");
+    }
+    if let Some(Ok(v)) = zone.next(){
+        assert_eq!(v.name, "ftp.otter.fun.".to_owned());
+        assert_eq!(v.r_type, DNSType::A);
+        assert_eq!(v.ttl, 14400);
+        assert_eq!(v.r_class, RecordClass::IN);
+        assert_eq!(v.r_data, "1.1.1.2");
+    }
+
+    if let Some(Ok(v)) = zone.next(){
+        assert_eq!(v.name, "otter.fun.".to_owned());
+        assert_eq!(v.r_type, DNSType::TXT);
+        assert_eq!(v.r_class, RecordClass::IN);
+        assert_eq!(v.ttl, 14400);
+        assert_eq!(v.r_data, "\"v=spf1 +a +mx +ip4:1.1.1.1 ~all\"");
+    }
+    if let Some(Ok(v)) = zone.next(){
+        assert_eq!(v.name, "default._domainkey.otter.fun.".to_owned());
+        assert_eq!(v.r_type, DNSType::TXT);
+        assert_eq!(v.r_class, RecordClass::IN);
+        assert_eq!(v.ttl, 14400);
+        assert_eq!(v.r_data, "\"v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ;\"");
+    }
+    if let Some(Ok(v)) = zone.next(){
+        assert_eq!(v.name, "otter.fun.".to_owned());
+        assert_eq!(v.r_type, DNSType::TXT);
+        assert_eq!(v.r_class, RecordClass::IN);
+        assert_eq!(v.ttl, 14400);
+        assert_eq!(v.r_data, "google-site-verification=zxIkMo9ruPbMyGMy4KWbc0QkOoN9aF2iFPvDHc0o8Pg");
+    }
+
+
+    let  zone_str = ZoneStr::new("\
+; otter.fun DNS zonefile
+$TTL 14400
+otter.fun. 86400 IN  SOA  ns1.domain.com.  user.mail.com. (
+				2020081601 ;Serial Number
+				3600 ;refresh
+				7200 ;retry
+				1209600 ;expire
+				86400 ;minimum
+        )
+  IN	NS	ns1.domain.com.
+  IN	NS	ns2.domain.com.
+  14400   IN	A	1.1.1.1
+  IN	MX	0     g33k.fun.
+mail  CNAME   otter.fun.
+www	  CNAME   otter.fun.
+ftp	  A       1.1.1.2
+otter.fun.  TXT	\"v=spf1 +a +mx +ip4:1.1.1.1 ~all\"
+default._domainkey  TXT   \"v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ;\"
+otter.fun.  TXT	google-site-verification=zxIkMo9ruPbMyGMy4KWbc0QkOoN9aF2iFPvDHc0o8Pg");
+    let mut zone = Zone::new(zone_str, Some("otter.fun.".to_owned()));
+    if let Some(Ok(v)) = zone.next(){
+        assert_eq!(v.name, "otter.fun.".to_owned());
+        assert_eq!(v.r_type, DNSType::SOA);
+        assert_eq!(v.r_class, RecordClass::IN);
+        assert_eq!(v.ttl, 86400);
+        assert_eq!(v.r_data, "ns1.domain.com. user.mail.com. ( 2020081601 3600 7200 1209600 86400 )");
+    }
+
+    if let Some(Ok(v)) = zone.next(){
+        assert_eq!(v.name, "otter.fun.".to_owned());
+        assert_eq!(v.r_type, DNSType::NS);
+        assert_eq!(v.r_class, RecordClass::IN);
+        assert_eq!(v.ttl, 86400);
+        assert_eq!(v.r_data, "ns1.domain.com.");
+    }
+    if let Some(Ok(v)) = zone.next(){
+        assert_eq!(v.name, "otter.fun.".to_owned());
+        assert_eq!(v.r_type, DNSType::NS);
+        assert_eq!(v.r_class, RecordClass::IN);
+        assert_eq!(v.ttl, 86400);
+        assert_eq!(v.r_data, "ns2.domain.com.");
+    }
+    if let Some(Ok(v)) = zone.next(){
+        assert_eq!(v.name, "otter.fun.".to_owned());
+        assert_eq!(v.r_type, DNSType::A);
+        assert_eq!(v.ttl, 14400);
+        assert_eq!(v.r_class, RecordClass::IN);
+        assert_eq!(v.r_data, "1.1.1.1");
+    }
+    if let Some(Ok(v)) = zone.next(){
+        assert_eq!(v.name, "otter.fun.".to_owned());
+        assert_eq!(v.r_type, DNSType::MX);
+        assert_eq!(v.r_class, RecordClass::IN);
+        assert_eq!(v.ttl, 14400);
+        assert_eq!(v.r_data, "0 g33k.fun.");
+    }
+    assert_eq!(zone.current_class, Some(RecordClass::IN));
+    assert_eq!(zone.current_ttl, Some(14400));
+    assert_eq!(zone.current_origin, Some("otter.fun.".to_owned()));
+    if let Some(Ok(v)) = zone.next(){
+        assert_eq!(v.name, "mail.otter.fun.".to_owned());
+        assert_eq!(v.r_type, DNSType::CNAME);
+        assert_eq!(v.ttl, 14400);
+        assert_eq!(v.r_class, RecordClass::IN);
+        assert_eq!(v.r_data, "otter.fun.");
+    }
+    if let Some(Ok(v)) = zone.next(){
+        assert_eq!(v.name, "www.otter.fun.".to_owned());
+        assert_eq!(v.r_type, DNSType::CNAME);
+        assert_eq!(v.ttl, 14400);
+        assert_eq!(v.r_class, RecordClass::IN);
+        assert_eq!(v.r_data, "otter.fun.");
+    }
+    if let Some(Ok(v)) = zone.next(){
+        assert_eq!(v.name, "ftp.otter.fun.".to_owned());
+        assert_eq!(v.r_type, DNSType::A);
+        assert_eq!(v.ttl, 14400);
+        assert_eq!(v.r_class, RecordClass::IN);
+        assert_eq!(v.r_data, "1.1.1.2");
+    }
+
+    if let Some(Ok(v)) = zone.next(){
+        assert_eq!(v.name, "otter.fun.".to_owned());
+        assert_eq!(v.r_type, DNSType::TXT);
+        assert_eq!(v.r_class, RecordClass::IN);
+        assert_eq!(v.ttl, 14400);
+        assert_eq!(v.r_data, "\"v=spf1 +a +mx +ip4:1.1.1.1 ~all\"");
+    }
+    if let Some(Ok(v)) = zone.next(){
+        assert_eq!(v.name, "default._domainkey.otter.fun.".to_owned());
+        assert_eq!(v.r_type, DNSType::TXT);
+        assert_eq!(v.r_class, RecordClass::IN);
+        assert_eq!(v.ttl, 14400);
+        assert_eq!(v.r_data, "\"v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ;\"");
+    }
+    if let Some(Ok(v)) = zone.next(){
+        assert_eq!(v.name, "otter.fun.".to_owned());
+        assert_eq!(v.r_type, DNSType::TXT);
+        assert_eq!(v.r_class, RecordClass::IN);
+        assert_eq!(v.ttl, 14400);
+        assert_eq!(v.r_data, "google-site-verification=zxIkMo9ruPbMyGMy4KWbc0QkOoN9aF2iFPvDHc0o8Pg");
+    }
+
 }
 
 
