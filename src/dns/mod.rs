@@ -1,4 +1,6 @@
 pub mod record;
-pub mod domain;
+pub mod utils;
 pub mod zone;
 pub mod errors;
+
+pub mod dns_type;

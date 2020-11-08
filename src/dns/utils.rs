@@ -55,7 +55,7 @@ pub fn valid_domain(domain: &str) -> bool{
 
 #[cfg(test)]
 mod test{
-    use crate::dns::domain::{fqdn, valid_domain, is_fqdn};
+    use crate::dns::utils::{fqdn, valid_domain, is_fqdn};
 
     #[test]
     fn test_fqdn(){

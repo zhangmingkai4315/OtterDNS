@@ -3,7 +3,7 @@ use std::io::{self, BufRead};
 use std::path::Path;
 
 use regex::Regex;
-use crate::dns::domain::{valid_domain, is_fqdn};
+use crate::dns::utils::{valid_domain, is_fqdn};
 use crate::dns::record::{RecordClass, ResourceRecord, DNSType};
 use crate::dns::errors::*;
 

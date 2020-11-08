@@ -1,4 +1,4 @@
-use crate::dns::domain::{is_fqdn, valid_domain};
+use crate::dns::utils::{is_fqdn, valid_domain};
 use crate::dns::errors::*;
 
 /// https://tools.ietf.org/html/rfc1035#section-3.2.4

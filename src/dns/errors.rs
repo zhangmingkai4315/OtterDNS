@@ -1,5 +1,6 @@
 use std::fmt;
 use std::fmt::Formatter;
+use std::net::AddrParseError;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum ParseZoneErr {
@@ -28,6 +29,7 @@ pub enum ParseRRErr {
     NoDefaultDomain,
     NoDomainType,
     NoOriginDomain,
+    ParseTypeErr(String),
     GeneralFail(String),
     EmptyStrErr,
 }
@@ -53,3 +55,10 @@ impl From<ParseRRErr> for ParseZoneErr{
         ParseZoneErr::ParseZoneDataError(format!("parse rdata error: {}", cause))
     }
 }
+
+impl From<AddrParseError> for ParseRRErr{
+    fn from(cause: AddrParseError)->ParseRRErr{
+        ParseRRErr::ParseTypeErr(cause.to_string())
+    }
+}
+
