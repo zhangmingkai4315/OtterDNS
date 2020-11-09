@@ -7,6 +7,6 @@ extern crate regex;
 
 pub mod dns;
 
-pub fn version() -> &'static str{
+pub fn version() -> &'static str {
     "v0.1.0"
 }
