@@ -1,10 +1,7 @@
 use crate::dns::errors::ParseRRErr;
 use crate::dns::errors::ParseRRErr::ParseTypeErr;
 use crate::dns::utils::*;
-use regex::Regex;
-use std::error::Error;
 use std::net::{Ipv4Addr, Ipv6Addr};
-use std::ops::Deref;
 use std::prelude::v1::Vec;
 use std::rc::Rc;
 use std::str::FromStr;

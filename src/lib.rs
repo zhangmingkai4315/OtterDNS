@@ -5,6 +5,9 @@ extern crate strum_macros;
 extern crate itertools;
 extern crate regex;
 
+#[macro_use]
+extern crate nom;
+
 pub mod dns;
 
 pub fn version() -> &'static str {
