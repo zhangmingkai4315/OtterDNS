@@ -4,7 +4,8 @@ extern crate strum;
 extern crate strum_macros;
 extern crate itertools;
 extern crate regex;
-
+#[macro_use]
+extern crate num_enum;
 #[macro_use]
 extern crate nom;
 

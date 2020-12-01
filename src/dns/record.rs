@@ -1,12 +1,13 @@
 use crate::dns::errors::*;
 use crate::dns::utils::{is_fqdn, valid_domain};
-use nom::HexDisplay;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 /// https://tools.ietf.org/html/rfc1035#section-3.2.4
 /// specify the class of the dns record data
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone, IntoPrimitive, TryFromPrimitive)]
 #[repr(u16)]
 pub enum DNSClass {
+    #[num_enum(default)]
     IN = 1,
     // 1 the Internet
     CS,
@@ -22,10 +23,11 @@ impl Default for DNSClass {
     }
 }
 
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone, IntoPrimitive, FromPrimitive)]
 #[repr(u16)]
 #[derive(EnumString)]
 pub enum DNSType {
+    #[num_enum(default)]
     A = 1,
     NS = 2,
     CNAME = 5,
@@ -45,9 +47,6 @@ pub enum DNSType {
     AXFR = 252,
     Any = 255, // Rfc1035: return all records of all types known to the dns server
 }
-
-
-
 
 impl Default for DNSType {
     fn default() -> Self {

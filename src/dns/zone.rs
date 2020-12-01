@@ -3,7 +3,7 @@ use std::io::{self, BufRead};
 use std::path::Path;
 
 use crate::dns::errors::*;
-use crate::dns::record::{DNSType, DNSClass, ResourceRecord};
+use crate::dns::record::{DNSClass, DNSType, ResourceRecord};
 use crate::dns::utils::{is_fqdn, valid_domain};
 use regex::Regex;
 
@@ -456,7 +456,7 @@ fn test_zone_iterator() {
     );
     let mut zone = Zone::new(zone_str, Some("google.com.".to_owned()));
     match zone.next() {
-        Some(Ok(v)) => {
+        Some(Ok(_)) => {
             assert!(false);
         }
         Some(Err(e)) => assert_eq!(

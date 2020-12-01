@@ -1,9 +1,12 @@
-use nom::IResult;
-use nom::number::complete::{be_u16};
-use crate::dns::record::{DNSType, DNSClass};
+// http://www.networksorcery.com/enp/protocol/dns.htm
+
+use crate::dns::labels::DNSName;
+use crate::dns::record::{DNSClass, DNSType};
+use nom::number::complete::be_u16;
+use std::convert::TryFrom;
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct Header{
+pub struct Header {
     id: u16,
     qr: bool,
     op_code: OpCode,
@@ -11,7 +14,7 @@ pub struct Header{
     tc: bool,
     rd: bool,
     ra: bool,
-    z:  bool,
+    z: bool,
     ad: bool,
     cd: bool,
     r_code: RCode,
@@ -21,25 +24,41 @@ pub struct Header{
     additional_count: u16,
 }
 
-#[derive(Debug)]
-pub struct Question{
-    q_name: Vec<u8>,
+#[derive(Debug, PartialEq)]
+pub struct Question {
+    q_name: Option<DNSName>,
     q_type: DNSType,
     q_class: DNSClass,
 }
 
-// named!(parse_question<&[u8], Question>,
-//     do_parse!(
-//         name: take_util!(0x00) >>
-//         qtype: be_u16 >>
-//         qclass: be_u16 >>
-//         (Question {
-//             q_name: DNSName::from(name),
-//             q_type: qtype.into(),
-//             q_class: qclass.into(),
-//         })
-//     )
-// );
+named!(parse_question<&[u8], Question>,
+    do_parse!(
+        name: take_till1!(|c| c == 0x00) >> take!(1)>>
+        qtype: be_u16 >>
+        qclass: be_u16 >>
+        (Question {
+            q_name: DNSName::new(name),
+            q_type: DNSType::try_from(qtype).unwrap(),
+            q_class: DNSClass::try_from(qclass).unwrap(),
+        })
+    )
+);
+
+
+named!(parse_answer<&[u8], Answer>,
+    do_parse!(
+        name: take_till1!(|c| c == 0x00) >> take!(1)>>
+        qtype: be_u16 >>
+        qclass: be_u16 >>
+        qttl:  be_u32 >>
+        (Answer {
+            q_name: DNSName::new(name),
+            q_type: DNSType::try_from(qtype).unwrap(),
+            q_class: DNSClass::try_from(qclass).unwrap(),
+        })
+    )
+);
+
 
 named!(parse_flags<&[u8],(u8,u8,u8,u8,u8,u8,u8,u8,u8,u8)>,
     bits!(tuple!(take_bits!(1u8),
@@ -76,7 +95,7 @@ named!(parse_header_frame<&[u8], Header>,
 );
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum OpCode{
+pub enum OpCode {
     Query,
     IQuery,
     Status,
@@ -84,9 +103,9 @@ pub enum OpCode{
     Notify,
     Update,
 }
-impl From<u8> for OpCode{
+impl From<u8> for OpCode {
     fn from(opcode: u8) -> Self {
-        match opcode{
+        match opcode {
             0 => OpCode::Query,
             1 => OpCode::IQuery,
             2 => OpCode::Status,
@@ -100,7 +119,7 @@ impl From<u8> for OpCode{
 
 // http://www.tcpipguide.com/free/t_DNSMessageHeaderandQuestionSectionFormat.htm
 #[derive(Debug, PartialEq, Eq)]
-pub enum RCode{
+pub enum RCode {
     NoError,
     FormatError,
     ServerFailure,
@@ -112,13 +131,12 @@ pub enum RCode{
     NxRRSet,
     NotAuth,
     NotZone,
-    Unknown
+    Unknown,
 }
 
-
-impl From<u8> for RCode{
+impl From<u8> for RCode {
     fn from(rcode: u8) -> Self {
-        match rcode{
+        match rcode {
             0 => RCode::NoError,
             1 => RCode::FormatError,
             2 => RCode::ServerFailure,
@@ -135,21 +153,24 @@ impl From<u8> for RCode{
     }
 }
 
-
 #[cfg(test)]
-mod test{
-    use crate::dns::message::{parse_header_frame, Header, OpCode, RCode};
-    use nom::IResult;
+mod test {
+    use crate::dns::message::{parse_header_frame, Header, OpCode, RCode, parse_question, Question};
+    use crate::dns::record::{DNSType, DNSClass};
+    use crate::dns::labels::DNSName;
 
     #[test]
-    fn parse_header(){
-        let bytes = [0x2b,0x01,0x01,0x20,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x01,0x03,0x63,0x6f,0x6d,
-        0x00,0x00,0x02,0x00,0x01,0x00,0x00,0x29,0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00];
+    fn parse_header() {
+        let bytes = [
+            0x2b, 0x01, 0x01, 0x20, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x03, 0x63,
+            0x6f, 0x6d, 0x00, 0x00, 0x02, 0x00, 0x01, 0x00, 0x00, 0x29, 0x10, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+        ];
 
         let result = parse_header_frame(&bytes);
         assert!(result.is_ok(), true);
 
-        let header = Header{
+        let header = Header {
             id: 0x2b01,
             qr: false,
             op_code: OpCode::Query,
@@ -157,7 +178,7 @@ mod test{
             tc: false,
             rd: true,
             ra: false,
-            z:  false,
+            z: false,
             ad: true,
             cd: false,
             r_code: RCode::NoError,
@@ -169,14 +190,17 @@ mod test{
 
         assert_eq!(result.unwrap().1, header);
 
-        let bytes = [0x8e,0xd0,0x81,0x83,0x00,0x01,0x00,0x00,0x00,0x01,0x00,0x00,0x04,0x50,0x41,0x55,
-        0x4c,0x00,0x00,0x01,0x00,0x01,0x00,0x00,0x06,0x00,0x01,0x00,0x00,0x2a,0x30,0x00,
-        0x40,0x01,0x61,0x0c,0x72,0x6f,0x6f,0x74,0x2d,0x73,0x65,0x72,0x76,0x65,0x72,0x73,
-        0x03,0x6e,0x65,0x74,0x00,0x05,0x6e,0x73,0x74,0x6c,0x64,0x0c,0x76,0x65,0x72,0x69,
-        0x73,0x69,0x67,0x6e,0x2d,0x67,0x72,0x73,0x03,0x63,0x6f,0x6d,0x00,0x78,0x68,0x7a,
-        0x68,0x00,0x00,0x07,0x08,0x00,0x00,0x03,0x84,0x00,0x09,0x3a,0x80,0x00,0x01,0x51,0x80];
+        let bytes = [
+            0x8e, 0xd0, 0x81, 0x83, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x04, 0x50,
+            0x41, 0x55, 0x4c, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x06, 0x00, 0x01, 0x00,
+            0x00, 0x2a, 0x30, 0x00, 0x40, 0x01, 0x61, 0x0c, 0x72, 0x6f, 0x6f, 0x74, 0x2d, 0x73,
+            0x65, 0x72, 0x76, 0x65, 0x72, 0x73, 0x03, 0x6e, 0x65, 0x74, 0x00, 0x05, 0x6e, 0x73,
+            0x74, 0x6c, 0x64, 0x0c, 0x76, 0x65, 0x72, 0x69, 0x73, 0x69, 0x67, 0x6e, 0x2d, 0x67,
+            0x72, 0x73, 0x03, 0x63, 0x6f, 0x6d, 0x00, 0x78, 0x68, 0x7a, 0x68, 0x00, 0x00, 0x07,
+            0x08, 0x00, 0x00, 0x03, 0x84, 0x00, 0x09, 0x3a, 0x80, 0x00, 0x01, 0x51, 0x80,
+        ];
 
-        let header = Header{
+        let header = Header {
             id: 0x8ed0,
             qr: true,
             op_code: OpCode::Query,
@@ -184,7 +208,7 @@ mod test{
             tc: false,
             rd: true,
             ra: true,
-            z:  false,
+            z: false,
             ad: false,
             cd: false,
             r_code: RCode::NameError,
@@ -194,7 +218,27 @@ mod test{
             additional_count: 0,
         };
         let result = parse_header_frame(&bytes);
-        assert!(result.is_ok(), true);
+        assert_eq!(result.is_ok(), true);
         assert_eq!(result.unwrap().1, header);
+    }
+
+    #[test]
+    fn test_parse_question() {
+        let a = [
+            0x07, 0x73, 0x74, 0x6f, 0x72, 0x61, 0x67, 0x65, 0x04, 0x6c, 0x69, 0x76, 0x65, 0x03,
+            0x63, 0x6f, 0x6d, 0x00, 0x00, 0x01, 0x00, 0x01,
+        ];
+
+        let result = parse_question(&a);
+        let question = Question{
+            q_name: Some(DNSName{
+                labels: vec![String::from("storage"), String::from("live"),String::from("com")]
+            }),
+            q_type: DNSType::A,
+            q_class: DNSClass::IN,
+        };
+        assert_eq!(result.is_ok(), true);
+        assert_eq!(result.unwrap().1, question );
+
     }
 }
