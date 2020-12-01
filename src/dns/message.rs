@@ -1,5 +1,6 @@
 use nom::IResult;
 use nom::number::complete::{be_u16};
+use crate::dns::record::{DNSType, DNSClass};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Header{
@@ -19,6 +20,26 @@ pub struct Header{
     ns_count: u16,
     additional_count: u16,
 }
+
+#[derive(Debug)]
+pub struct Question{
+    q_name: Vec<u8>,
+    q_type: DNSType,
+    q_class: DNSClass,
+}
+
+// named!(parse_question<&[u8], Question>,
+//     do_parse!(
+//         name: take_util!(0x00) >>
+//         qtype: be_u16 >>
+//         qclass: be_u16 >>
+//         (Question {
+//             q_name: DNSName::from(name),
+//             q_type: qtype.into(),
+//             q_class: qclass.into(),
+//         })
+//     )
+// );
 
 named!(parse_flags<&[u8],(u8,u8,u8,u8,u8,u8,u8,u8,u8,u8)>,
     bits!(tuple!(take_bits!(1u8),

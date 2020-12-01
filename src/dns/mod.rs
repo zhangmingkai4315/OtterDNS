@@ -5,3 +5,4 @@ pub mod zone;
 
 pub mod dns_type;
 pub mod message;
+pub mod labels;

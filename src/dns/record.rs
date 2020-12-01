@@ -1,11 +1,12 @@
 use crate::dns::errors::*;
 use crate::dns::utils::{is_fqdn, valid_domain};
+use nom::HexDisplay;
 
 /// https://tools.ietf.org/html/rfc1035#section-3.2.4
 /// specify the class of the dns record data
 #[derive(Debug, PartialEq, Copy, Clone)]
 #[repr(u16)]
-pub enum RecordClass {
+pub enum DNSClass {
     IN = 1,
     // 1 the Internet
     CS,
@@ -15,9 +16,9 @@ pub enum RecordClass {
     HS, // 4 Hesiod
 }
 
-impl Default for RecordClass {
+impl Default for DNSClass {
     fn default() -> Self {
-        RecordClass::IN
+        DNSClass::IN
     }
 }
 
@@ -45,6 +46,9 @@ pub enum DNSType {
     Any = 255, // Rfc1035: return all records of all types known to the dns server
 }
 
+
+
+
 impl Default for DNSType {
     fn default() -> Self {
         DNSType::A
@@ -55,7 +59,7 @@ impl Default for DNSType {
 pub struct ResourceRecord {
     pub name: String,
     pub ttl: u32,
-    pub r_class: RecordClass,
+    pub r_class: DNSClass,
     pub r_type: DNSType,
     pub r_data: String,
 }
@@ -64,7 +68,7 @@ impl ResourceRecord {
     pub fn new(
         rr_str: &str,
         default_ttl: Option<u32>,
-        default_class: Option<RecordClass>,
+        default_class: Option<DNSClass>,
         default_domain: Option<&str>,
         default_origin: Option<&str>,
     ) -> Result<ResourceRecord, ParseRRErr> {
@@ -75,7 +79,7 @@ impl ResourceRecord {
         let mut with_default_domain = false;
         let default_record_class = {
             if default_class.is_none() {
-                RecordClass::IN
+                DNSClass::IN
             } else {
                 default_class.unwrap()
             }
@@ -148,10 +152,10 @@ impl ResourceRecord {
         }
         if token == "IN" || token == "in" {
             is_class_set = true;
-            r_class = RecordClass::IN;
+            r_class = DNSClass::IN;
         } else if token == "CH" || token == "ch" {
             is_class_set = true;
-            r_class = RecordClass::CH;
+            r_class = DNSClass::CH;
         } else {
             is_class_set = false;
         }
@@ -177,7 +181,7 @@ impl ResourceRecord {
                 if let Some(token) = s_iter.next() {
                     // maybe class or type
                     if token == "IN" || token == "in" {
-                        r_class = RecordClass::IN;
+                        r_class = DNSClass::IN;
                         // get a new type
                         if let Some(token) = s_iter.next() {
                             // token is domain type now
@@ -186,7 +190,7 @@ impl ResourceRecord {
                             return Err(ParseRRErr::NoDomainType);
                         }
                     } else if token == "CH" || token == "ch" {
-                        r_class = RecordClass::CH;
+                        r_class = DNSClass::CH;
                         // get a new type
                         if let Some(token) = s_iter.next() {
                             // token is domain type now
@@ -285,7 +289,7 @@ fn test_parse_rr_from_str() {
         ResourceRecord {
             name: "mail.".to_owned(),
             ttl: 86400,
-            r_class: RecordClass::IN,
+            r_class: DNSClass::IN,
             r_type: DNSType::A,
             r_data: "192.0.2.3".to_owned(),
         }
@@ -298,7 +302,7 @@ fn test_parse_rr_from_str() {
         ResourceRecord {
             name: "mail.cnnic.cn".to_owned(),
             ttl: 86400,
-            r_class: RecordClass::IN,
+            r_class: DNSClass::IN,
             r_type: DNSType::A,
             r_data: "192.0.2.3".to_owned(),
         }
@@ -312,7 +316,7 @@ fn test_parse_rr_from_str() {
         ResourceRecord {
             name: "mail.".to_owned(),
             ttl: 86400,
-            r_class: RecordClass::IN,
+            r_class: DNSClass::IN,
             r_type: DNSType::A,
             r_data: "192.0.2.3".to_owned(),
         }
@@ -326,7 +330,7 @@ fn test_parse_rr_from_str() {
         ResourceRecord {
             name: "mail.".to_owned(),
             ttl: 86400,
-            r_class: RecordClass::IN,
+            r_class: DNSClass::IN,
             r_type: DNSType::A,
             r_data: "192.0.2.3".to_owned(),
         }
@@ -340,7 +344,7 @@ fn test_parse_rr_from_str() {
         ResourceRecord {
             name: "mail.".to_owned(),
             ttl: 1000,
-            r_class: RecordClass::IN,
+            r_class: DNSClass::IN,
             r_type: DNSType::A,
             r_data: "192.0.2.3".to_owned(),
         }
@@ -354,7 +358,7 @@ fn test_parse_rr_from_str() {
         ResourceRecord {
             name: "mail.".to_owned(),
             ttl: 1000,
-            r_class: RecordClass::IN,
+            r_class: DNSClass::IN,
             r_type: DNSType::NS,
             r_data: "a.dns.cn".to_owned(),
         }
@@ -368,7 +372,7 @@ fn test_parse_rr_from_str() {
         ResourceRecord {
             name: "mail.google.com.".to_owned(),
             ttl: 1000,
-            r_class: RecordClass::IN,
+            r_class: DNSClass::IN,
             r_type: DNSType::SOA,
             r_data: "localhost. root.localhost. 1999010100 ( 10800 900 604800 86400 )".to_owned(),
         }
@@ -381,7 +385,7 @@ fn test_parse_rr_from_str() {
         ResourceRecord {
             name: "in.".to_owned(),
             ttl: 86400,
-            r_class: RecordClass::IN,
+            r_class: DNSClass::IN,
             r_type: DNSType::A,
             r_data: "192.0.2.3".to_owned(),
         }
@@ -394,7 +398,7 @@ fn test_parse_rr_from_str() {
         ResourceRecord {
             name: "in.google.com.".to_owned(),
             ttl: 86400,
-            r_class: RecordClass::IN,
+            r_class: DNSClass::IN,
             r_type: DNSType::A,
             r_data: "192.0.2.3".to_owned(),
         }
@@ -408,7 +412,7 @@ fn test_parse_rr_from_str() {
         ResourceRecord {
             name: "in.google.com.".to_owned(),
             ttl: 86400,
-            r_class: RecordClass::CH,
+            r_class: DNSClass::CH,
             r_type: DNSType::A,
             r_data: "192.0.2.3".to_owned(),
         }
@@ -422,7 +426,7 @@ fn test_parse_rr_from_str() {
         ResourceRecord {
             name: "default.google.com.".to_owned(),
             ttl: 86400,
-            r_class: RecordClass::IN,
+            r_class: DNSClass::IN,
             r_type: DNSType::A,
             r_data: "192.0.2.3".to_owned(),
         }
@@ -436,7 +440,7 @@ fn test_parse_rr_from_str() {
         ResourceRecord {
             name: "mail.".to_owned(),
             ttl: 86400,
-            r_class: RecordClass::IN,
+            r_class: DNSClass::IN,
             r_type: DNSType::NS,
             r_data: "mail.".to_owned(),
         }
@@ -450,7 +454,7 @@ fn test_parse_rr_from_str() {
         ResourceRecord {
             name: "mail.".to_owned(),
             ttl: 86400,
-            r_class: RecordClass::IN,
+            r_class: DNSClass::IN,
             r_type: DNSType::NS,
             r_data: "mail.".to_owned(),
         }
@@ -464,7 +468,7 @@ fn test_parse_rr_from_str() {
         ResourceRecord {
             name: "mail.google.com.".to_owned(),
             ttl: 86400,
-            r_class: RecordClass::IN,
+            r_class: DNSClass::IN,
             r_type: DNSType::NS,
             r_data: "mail.google.com.".to_owned(),
         }
