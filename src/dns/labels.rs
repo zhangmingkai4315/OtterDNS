@@ -1,10 +1,13 @@
+use itertools::Itertools;
+
 #[derive(Debug, PartialEq)]
 pub struct DNSName {
-    pub(crate) labels: Vec<String>,
+    pub labels: Vec<String>,
+    // ends: Vec<u8>,
 }
 
 impl DNSName {
-    pub fn new(raw: &[u8]) -> Option<DNSName> {
+    pub fn new(raw: &[u8], original: &[u8]) -> Option<DNSName> {
         let len = raw.len();
         if len == 0 || len > 256 {
             return None;
@@ -19,15 +22,37 @@ impl DNSName {
             if size == 0 {
                 break;
             }
-            if (size + shift + 1) > len {
-                return None;
+            match size >> 6 & 0xff {
+                0 => {
+                    if (size + shift + 1) > len{
+                        return None;
+                    }
+                    let label = &raw[shift + 1..shift + 1 + size];
+                    match std::str::from_utf8(&label) {
+                        Ok(v) => labels.push(String::from(v)),
+                        _ => return None,
+                    }
+                    shift = shift + size + 1;
+                },
+                11 => {
+                    let pointer = raw[shift+1] as usize;
+                    match &original[pointer..].iter().find_position(|&&x| x != 0x00 ){
+                        Some((v, _)) => {
+                            let new_raw = &original[pointer..*v];
+                            let mut dname =  DNSName::new(new_raw, original)?;
+                            labels.append(&mut dname.labels);
+                        },
+                        _ => {
+                            return None;
+                        }
+                    };
+
+                },
+                _ => {
+                    return None
+                }
             }
-            let label = &raw[shift + 1..shift + 1 + size];
-            match std::str::from_utf8(&label) {
-                Ok(v) => labels.push(String::from(v)),
-                _ => return None,
-            }
-            shift = shift + size + 1;
+
         }
         Some(DNSName { labels })
     }
@@ -51,7 +76,7 @@ mod label_test {
         let raw = [
             0x06, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x03, 0x63, 0x6f, 0x6d, 0x00,
         ];
-        let dname = DNSName::new(&raw[..]);
+        let dname = DNSName::new(&raw[..], &[]);
         assert_eq!(dname.is_some(), true);
         let dname = dname.unwrap();
         assert_eq!(dname.labels.len(), 2);
@@ -63,7 +88,7 @@ mod label_test {
             0x36, 0x32, 0x32, 0x08, 0x63, 0x74, 0x79, 0x75, 0x6e, 0x61, 0x70, 0x69, 0x02, 0x63,
             0x6e, 0x00,
         ];
-        let dname = DNSName::new(&raw[..]);
+        let dname = DNSName::new(&raw[..], &[]);
         assert_eq!(dname.is_some(), true);
         let dname = dname.unwrap();
         assert_eq!(dname.labels.len(), 4);
@@ -73,11 +98,13 @@ mod label_test {
         );
 
         let raw = [];
-        let dname = DNSName::new(&raw);
+        let dname = DNSName::new(&raw, &[]);
         assert_eq!(dname.is_some(), false);
 
         let raw = [0x01];
-        let dname = DNSName::new(&raw);
+        let dname = DNSName::new(&raw, &[]);
         assert_eq!(dname.is_some(), false);
+
+
     }
 }

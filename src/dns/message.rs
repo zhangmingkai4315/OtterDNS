@@ -2,7 +2,7 @@
 
 use crate::dns::labels::DNSName;
 use crate::dns::record::{DNSClass, DNSType};
-use nom::number::complete::be_u16;
+use nom::number::complete::{be_u16, be_u32};
 use std::convert::TryFrom;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -31,13 +31,23 @@ pub struct Question {
     q_class: DNSClass,
 }
 
+
+#[derive(Debug, PartialEq)]
+pub struct Answer{
+    name: Option<DNSName>,
+    qtype: DNSType,
+    qclass: DNSClass,
+    ttl: u32,
+    data: Vec<u8>,
+}
+
 named!(parse_question<&[u8], Question>,
     do_parse!(
         name: take_till1!(|c| c == 0x00) >> take!(1)>>
         qtype: be_u16 >>
         qclass: be_u16 >>
         (Question {
-            q_name: DNSName::new(name),
+            q_name: DNSName::new(name, &[]),
             q_type: DNSType::try_from(qtype).unwrap(),
             q_class: DNSClass::try_from(qclass).unwrap(),
         })
@@ -45,16 +55,20 @@ named!(parse_question<&[u8], Question>,
 );
 
 
-named!(parse_answer<&[u8], Answer>,
+named_args!(parse_answer<'a>(original: &[u8])<&'a [u8], Answer>,
     do_parse!(
         name: take_till1!(|c| c == 0x00) >> take!(1)>>
         qtype: be_u16 >>
         qclass: be_u16 >>
-        qttl:  be_u32 >>
-        (Answer {
-            q_name: DNSName::new(name),
-            q_type: DNSType::try_from(qtype).unwrap(),
-            q_class: DNSClass::try_from(qclass).unwrap(),
+        ttl:  be_u32 >>
+        data_length: be_u16>>
+        data: take!(data_length)>>
+        (Answer{
+            name: DNSName::new(name, original),
+            qtype: DNSType::try_from(qtype).unwrap(),
+            qclass: DNSClass::try_from(qclass).unwrap(),
+            ttl: ttl,
+            data: data.to_vec(),
         })
     )
 );
