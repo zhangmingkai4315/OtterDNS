@@ -38,6 +38,7 @@ pub enum DNSType {
     TXT = 16,
     AAAA = 28,
     SRV = 33,
+    OPT = 41,
     DS = 43,
     RRSIG = 46,
     NSEC = 47,
