@@ -4,6 +4,7 @@ use nom::number::complete::{be_u16, be_u32};
 use nom::{Err::Incomplete, IResult, Needed};
 
 use std::convert::TryFrom;
+use crate::dns::errors::ApplicationErr;
 
 #[derive(Debug, PartialEq)]
 pub struct DNSName {
@@ -300,6 +301,14 @@ named_args!(parse_message<'a>(original: &[u8])<&'a [u8], Message>,
         })
     )
 );
+
+pub fn parse_dns_message(message: &[u8])->Result<Message, ApplicationErr>{
+    match parse_message(message, message){
+        Ok(v) => Ok(v.1),
+        Err(e) => Err(ApplicationErr::PacketParseError),
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

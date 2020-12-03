@@ -2,6 +2,12 @@ use std::fmt;
 use std::fmt::Formatter;
 use std::net::AddrParseError;
 
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum ApplicationErr {
+    PacketParseError,
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum ParseZoneErr {
     FileNotExist(String),
