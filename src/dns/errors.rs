@@ -4,8 +4,9 @@ use std::net::AddrParseError;
 
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum ApplicationErr {
+pub enum PacketProcessErr {
     PacketParseError,
+    PacketSerializeError,
 }
 
 #[derive(Debug, PartialEq, Clone)]

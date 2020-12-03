@@ -4,7 +4,8 @@ use nom::number::complete::{be_u16, be_u32};
 use nom::{Err::Incomplete, IResult, Needed};
 
 use std::convert::TryFrom;
-use crate::dns::errors::ApplicationErr;
+use crate::dns::errors::PacketProcessErr::PacketParseError;
+use crate::dns::errors::PacketProcessErr;
 
 #[derive(Debug, PartialEq)]
 pub struct DNSName {
@@ -61,6 +62,7 @@ pub struct Answer {
     ttl: u32,
     data: Vec<u8>,
 }
+
 #[derive(Debug, PartialEq)]
 pub struct EDNS {
     name: DNSName,
@@ -286,10 +288,10 @@ named!(parse_header_frame<&[u8], Header>,
 );
 
 
-pub fn parse_dns_message(message: &[u8])->Result<Message, ApplicationErr>{
+pub fn parse_dns_message(message: &[u8])->Result<Message, PacketProcessErr>{
     match parse_message(message, message){
         Ok(v) => Ok(v.1),
-        Err(e) => Err(ApplicationErr::PacketParseError),
+        Err(_) => Err(PacketParseError),
     }
 }
 

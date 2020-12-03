@@ -3,5 +3,6 @@ pub mod record;
 pub mod utils;
 pub mod zone;
 
-pub mod dns_type;
+pub mod types;
+pub mod label;
 pub mod message;
