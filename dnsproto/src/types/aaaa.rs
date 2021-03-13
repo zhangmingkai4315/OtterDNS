@@ -1,21 +1,23 @@
-use crate::dns::errors::{ParseRRErr, PacketProcessErr};
-use std::net::{Ipv6Addr};
+use crate::errors::{PacketProcessErr, ParseRRErr};
+use std::net::Ipv6Addr;
 use std::str::FromStr;
-use super::BinaryConverter;
+use std::{fmt, fmt::Formatter};
+use crate::types::DNSFrame;
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct DnsTypeAAAA(Ipv6Addr);
 
-impl BinaryConverter for DnsTypeAAAA {
-    type Err = PacketProcessErr;
-    fn from_binary(data: &[u8]) -> Result<DnsTypeAAAA,  PacketProcessErr> {
+impl DNSFrame for DnsTypeAAAA {
+    type Item = Self;
+    fn decode(data: &[u8]) -> Result<Self::Item, PacketProcessErr> {
         if data.len() < 16 {
-            return Err(PacketProcessErr::PacketParseError)
+            return Err(PacketProcessErr::PacketParseError);
         }
         let data = unsafe { &*(data as *const [u8] as *const [u8; 16]) };
         Ok(DnsTypeAAAA(Ipv6Addr::from(*data)))
     }
-    fn to_binary(&self) ->Result<Vec<u8>, Self::Err> {
+
+    fn encode(&self) -> Result<Vec<u8>, PacketProcessErr> {
         Ok(self.0.octets().to_vec())
     }
 }
@@ -26,35 +28,44 @@ impl FromStr for DnsTypeAAAA {
         return match s.parse::<Ipv6Addr>() {
             Ok(v) => Ok(DnsTypeAAAA(v)),
             Err(e) => Err(ParseRRErr::from(e)),
-        }
+        };
+    }
+}
+
+impl fmt::Display for DnsTypeAAAA {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f,"{}", self.0.to_string())
     }
 }
 
 #[test]
 fn test_dns_type_aaaa() {
     assert_eq!(
-        DnsTypeAAAA::from_binary(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+        DnsTypeAAAA::decode(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
         Ok(DnsTypeAAAA(Ipv6Addr::from_str("::").unwrap()))
     );
     assert_eq!(
-        DnsTypeAAAA::from_binary(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 127, 0, 0, 1]),
+        DnsTypeAAAA::decode(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 127, 0, 0, 1]),
         Ok(DnsTypeAAAA(Ipv6Addr::from_str("::127.0.0.1").unwrap()))
     );
     assert_eq!(
-        DnsTypeAAAA::from_binary(&[255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 192, 168, 64, 32]),
-        Ok(DnsTypeAAAA(Ipv6Addr::from_str("FF00::192.168.64.32").unwrap()))
+        DnsTypeAAAA::decode(&[255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 192, 168, 64, 32]),
+        Ok(DnsTypeAAAA(
+            Ipv6Addr::from_str("FF00::192.168.64.32").unwrap()
+        ))
     );
 
     assert_eq!(
-        DnsTypeAAAA::from_binary(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).unwrap(),
+        DnsTypeAAAA::decode(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).unwrap(),
         "::".parse::<DnsTypeAAAA>().unwrap()
     );
     assert_eq!(
-        DnsTypeAAAA::from_binary(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 127, 0, 0, 1]).unwrap(),
+        DnsTypeAAAA::decode(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 127, 0, 0, 1]).unwrap(),
         "::127.0.0.1".parse::<DnsTypeAAAA>().unwrap()
     );
     assert_eq!(
-        DnsTypeAAAA::from_binary(&[255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 192, 168, 64, 32]).unwrap(),
+        DnsTypeAAAA::decode(&[255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 192, 168, 64, 32])
+            .unwrap(),
         "FF00::192.168.64.32".parse::<DnsTypeAAAA>().unwrap()
     );
 

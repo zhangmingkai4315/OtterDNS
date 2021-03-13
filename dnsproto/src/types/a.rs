@@ -1,22 +1,23 @@
-use crate::dns::errors::{ParseRRErr, PacketProcessErr};
-use std::net::{Ipv4Addr};
+use crate::errors::{PacketProcessErr, ParseRRErr};
+use std::net::Ipv4Addr;
 use std::str::FromStr;
-use super::{BinaryConverter};
+use std::{fmt, fmt::Formatter};
+use crate::types::DNSFrame;
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct DnsTypeA(Ipv4Addr);
-use std::convert::TryFrom;
 
-impl BinaryConverter for DnsTypeA {
-    type Err = PacketProcessErr;
-    fn from_binary(data: &[u8]) -> Result<DnsTypeA,  PacketProcessErr> {
+impl DNSFrame for DnsTypeA {
+    type Item = Self;
+    fn decode(data: &[u8]) -> Result<Self::Item, PacketProcessErr> {
         if data.len() < 4 {
-            return Err(PacketProcessErr::PacketParseError)
+            return Err(PacketProcessErr::PacketParseError);
         }
         let data = unsafe { &*(data as *const [u8] as *const [u8; 4]) };
         return Ok(DnsTypeA(Ipv4Addr::from(*data)));
     }
-    fn to_binary(&self) ->Result<Vec<u8>, Self::Err> {
+
+    fn encode(&self) -> Result<Vec<u8>, PacketProcessErr> {
         Ok(self.0.octets().to_vec())
     }
 }
@@ -31,36 +32,42 @@ impl FromStr for DnsTypeA {
     }
 }
 
+impl fmt::Display for DnsTypeA {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0.to_string())
+    }
+}
+
 #[test]
 fn test_dns_type_a() {
     assert_eq!(
-        DnsTypeA::from_binary(&[0, 0, 0, 0]).unwrap(),
+        DnsTypeA::decode(&[0, 0, 0, 0]).unwrap(),
         DnsTypeA(Ipv4Addr::new(0, 0, 0, 0))
     );
     assert_eq!(
-        DnsTypeA::from_binary(&[127, 0, 0, 1]).unwrap(),
+        DnsTypeA::decode(&[127, 0, 0, 1]).unwrap(),
         DnsTypeA(Ipv4Addr::new(127, 0, 0, 1))
     );
     assert_eq!(
-        DnsTypeA::from_binary(&[255, 255, 255, 255]).unwrap(),
+        DnsTypeA::decode(&[255, 255, 255, 255]).unwrap(),
         DnsTypeA(Ipv4Addr::new(255, 255, 255, 255))
     );
 
     assert_eq!(
         "1.2.3.4".parse::<DnsTypeA>().unwrap(),
-        DnsTypeA::from_binary(&[1, 2, 3, 4]).unwrap()
+        DnsTypeA::decode(&[1, 2, 3, 4]).unwrap()
     );
     assert_eq!(
         "192.168.1.1".parse::<DnsTypeA>().unwrap(),
-        DnsTypeA::from_binary(&[192, 168, 1, 1]).unwrap()
+        DnsTypeA::decode(&[192, 168, 1, 1]).unwrap()
     );
     assert_eq!(
         "127.0.0.1".parse::<DnsTypeA>().unwrap(),
-        DnsTypeA::from_binary(&[127, 0, 0, 1]).unwrap()
+        DnsTypeA::decode(&[127, 0, 0, 1]).unwrap()
     );
     assert_eq!(
         "255.255.255.0".parse::<DnsTypeA>().unwrap(),
-        DnsTypeA::from_binary(&[255, 255, 255, 0]).unwrap()
+        DnsTypeA::decode(&[255, 255, 255, 0]).unwrap()
     );
 
     assert_eq!(
@@ -81,19 +88,31 @@ fn test_dns_type_a() {
     );
 
     assert_eq!(
-        "1.2.3.4".parse::<DnsTypeA>().unwrap().to_binary().unwrap(),
+        "1.2.3.4".parse::<DnsTypeA>().unwrap().encode().unwrap(),
         &[1, 2, 3, 4]
     );
     assert_eq!(
-        "192.168.1.1".parse::<DnsTypeA>().unwrap().to_binary().unwrap(),
+        "192.168.1.1"
+            .parse::<DnsTypeA>()
+            .unwrap()
+            .encode()
+            .unwrap(),
         &[192, 168, 1, 1]
     );
     assert_eq!(
-        "127.0.0.1".parse::<DnsTypeA>().unwrap().to_binary().unwrap(),
+        "127.0.0.1"
+            .parse::<DnsTypeA>()
+            .unwrap()
+            .encode()
+            .unwrap(),
         &[127, 0, 0, 1]
     );
     assert_eq!(
-        "255.255.255.0".parse::<DnsTypeA>().unwrap().to_binary().unwrap(),
+        "255.255.255.0"
+            .parse::<DnsTypeA>()
+            .unwrap()
+            .encode()
+            .unwrap(),
         &[255, 255, 255, 0]
     );
 }

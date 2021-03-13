@@ -2,9 +2,9 @@ use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
 
-use crate::dns::errors::*;
-use crate::dns::record::{DNSClass, DNSType, ResourceRecord};
-use crate::dns::utils::{is_fqdn, valid_domain};
+use crate::errors::*;
+use crate::record::{DNSType, DNSClass, ResourceRecord};
+use crate::utils::{is_fqdn, valid_domain};
 use regex::Regex;
 
 pub trait ZoneReader {

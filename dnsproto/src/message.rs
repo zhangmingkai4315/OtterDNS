@@ -1,11 +1,12 @@
 // http://www.networksorcery.com/enp/protocol/dns.htm
-use crate::dns::record::{DNSClass, DNSType};
+use crate::record::{DNSClass, DNSType};
 use nom::number::complete::{be_u16, be_u32};
 use nom::{Err::Incomplete, IResult, Needed};
 
+use crate::errors::PacketProcessErr;
+use crate::errors::PacketProcessErr::PacketParseError;
+// use crate::types::{DNSFrameEncoder, get_dns_struct_from_raw};
 use std::convert::TryFrom;
-use crate::dns::errors::PacketProcessErr::PacketParseError;
-use crate::dns::errors::PacketProcessErr;
 
 #[derive(Debug, PartialEq)]
 pub struct DNSName {
@@ -60,8 +61,10 @@ pub struct Answer {
     qtype: DNSType,
     qclass: DNSClass,
     ttl: u32,
-    data: Vec<u8>,
+    raw_data: Vec<u8>,
 }
+
+
 
 #[derive(Debug, PartialEq)]
 pub struct EDNS {
@@ -71,7 +74,7 @@ pub struct EDNS {
     extension: u16,
     version: u8,
     do_bit: bool,
-    data: Vec<u8>,
+    raw_data: Vec<u8>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -229,7 +232,6 @@ named_args!(parse_answer<'a>(original: &[u8])<&'a [u8], Record>,
         ttl:  be_u32 >>
         data_length: be_u16>>
         data: take!(data_length)>>
-        // (name, qtype, qclass, ttl,data_length,  &[])
 
         value: value!(match qtype == 41 {
             true => Record::EDNSRecord(EDNS{
@@ -239,15 +241,19 @@ named_args!(parse_answer<'a>(original: &[u8])<&'a [u8], Record>,
                 extension: (ttl & 0xff000000 >> 24 )as u16,
                 version: (ttl & 0x00ff0000 >> 16 )as u8,
                 do_bit: (ttl & 0x0000ff00 >> 15) == 1,
-                data: data.to_vec(),
+                raw_data: data.to_vec(),
+                // data: get_dns_struct_from_raw(DNSType::OPT, data, original),
             }),
-            _ => Record::AnswerRecord(Answer{
-                name: name,
-                qtype: DNSType::try_from(qtype).unwrap(),
-                qclass: DNSClass::try_from(qclass).unwrap(),
-                ttl: ttl,
-                data: data.to_vec(),
-            }),
+            false => {
+                let qtype = DNSType::try_from(qtype).unwrap();
+                Record::AnswerRecord(Answer{
+                    name: name,
+                    qtype: qtype,
+                    qclass: DNSClass::try_from(qclass).unwrap(),
+                    ttl: ttl,
+                    raw_data: data.to_vec(),
+                })
+            }
         }) >>
         (value)
     )
@@ -287,9 +293,8 @@ named!(parse_header_frame<&[u8], Header>,
     )
 );
 
-
-pub fn parse_dns_message(message: &[u8])->Result<Message, PacketProcessErr>{
-    match parse_message(message, message){
+pub fn parse_dns_message(message: &[u8]) -> Result<Message, PacketProcessErr> {
+    match parse_message(message, message) {
         Ok(v) => Ok(v.1),
         Err(_) => Err(PacketParseError),
     }
@@ -312,12 +317,10 @@ named_args!(parse_message<'a>(original: &[u8])<&'a [u8], Message>,
     )
 );
 
-
-
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::dns::record::{DNSClass, DNSType};
+    use crate::record::{DNSClass, DNSType};
 
     #[test]
     fn parse_header_test() {
@@ -449,7 +452,7 @@ mod test {
             qtype: DNSType::A,
             qclass: DNSClass::IN,
             ttl: 64,
-            data: vec![69, 171, 228, 20],
+            raw_data: vec![69, 171, 228, 20],
         });
         assert_eq!(result, a.unwrap().1);
 
@@ -466,7 +469,7 @@ mod test {
             qtype: DNSType::NS,
             qclass: DNSClass::IN,
             ttl: 156585,
-            data: vec![0x03, 0x6e, 0x73, 0x33, 0xc0, 0x10],
+            raw_data: vec![0x03, 0x6e, 0x73, 0x33, 0xc0, 0x10],
         });
         assert_eq!(result, a.unwrap().1);
 
@@ -481,12 +484,10 @@ mod test {
             extension: 0,
             version: 0,
             do_bit: false,
-            data: vec![],
+            raw_data: vec![],
         });
         assert_eq!(result, a.unwrap().1);
     }
-
-
 
     #[test]
     fn test_dns_name() {
@@ -586,7 +587,7 @@ mod test {
             0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x29, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00,
         ];
-        let result = parse_message(&a,&a);
+        let result = parse_message(&a, &a);
         assert_eq!(result.as_ref().is_ok(), true);
         let a = [
             0x8e, 0x28, 0x81, 0x80, 0x00, 0x01, 0x00, 0x08, 0x00, 0x06, 0x00, 0x07, 0x07, 0x67,
@@ -625,12 +626,11 @@ mod test {
             0x34, 0x2e, 0xb6, 0xfc, 0x00, 0x00, 0x29, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00,
         ];
-        let result = parse_message(&a,&a);
+        let result = parse_message(&a, &a);
         assert_eq!(result.as_ref().is_ok(), true);
 
         let a = [];
-        let result = parse_message(&a,&a);
+        let result = parse_message(&a, &a);
         assert_eq!(result.as_ref().is_err(), true);
-
     }
 }

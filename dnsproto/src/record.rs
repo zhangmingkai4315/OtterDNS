@@ -1,5 +1,5 @@
-use crate::dns::errors::*;
-use crate::dns::utils::{is_fqdn, valid_domain};
+use crate::errors::*;
+use crate::utils::{is_fqdn, valid_domain};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 /// https://tools.ietf.org/html/rfc1035#section-3.2.4

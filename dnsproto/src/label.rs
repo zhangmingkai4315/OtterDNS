@@ -1,6 +1,6 @@
-use crate::dns::errors::ParseRRErr;
-use crate::dns::errors::ParseRRErr::ParseTypeErr;
-use crate::dns::utils::*;
+use crate::errors::ParseRRErr;
+use crate::errors::ParseRRErr::ParseTypeErr;
+use crate::utils::*;
 use std::prelude::v1::Vec;
 use std::rc::Rc;
 use std::str::FromStr;
@@ -124,5 +124,3 @@ fn test_domain_name() {
     );
     assert_eq!("".parse::<DomainName>().unwrap(), DomainName::default());
 }
-
-
