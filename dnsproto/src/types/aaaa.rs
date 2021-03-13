@@ -1,5 +1,5 @@
 use crate::errors::{DNSProtoErr, ParseZoneDataErr};
-use crate::types::DNSFrame;
+use crate::types::DNSWireFrame;
 use std::net::Ipv6Addr;
 use std::str::FromStr;
 use std::{fmt, fmt::Formatter};
@@ -7,9 +7,9 @@ use std::{fmt, fmt::Formatter};
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct DnsTypeAAAA(Ipv6Addr);
 
-impl DNSFrame for DnsTypeAAAA {
+impl DNSWireFrame for DnsTypeAAAA {
     type Item = Self;
-    fn decode(data: &[u8]) -> Result<Self::Item, DNSProtoErr> {
+    fn decode(data: &[u8],_: Option<&[u8]>) -> Result<Self::Item, DNSProtoErr> {
         if data.len() < 16 {
             return Err(DNSProtoErr::PacketParseError);
         }
@@ -17,7 +17,7 @@ impl DNSFrame for DnsTypeAAAA {
         Ok(DnsTypeAAAA(Ipv6Addr::from(*data)))
     }
 
-    fn encode(&self) -> Result<Vec<u8>, DNSProtoErr> {
+    fn encode(&self,_: Option<&[u8]>) -> Result<Vec<u8>, DNSProtoErr> {
         Ok(self.0.octets().to_vec())
     }
 }
@@ -41,30 +41,30 @@ impl fmt::Display for DnsTypeAAAA {
 #[test]
 fn test_dns_type_aaaa() {
     assert_eq!(
-        DnsTypeAAAA::decode(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+        DnsTypeAAAA::decode(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], None),
         Ok(DnsTypeAAAA(Ipv6Addr::from_str("::").unwrap()))
     );
     assert_eq!(
-        DnsTypeAAAA::decode(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 127, 0, 0, 1]),
+        DnsTypeAAAA::decode(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 127, 0, 0, 1],None),
         Ok(DnsTypeAAAA(Ipv6Addr::from_str("::127.0.0.1").unwrap()))
     );
     assert_eq!(
-        DnsTypeAAAA::decode(&[255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 192, 168, 64, 32]),
+        DnsTypeAAAA::decode(&[255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 192, 168, 64, 32], None),
         Ok(DnsTypeAAAA(
             Ipv6Addr::from_str("FF00::192.168.64.32").unwrap()
         ))
     );
 
     assert_eq!(
-        DnsTypeAAAA::decode(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).unwrap(),
+        DnsTypeAAAA::decode(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], None).unwrap(),
         "::".parse::<DnsTypeAAAA>().unwrap()
     );
     assert_eq!(
-        DnsTypeAAAA::decode(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 127, 0, 0, 1]).unwrap(),
+        DnsTypeAAAA::decode(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 127, 0, 0, 1], None).unwrap(),
         "::127.0.0.1".parse::<DnsTypeAAAA>().unwrap()
     );
     assert_eq!(
-        DnsTypeAAAA::decode(&[255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 192, 168, 64, 32]).unwrap(),
+        DnsTypeAAAA::decode(&[255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 192, 168, 64, 32], None).unwrap(),
         "FF00::192.168.64.32".parse::<DnsTypeAAAA>().unwrap()
     );
 

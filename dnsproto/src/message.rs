@@ -63,6 +63,7 @@ pub struct Answer {
     qclass: DNSClass,
     ttl: u32,
     raw_data: Vec<u8>,
+    // data: Box<dyn DNSWireFrame>
 }
 
 #[derive(Debug, PartialEq)]
@@ -74,6 +75,7 @@ pub struct EDNS {
     version: u8,
     do_bit: bool,
     raw_data: Vec<u8>,
+    // data: Box<dyn DNSWireFrame>
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -180,7 +182,7 @@ pub fn parse_name<'a>(input: &'a [u8], original: &'_ [u8]) -> IResult<&'a [u8], 
             shift += 1;
             break;
         }
-        // only 00(normal name) / 11(point) and 01(edns?) is used right now
+        // only 00(normal name) / 11(pointer) and 01(edns?) is used right now
         match size_or_pointer >> 6 & 0xff {
             0 => {
                 if (size_or_pointer + shift + 1) >= 256 {
@@ -231,7 +233,6 @@ named_args!(parse_answer<'a>(original: &[u8])<&'a [u8], Record>,
         ttl:  be_u32 >>
         data_length: be_u16>>
         data: take!(data_length)>>
-
         value: value!(match qtype == 41 {
             true => Record::EDNSRecord(EDNS{
                 name,

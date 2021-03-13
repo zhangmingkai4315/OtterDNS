@@ -9,8 +9,8 @@ pub use aaaa::DnsTypeAAAA;
 pub use soa::DnsTypeSOA;
 
 // for wireframe convert
-pub trait DNSFrame: Debug {
+pub trait DNSWireFrame: Debug {
     type Item;
-    fn decode(data: &[u8]) -> Result<Self::Item, DNSProtoErr>;
-    fn encode(&self) -> Result<Vec<u8>, DNSProtoErr>;
+    fn decode(data: &[u8],original: Option<&[u8]>) -> Result<Self::Item, DNSProtoErr>;
+    fn encode(&self,original: Option<&[u8]>) -> Result<Vec<u8>, DNSProtoErr>;
 }

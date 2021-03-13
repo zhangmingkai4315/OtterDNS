@@ -1,17 +1,11 @@
-use crate::label::DomainName;
-// use crate::dns::errors::{PacketProcessErr, ParseRRErr};
-// use super::BinaryConverter;
-// use std::str::FromStr;
-// use std::{fmt, fmt::Formatter};
-
-// https://tools.ietf.org/html/rfc1035#section-3.3.13
-//
-// 3.3.13 SOA RDATA format
-//
-#[derive(Debug, PartialOrd, PartialEq)]
+use crate::errors::DNSProtoErr;
+use crate::types::DNSWireFrame;
+use crate::message::{parse_name, DNSName};
+use nom::number::complete::{be_u32};
+#[derive(Debug, PartialEq)]
 pub struct DnsTypeSOA {
-    m_name: DomainName,
-    r_name: DomainName,
+    m_name: DNSName,
+    r_name: DNSName,
     serial: u32,
     refresh: u32,
     retry: u32,
@@ -19,18 +13,43 @@ pub struct DnsTypeSOA {
     minimum: u32,
 }
 
-// impl BinaryConverter for DnsTypeSOA {
-//     type Err = PacketProcessErr;
-//     fn decode(data: &[u8]) -> Result<DnsTypeSOA, PacketProcessErr> {
-//         if data.len() < 4 {
-//             return Err(PacketProcessErr::PacketParseError);
-//         }
-//         return Ok(D(Ipv4Addr::from(*data)));
-//     }
-//     fn encode(&self) -> Result<Vec<u8>, Self::Err> {
-//         Ok(self.0.octets().to_vec())
-//     }
-// }
+named_args!(parse_soa<'a>(original: &[u8])<DnsTypeSOA>,
+    do_parse!(
+        m_name: call!(parse_name, original)>>
+        r_name: call!(parse_name, original) >>
+        serial: be_u32>>
+        refresh: be_u32>>
+        retry: be_u32>>
+        expire: be_u32>>
+        minimum: be_u32>>
+        (DnsTypeSOA{
+            m_name,
+            r_name,
+            serial,
+            refresh,
+            retry,
+            expire,
+            minimum,
+        }
+    )
+));
+
+impl DNSWireFrame for DnsTypeSOA {
+    type Item = Self;
+    fn decode(data: &[u8],original: Option<&[u8]>) -> Result<Self::Item, DNSProtoErr> {
+        match parse_soa(data, original.unwrap_or(&[])){
+            Ok((_, soa)) => Ok(soa),
+            Err(_err) => Err(DNSProtoErr::PacketParseError),
+        }
+    }
+
+    fn encode(&self, _original: Option<&[u8]>) -> Result<Vec<u8>, DNSProtoErr> {
+        Err(DNSProtoErr::UnImplementedError)
+    }
+}
+
+
+
 //
 // impl FromStr for DnsTypeSOA {
 //     type Err = ParseRRErr;
