@@ -72,7 +72,7 @@ impl ResourceRecord {
         default_class: Option<DNSClass>,
         default_domain: Option<&str>,
         default_origin: Option<&str>,
-    ) -> Result<ResourceRecord, ParseRRErr> {
+    ) -> Result<ResourceRecord, ParseZoneDataErr> {
         let mut is_ttl_set;
         let is_domain_set;
         let is_class_set;
@@ -96,7 +96,7 @@ impl ResourceRecord {
         let mut s_iter = rr_str.split_whitespace();
         let token = s_iter.next();
         if token.is_none() {
-            return Err(ParseRRErr::EmptyStrErr);
+            return Err(ParseZoneDataErr::EmptyStrErr);
         }
         let mut token = token.unwrap();
         // if already set ,then parse for ttl, class or type.
@@ -113,7 +113,7 @@ impl ResourceRecord {
             match s_iter.next() {
                 Some(token_str) => token = token_str,
                 // next required is domain type but got nothing
-                _ => return Err(ParseRRErr::NoDomainType),
+                _ => return Err(ParseZoneDataErr::NoDomainType),
             }
         }
 
@@ -121,7 +121,7 @@ impl ResourceRecord {
             if let Some(default_domain_str) = default_domain {
                 name = default_domain_str;
             } else {
-                return Err(ParseRRErr::NoDefaultDomain);
+                return Err(ParseZoneDataErr::NoDefaultDomain);
             }
         }
         let domain_fqdn: String;
@@ -129,13 +129,13 @@ impl ResourceRecord {
             if let Some(origin) = default_origin {
                 domain_fqdn = format!("{}.{}", name.to_owned(), origin.to_owned());
             } else {
-                return Err(ParseRRErr::NoOriginDomain);
+                return Err(ParseZoneDataErr::NoOriginDomain);
             }
         } else {
             domain_fqdn = name.to_owned();
         }
         if !valid_domain(name) {
-            return Err(ParseRRErr::ValidDomainErr(name.to_owned()));
+            return Err(ParseZoneDataErr::ValidDomainErr(name.to_owned()));
         }
         // token must be ttl or class or type
         // after this code, at least we don't need care about ttl.
@@ -182,7 +182,7 @@ impl ResourceRecord {
                             // token is domain type now
                             rtype = token;
                         } else {
-                            return Err(ParseRRErr::NoDomainType);
+                            return Err(ParseZoneDataErr::NoDomainType);
                         }
                     } else if token == "CH" || token == "ch" {
                         r_class = DNSClass::CH;
@@ -191,14 +191,14 @@ impl ResourceRecord {
                             // token is domain type now
                             rtype = token;
                         } else {
-                            return Err(ParseRRErr::NoDomainType);
+                            return Err(ParseZoneDataErr::NoDomainType);
                         }
                     } else {
                         // current token is type
                         rtype = token;
                     }
                 } else {
-                    return Err(ParseRRErr::NoDomainType);
+                    return Err(ParseZoneDataErr::NoDomainType);
                 }
             } else {
                 // this token is domain type
@@ -210,7 +210,7 @@ impl ResourceRecord {
                 // token is domain type now
                 rtype = token;
             } else {
-                return Err(ParseRRErr::NoDomainType);
+                return Err(ParseZoneDataErr::NoDomainType);
             }
         }
 
@@ -219,7 +219,7 @@ impl ResourceRecord {
         if let Ok(rtype) = rtype.to_uppercase().parse::<DNSType>() {
             r_type = rtype;
         } else {
-            return Err(ParseRRErr::ValidTypeErr(format!(
+            return Err(ParseZoneDataErr::ValidTypeErr(format!(
                 "{} can not be recognised",
                 rtype
             )));
@@ -238,13 +238,13 @@ impl ResourceRecord {
                             fqdn = format!("{}.{}", default_domain_str, orign);
                             rest_rdata_vec.push(fqdn);
                         } else {
-                            return Err(ParseRRErr::NoOriginDomain);
+                            return Err(ParseZoneDataErr::NoOriginDomain);
                         }
                     } else {
                         rest_rdata_vec.push(default_domain_str.to_owned())
                     }
                 } else {
-                    return Err(ParseRRErr::NoDefaultDomain);
+                    return Err(ParseZoneDataErr::NoDefaultDomain);
                 }
                 begin_item_processed = true;
             } else {
@@ -261,7 +261,7 @@ impl ResourceRecord {
             if let Some(t) = default_ttl {
                 ttl = t;
             } else {
-                return Err(ParseRRErr::NoDefaultTTL);
+                return Err(ParseZoneDataErr::NoDefaultTTL);
             }
         }
 
@@ -278,7 +278,8 @@ impl ResourceRecord {
 #[test]
 fn test_parse_rr_from_str() {
     let s = "mail.    86400   IN  A     192.0.2.3 ; this is a comment";
-    let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(s, None, None, None, None);
+    let rr: Result<ResourceRecord, ParseZoneDataErr> =
+        ResourceRecord::new(s, None, None, None, None);
     assert_eq!(
         rr.unwrap(),
         ResourceRecord {
@@ -290,7 +291,7 @@ fn test_parse_rr_from_str() {
         }
     );
     let s = "mail    86400   IN  A     192.0.2.3 ; this is a comment";
-    let rr: Result<ResourceRecord, ParseRRErr> =
+    let rr: Result<ResourceRecord, ParseZoneDataErr> =
         ResourceRecord::new(s, None, None, None, Some("cnnic.cn"));
     assert_eq!(
         rr.unwrap(),
@@ -304,7 +305,7 @@ fn test_parse_rr_from_str() {
     );
 
     let s = "mail.    86400   IN  A     192.0.2.3 ; this is a comment";
-    let rr: Result<ResourceRecord, ParseRRErr> =
+    let rr: Result<ResourceRecord, ParseZoneDataErr> =
         ResourceRecord::new(s, None, None, None, Some("cnnic.cn"));
     assert_eq!(
         rr.unwrap(),
@@ -318,7 +319,7 @@ fn test_parse_rr_from_str() {
     );
 
     let s = " 86400 IN  A     192.0.2.3";
-    let rr: Result<ResourceRecord, ParseRRErr> =
+    let rr: Result<ResourceRecord, ParseZoneDataErr> =
         ResourceRecord::new(s, Some(1000), None, Some("mail."), None);
     assert_eq!(
         rr.unwrap(),
@@ -332,7 +333,7 @@ fn test_parse_rr_from_str() {
     );
 
     let s = "  IN  A     192.0.2.3";
-    let rr: Result<ResourceRecord, ParseRRErr> =
+    let rr: Result<ResourceRecord, ParseZoneDataErr> =
         ResourceRecord::new(s, Some(1000), None, Some("mail."), None);
     assert_eq!(
         rr.unwrap(),
@@ -346,7 +347,7 @@ fn test_parse_rr_from_str() {
     );
 
     let s = "  IN  NS     a.dns.cn";
-    let rr: Result<ResourceRecord, ParseRRErr> =
+    let rr: Result<ResourceRecord, ParseZoneDataErr> =
         ResourceRecord::new(s, Some(1000), None, Some("mail."), None);
     assert_eq!(
         rr.unwrap(),
@@ -360,7 +361,7 @@ fn test_parse_rr_from_str() {
     );
     //
     let s = "  IN  SOA    localhost. root.localhost.  1999010100 ( 10800 900 604800 86400 ) ";
-    let rr: Result<ResourceRecord, ParseRRErr> =
+    let rr: Result<ResourceRecord, ParseZoneDataErr> =
         ResourceRecord::new(s, Some(1000), None, Some("mail"), Some("google.com."));
     assert_eq!(
         rr.unwrap(),
@@ -374,7 +375,8 @@ fn test_parse_rr_from_str() {
     );
 
     let s = "in.    86400   IN  A     192.0.2.3 ; this is a comment";
-    let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(s, None, None, None, None);
+    let rr: Result<ResourceRecord, ParseZoneDataErr> =
+        ResourceRecord::new(s, None, None, None, None);
     assert_eq!(
         rr.unwrap(),
         ResourceRecord {
@@ -386,7 +388,7 @@ fn test_parse_rr_from_str() {
         }
     );
     let s = "in    86400   IN  A     192.0.2.3 ; this is a comment";
-    let rr: Result<ResourceRecord, ParseRRErr> =
+    let rr: Result<ResourceRecord, ParseZoneDataErr> =
         ResourceRecord::new(s, None, None, Some("default"), Some("google.com."));
     assert_eq!(
         rr.unwrap(),
@@ -400,7 +402,7 @@ fn test_parse_rr_from_str() {
     );
 
     let s = "in    86400   CH  A     192.0.2.3 ; this is a comment";
-    let rr: Result<ResourceRecord, ParseRRErr> =
+    let rr: Result<ResourceRecord, ParseZoneDataErr> =
         ResourceRecord::new(s, None, None, Some("default"), Some("google.com."));
     assert_eq!(
         rr.unwrap(),
@@ -414,7 +416,7 @@ fn test_parse_rr_from_str() {
     );
 
     let s = "  86400   IN  A     192.0.2.3 ; this is a comment";
-    let rr: Result<ResourceRecord, ParseRRErr> =
+    let rr: Result<ResourceRecord, ParseZoneDataErr> =
         ResourceRecord::new(s, None, None, Some("default"), Some("google.com."));
     assert_eq!(
         rr.unwrap(),
@@ -428,7 +430,7 @@ fn test_parse_rr_from_str() {
     );
     //
     let s = "@  86400  IN  NS    @";
-    let rr: Result<ResourceRecord, ParseRRErr> =
+    let rr: Result<ResourceRecord, ParseZoneDataErr> =
         ResourceRecord::new(s, Some(1000), None, Some("mail."), None);
     assert_eq!(
         rr.unwrap(),
@@ -442,7 +444,7 @@ fn test_parse_rr_from_str() {
     );
 
     let s = "@  86400  IN  NS    @";
-    let rr: Result<ResourceRecord, ParseRRErr> =
+    let rr: Result<ResourceRecord, ParseZoneDataErr> =
         ResourceRecord::new(s, Some(1000), None, Some("mail."), Some("google.com."));
     assert_eq!(
         rr.unwrap(),
@@ -456,7 +458,7 @@ fn test_parse_rr_from_str() {
     );
 
     let s = "@  86400  IN  NS    @";
-    let rr: Result<ResourceRecord, ParseRRErr> =
+    let rr: Result<ResourceRecord, ParseZoneDataErr> =
         ResourceRecord::new(s, Some(1000), None, Some("mail"), Some("google.com."));
     assert_eq!(
         rr.unwrap(),
@@ -473,23 +475,27 @@ fn test_parse_rr_from_str() {
 #[test]
 fn test_parse_rr_from_str_err() {
     let s = "@  IN  NS  @";
-    let rr: Result<ResourceRecord, ParseRRErr> =
+    let rr: Result<ResourceRecord, ParseZoneDataErr> =
         ResourceRecord::new(s, Some(1000), None, None, None);
-    assert_eq!(rr.unwrap_err(), ParseRRErr::NoDefaultDomain);
+    assert_eq!(rr.unwrap_err(), ParseZoneDataErr::NoDefaultDomain);
 
-    let rr: Result<ResourceRecord, ParseRRErr> =
+    let rr: Result<ResourceRecord, ParseZoneDataErr> =
         ResourceRecord::new(s, Some(1000), None, Some("mail"), None);
-    assert_eq!(rr.unwrap_err(), ParseRRErr::NoOriginDomain);
+    assert_eq!(rr.unwrap_err(), ParseZoneDataErr::NoOriginDomain);
 
-    let rr: Result<ResourceRecord, ParseRRErr> =
+    let rr: Result<ResourceRecord, ParseZoneDataErr> =
         ResourceRecord::new(s, None, None, Some("mail"), Some("google.com."));
-    assert_eq!(rr.unwrap_err(), ParseRRErr::NoDefaultTTL);
+    assert_eq!(rr.unwrap_err(), ParseZoneDataErr::NoDefaultTTL);
 
-    let rr: Result<ResourceRecord, ParseRRErr> =
+    let rr: Result<ResourceRecord, ParseZoneDataErr> =
         ResourceRecord::new(s, None, None, Some("-."), None);
-    assert_eq!(rr.unwrap_err(), ParseRRErr::ValidDomainErr("-.".to_owned()));
+    assert_eq!(
+        rr.unwrap_err(),
+        ParseZoneDataErr::ValidDomainErr("-.".to_owned())
+    );
 
     let s = "mail. NS  ns1.google.com.";
-    let rr: Result<ResourceRecord, ParseRRErr> = ResourceRecord::new(s, None, None, None, None);
-    assert_eq!(rr.unwrap_err(), ParseRRErr::NoDefaultTTL);
+    let rr: Result<ResourceRecord, ParseZoneDataErr> =
+        ResourceRecord::new(s, None, None, None, None);
+    assert_eq!(rr.unwrap_err(), ParseZoneDataErr::NoDefaultTTL);
 }

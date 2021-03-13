@@ -126,7 +126,7 @@ where
         self.current_class = Some(r_class)
     }
 
-    fn update_meta(&mut self, line: String) -> Result<(), ParseZoneErr> {
+    fn update_meta(&mut self, line: String) -> Result<(), DNSProtoErr> {
         // line is start with $ then split it take second token.
         let mut spliter = line.split_whitespace();
         match spliter.next() {
@@ -134,10 +134,9 @@ where
                 if let Ok(token) = spliter.next().unwrap().parse::<u32>() {
                     self.update_ttl(token);
                 } else {
-                    return Err(ParseZoneErr::ParseZoneDataError(format!(
-                        "ttl directive parse error: {}",
-                        line
-                    )));
+                    return Err(DNSProtoErr::ParseZoneDataErr(
+                        ParseZoneDataErr::ValidTTLErr(line),
+                    ));
                 }
             }
             Some(token) if token.to_uppercase().eq("$ORIGIN") => {
@@ -145,24 +144,17 @@ where
                 if is_fqdn(origin) && valid_domain(origin) {
                     self.default_origin = Some(origin.to_owned());
                 } else {
-                    return Err(ParseZoneErr::from(ParseRRErr::ValidOriginErr(
-                        origin.to_owned(),
-                    )));
+                    return Err(DNSProtoErr::ParseZoneDataErr(
+                        ParseZoneDataErr::ValidTTLErr(origin.to_owned()),
+                    ));
                 }
             }
             Some(val) if val.to_uppercase().eq("$INCLUDE") => unimplemented!(),
             // started with $ but unknown
-            Some(_) => {
-                return Err(ParseZoneErr::ParseZoneDataError(format!(
-                    "unknown directive: {}",
-                    line
-                )))
-            }
             _ => {
-                return Err(ParseZoneErr::ParseZoneDataError(format!(
-                    "unknown directive: {}",
-                    line
-                )))
+                return Err(DNSProtoErr::ParseZoneDataErr(
+                    ParseZoneDataErr::GeneralFail(format!("unknown directive: {}", line)),
+                ));
             }
         }
         Ok(())
@@ -173,7 +165,7 @@ impl<T> Iterator for Zone<T>
 where
     T: Iterator<Item = String>,
 {
-    type Item = Result<ResourceRecord, ParseZoneErr>;
+    type Item = Result<ResourceRecord, DNSProtoErr>;
 
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(line) = self.line_iterator.next() {
@@ -195,7 +187,7 @@ where
                         self.current_ttl = Some(rr.ttl);
                         Some(Ok(rr))
                     }
-                    Err(err) => Some(Err(ParseZoneErr::from(err))),
+                    Err(err) => Some(Err(DNSProtoErr::ParseZoneDataErr(err))),
                 };
             }
         }
@@ -209,14 +201,17 @@ struct ZoneFileParser {
 }
 
 impl ZoneFileParser {
-    fn new(path: &str) -> Result<ZoneFileParser, ParseZoneErr> {
+    fn new(path: &str) -> Result<ZoneFileParser, DNSProtoErr> {
         // check file exist
         match std::fs::metadata(path) {
             Ok(_) => Ok(ZoneFileParser {
                 lines: read_lines(path),
                 empty_line_checker: Regex::new(r"^\s*$").unwrap(),
             }),
-            Err(err) => Err(ParseZoneErr::FileNotExist(err.to_string())),
+            Err(err) => Err(DNSProtoErr::IOError {
+                path: path.to_string(),
+                err: err.to_string(),
+            }),
         }
     }
 }
@@ -450,16 +445,10 @@ fn test_zone_iterator() {
     );
     let mut zone = Zone::new(zone_str, Some("google.com.".to_owned()));
     match zone.next() {
-        Some(Ok(_)) => {
-            assert!(false);
+        Some(Err(DNSProtoErr::ParseZoneDataErr(_))) => {
+            assert!(true)
         }
-        Some(Err(e)) => assert_eq!(
-            e,
-            ParseZoneErr::ParseZoneDataError(
-                "parse rdata error: default ttl is not set".to_owned()
-            )
-        ),
-        None => {
+        _ => {
             assert!(false);
         }
     }
@@ -476,13 +465,7 @@ fn test_zone_iterator() {
             assert_eq!(v.r_type, DNSType::A);
             assert_eq!(v.r_data, "192.0.2.2".to_owned());
         }
-        Some(Err(e)) => assert_eq!(
-            e,
-            ParseZoneErr::ParseZoneDataError(
-                "parse rdata error: default ttl is not set".to_owned()
-            )
-        ),
-        None => {
+        _ => {
             assert!(false);
         }
     }

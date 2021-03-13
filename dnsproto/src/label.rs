@@ -1,5 +1,4 @@
-use crate::errors::ParseRRErr;
-use crate::errors::ParseRRErr::ParseTypeErr;
+use crate::errors::ParseZoneDataErr;
 use crate::utils::*;
 use std::prelude::v1::Vec;
 use std::rc::Rc;
@@ -37,7 +36,7 @@ pub struct DomainName {
 }
 
 impl DomainName {
-    fn new(domain: &str) -> Result<DomainName, ParseRRErr> {
+    fn new(domain: &str) -> Result<DomainName, ParseZoneDataErr> {
         if domain.is_empty() {
             return Ok(DomainName {
                 is_fqdn: false,
@@ -57,8 +56,8 @@ impl DomainName {
             }
             match Label::from_str(i) {
                 Ok(val) => inner_vec.push(val),
-                Err(err) => {
-                    return Err(ParseTypeErr(format!("domain label validate fail: {}", err)))
+                Err(_) => {
+                    return Err(ParseZoneDataErr::ValidDomainErr(domain.to_owned()));
                 }
             }
         }
@@ -79,7 +78,7 @@ impl Default for DomainName {
 }
 
 impl FromStr for DomainName {
-    type Err = ParseRRErr;
+    type Err = ParseZoneDataErr;
     fn from_str(domain: &str) -> Result<Self, Self::Err> {
         DomainName::new(domain)
     }
@@ -133,11 +132,11 @@ fn test_domain_name() {
 
     assert_eq!(
         "+hello.google.com".parse::<DomainName>().unwrap_err(),
-        ParseTypeErr("domain label validate fail: +hello".to_owned())
+        ParseZoneDataErr::ValidDomainErr("+hello.google.com".to_owned())
     );
     assert_eq!(
         "hello.&google.com".parse::<DomainName>().unwrap_err(),
-        ParseTypeErr("domain label validate fail: &google".to_owned())
+        ParseZoneDataErr::ValidDomainErr("hello.&google.com".to_owned())
     );
     assert_eq!("".parse::<DomainName>().unwrap(), DomainName::default());
 }

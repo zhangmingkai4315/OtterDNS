@@ -8,6 +8,7 @@ extern crate regex;
 extern crate num_enum;
 #[macro_use]
 extern crate nom;
+extern crate thiserror;
 
 pub mod errors;
 pub mod label;

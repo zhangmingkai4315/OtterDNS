@@ -3,8 +3,7 @@ use crate::record::{DNSClass, DNSType};
 use nom::number::complete::{be_u16, be_u32};
 use nom::{Err::Incomplete, IResult, Needed};
 
-use crate::errors::PacketProcessErr;
-use crate::errors::PacketProcessErr::PacketParseError;
+use crate::errors::DNSProtoErr;
 // use crate::types::{DNSFrameEncoder, get_dns_struct_from_raw};
 use nom::lib::std::fmt::Formatter;
 use std::convert::TryFrom;
@@ -293,10 +292,10 @@ named!(parse_header_frame<&[u8], Header>,
     )
 );
 
-pub fn parse_dns_message(message: &[u8]) -> Result<Message, PacketProcessErr> {
+pub fn parse_dns_message(message: &[u8]) -> Result<Message, DNSProtoErr> {
     match parse_message(message, message) {
         Ok(val) => Ok(val.1),
-        Err(_) => Err(PacketParseError),
+        Err(_) => Err(DNSProtoErr::PacketParseError),
     }
 }
 

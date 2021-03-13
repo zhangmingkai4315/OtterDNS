@@ -1,4 +1,4 @@
-use crate::errors::{PacketProcessErr, ParseRRErr};
+use crate::errors::{DNSProtoErr, ParseZoneDataErr};
 use crate::types::DNSFrame;
 use std::net::Ipv4Addr;
 use std::str::FromStr;
@@ -9,25 +9,25 @@ pub struct DnsTypeA(Ipv4Addr);
 
 impl DNSFrame for DnsTypeA {
     type Item = Self;
-    fn decode(data: &[u8]) -> Result<Self::Item, PacketProcessErr> {
+    fn decode(data: &[u8]) -> Result<Self::Item, DNSProtoErr> {
         if data.len() < 4 {
-            return Err(PacketProcessErr::PacketParseError);
+            return Err(DNSProtoErr::PacketParseError);
         }
         let data = unsafe { &*(data as *const [u8] as *const [u8; 4]) };
         Ok(DnsTypeA(Ipv4Addr::from(*data)))
     }
 
-    fn encode(&self) -> Result<Vec<u8>, PacketProcessErr> {
+    fn encode(&self) -> Result<Vec<u8>, DNSProtoErr> {
         Ok(self.0.octets().to_vec())
     }
 }
 
 impl FromStr for DnsTypeA {
-    type Err = ParseRRErr;
+    type Err = ParseZoneDataErr;
     fn from_str(a_str: &str) -> Result<Self, Self::Err> {
         match a_str.parse::<Ipv4Addr>() {
             Ok(v4_addr) => Ok(DnsTypeA(v4_addr)),
-            Err(err) => Err(ParseRRErr::from(err)),
+            Err(err) => Err(ParseZoneDataErr::from(err)),
         }
     }
 }
@@ -70,22 +70,14 @@ fn test_dns_type_a() {
         DnsTypeA::decode(&[255, 255, 255, 0]).unwrap()
     );
 
-    assert_eq!(
-        "1.2.3".parse::<DnsTypeA>().unwrap_err(),
-        ParseRRErr::ParseTypeErr("invalid IP address syntax".to_owned())
-    );
-    assert_eq!(
-        "".parse::<DnsTypeA>().unwrap_err(),
-        ParseRRErr::ParseTypeErr("invalid IP address syntax".to_owned())
-    );
-    assert_eq!(
-        "256.256.265.23".parse::<DnsTypeA>().unwrap_err(),
-        ParseRRErr::ParseTypeErr("invalid IP address syntax".to_owned())
-    );
-    assert_eq!(
-        "-1.-1.-2.-3".parse::<DnsTypeA>().unwrap_err(),
-        ParseRRErr::ParseTypeErr("invalid IP address syntax".to_owned())
-    );
+    for failed_ip in vec!["-1.-1.-2.-3", "256.256.265.23", "", "1.2.3", "1.2.3"] {
+        match failed_ip.parse::<DnsTypeA>() {
+            Err(ParseZoneDataErr::AddrParseError(_)) => {}
+            _ => {
+                assert!(false, format!("parse {} should return error", failed_ip))
+            }
+        }
+    }
 
     assert_eq!(
         "1.2.3.4".parse::<DnsTypeA>().unwrap().encode().unwrap(),

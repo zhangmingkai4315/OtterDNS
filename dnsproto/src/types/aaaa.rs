@@ -1,4 +1,4 @@
-use crate::errors::{PacketProcessErr, ParseRRErr};
+use crate::errors::{DNSProtoErr, ParseZoneDataErr};
 use crate::types::DNSFrame;
 use std::net::Ipv6Addr;
 use std::str::FromStr;
@@ -9,25 +9,25 @@ pub struct DnsTypeAAAA(Ipv6Addr);
 
 impl DNSFrame for DnsTypeAAAA {
     type Item = Self;
-    fn decode(data: &[u8]) -> Result<Self::Item, PacketProcessErr> {
+    fn decode(data: &[u8]) -> Result<Self::Item, DNSProtoErr> {
         if data.len() < 16 {
-            return Err(PacketProcessErr::PacketParseError);
+            return Err(DNSProtoErr::PacketParseError);
         }
         let data = unsafe { &*(data as *const [u8] as *const [u8; 16]) };
         Ok(DnsTypeAAAA(Ipv6Addr::from(*data)))
     }
 
-    fn encode(&self) -> Result<Vec<u8>, PacketProcessErr> {
+    fn encode(&self) -> Result<Vec<u8>, DNSProtoErr> {
         Ok(self.0.octets().to_vec())
     }
 }
 
 impl FromStr for DnsTypeAAAA {
-    type Err = ParseRRErr;
+    type Err = ParseZoneDataErr;
     fn from_str(aaaa_str: &str) -> Result<Self, Self::Err> {
         match aaaa_str.parse::<Ipv6Addr>() {
             Ok(v6_addr) => Ok(DnsTypeAAAA(v6_addr)),
-            Err(err) => Err(ParseRRErr::from(err)),
+            Err(err) => Err(ParseZoneDataErr::AddrParseError(err)),
         }
     }
 }
@@ -68,20 +68,18 @@ fn test_dns_type_aaaa() {
         "FF00::192.168.64.32".parse::<DnsTypeAAAA>().unwrap()
     );
 
-    assert_eq!(
-        "1.2.3".parse::<DnsTypeAAAA>().unwrap_err(),
-        ParseRRErr::ParseTypeErr("invalid IP address syntax".to_owned())
-    );
-    assert_eq!(
-        "::::".parse::<DnsTypeAAAA>().unwrap_err(),
-        ParseRRErr::ParseTypeErr("invalid IP address syntax".to_owned())
-    );
-    assert_eq!(
-        "FF00::192.168.64.32::".parse::<DnsTypeAAAA>().unwrap_err(),
-        ParseRRErr::ParseTypeErr("invalid IP address syntax".to_owned())
-    );
-    assert_eq!(
-        "::127.0.0.1::".parse::<DnsTypeAAAA>().unwrap_err(),
-        ParseRRErr::ParseTypeErr("invalid IP address syntax".to_owned())
-    );
+    for failed_ip in vec![
+        "::::",
+        "1234",
+        "1.2.3.4",
+        "FF00::192.168.64.32::",
+        "::127.0.0.1::",
+    ] {
+        match failed_ip.parse::<DnsTypeAAAA>() {
+            Err(ParseZoneDataErr::AddrParseError(_)) => {}
+            _ => {
+                assert!(false, format!("parse {} should return error", failed_ip))
+            }
+        }
+    }
 }
