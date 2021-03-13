@@ -1,8 +1,8 @@
 use crate::errors::{PacketProcessErr, ParseRRErr};
+use crate::types::DNSFrame;
 use std::net::Ipv6Addr;
 use std::str::FromStr;
 use std::{fmt, fmt::Formatter};
-use crate::types::DNSFrame;
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct DnsTypeAAAA(Ipv6Addr);
@@ -24,17 +24,17 @@ impl DNSFrame for DnsTypeAAAA {
 
 impl FromStr for DnsTypeAAAA {
     type Err = ParseRRErr;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        return match s.parse::<Ipv6Addr>() {
-            Ok(v) => Ok(DnsTypeAAAA(v)),
-            Err(e) => Err(ParseRRErr::from(e)),
-        };
+    fn from_str(aaaa_str: &str) -> Result<Self, Self::Err> {
+        match aaaa_str.parse::<Ipv6Addr>() {
+            Ok(v6_addr) => Ok(DnsTypeAAAA(v6_addr)),
+            Err(err) => Err(ParseRRErr::from(err)),
+        }
     }
 }
 
 impl fmt::Display for DnsTypeAAAA {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f,"{}", self.0.to_string())
+    fn fmt(&self, format: &mut Formatter<'_>) -> fmt::Result {
+        write!(format, "{}", self.0.to_string())
     }
 }
 
@@ -64,8 +64,7 @@ fn test_dns_type_aaaa() {
         "::127.0.0.1".parse::<DnsTypeAAAA>().unwrap()
     );
     assert_eq!(
-        DnsTypeAAAA::decode(&[255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 192, 168, 64, 32])
-            .unwrap(),
+        DnsTypeAAAA::decode(&[255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 192, 168, 64, 32]).unwrap(),
         "FF00::192.168.64.32".parse::<DnsTypeAAAA>().unwrap()
     );
 

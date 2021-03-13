@@ -6,6 +6,7 @@ use nom::{Err::Incomplete, IResult, Needed};
 use crate::errors::PacketProcessErr;
 use crate::errors::PacketProcessErr::PacketParseError;
 // use crate::types::{DNSFrameEncoder, get_dns_struct_from_raw};
+use nom::lib::std::fmt::Formatter;
 use std::convert::TryFrom;
 
 #[derive(Debug, PartialEq)]
@@ -13,16 +14,17 @@ pub struct DNSName {
     pub labels: Vec<String>,
 }
 
-impl DNSName {
-    pub fn to_string(&self) -> String {
-        let mut s = String::new();
+impl std::fmt::Display for DNSName {
+    fn fmt(&self, format: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut name = String::new();
         for label in &self.labels {
-            s.push_str(label);
-            s.push('.');
+            name.push_str(label);
+            name.push('.');
         }
-        s
+        write!(format, "{}", name)
     }
 }
+
 impl Default for DNSName {
     fn default() -> Self {
         DNSName { labels: Vec::new() }
@@ -63,8 +65,6 @@ pub struct Answer {
     ttl: u32,
     raw_data: Vec<u8>,
 }
-
-
 
 #[derive(Debug, PartialEq)]
 pub struct EDNS {
@@ -192,7 +192,7 @@ pub fn parse_name<'a>(input: &'a [u8], original: &'_ [u8]) -> IResult<&'a [u8], 
                 }
                 let label = &input[shift + 1..shift + 1 + size_or_pointer];
                 match std::str::from_utf8(&label) {
-                    Ok(v) => labels.push(String::from(v)),
+                    Ok(label) => labels.push(String::from(label)),
                     _ => return Err(Incomplete(Needed::Unknown)),
                 }
                 shift = shift + size_or_pointer + 1;
@@ -215,7 +215,7 @@ pub fn parse_name<'a>(input: &'a [u8], original: &'_ [u8]) -> IResult<&'a [u8], 
                     Ok(ref mut dname) => labels.append(&mut dname.1.labels),
                     Err(_) => return Err(Incomplete(Needed::Unknown)),
                 };
-                shift = shift + 2;
+                shift += 2;
                 return Ok((&input[shift..], DNSName { labels }));
             }
             _ => return Err(Incomplete(Needed::Unknown)),
@@ -235,7 +235,7 @@ named_args!(parse_answer<'a>(original: &[u8])<&'a [u8], Record>,
 
         value: value!(match qtype == 41 {
             true => Record::EDNSRecord(EDNS{
-                name: name,
+                name,
                 qtype: DNSType::OPT,
                 payload_size: qclass,
                 extension: (ttl & 0xff000000 >> 24 )as u16,
@@ -247,10 +247,10 @@ named_args!(parse_answer<'a>(original: &[u8])<&'a [u8], Record>,
             false => {
                 let qtype = DNSType::try_from(qtype).unwrap();
                 Record::AnswerRecord(Answer{
-                    name: name,
-                    qtype: qtype,
+                    name,
+                    qtype,
                     qclass: DNSClass::try_from(qclass).unwrap(),
-                    ttl: ttl,
+                    ttl,
                     raw_data: data.to_vec(),
                 })
             }
@@ -295,7 +295,7 @@ named!(parse_header_frame<&[u8], Header>,
 
 pub fn parse_dns_message(message: &[u8]) -> Result<Message, PacketProcessErr> {
     match parse_message(message, message) {
-        Ok(v) => Ok(v.1),
+        Ok(val) => Ok(val.1),
         Err(_) => Err(PacketParseError),
     }
 }
@@ -308,11 +308,11 @@ named_args!(parse_message<'a>(original: &[u8])<&'a [u8], Message>,
         authorities: many_m_n!(header.ns_count as usize,header.ns_count as usize, call!(parse_answer,original))>>
         additional:  many_m_n!(header.additional_count as usize,header.additional_count as usize, call!(parse_answer, original)) >>
         (Message{
-            header: header,
-            questions: questions,
-            answers: answers,
-            authorities: authorities,
-            additional: additional,
+            header,
+            questions,
+            answers,
+            authorities,
+            additional,
         })
     )
 );

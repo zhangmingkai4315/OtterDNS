@@ -65,6 +65,7 @@ pub struct ResourceRecord {
 }
 
 impl ResourceRecord {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         rr_str: &str,
         default_ttl: Option<u32>,
@@ -77,13 +78,7 @@ impl ResourceRecord {
         let is_class_set;
         let mut with_default_ttl = false;
         let mut with_default_domain = false;
-        let default_record_class = {
-            if default_class.is_none() {
-                DNSClass::IN
-            } else {
-                default_class.unwrap()
-            }
-        };
+        let default_record_class = default_class.unwrap_or(DNSClass::IN);
         // if begin with a empty or \t then using default domain
         if rr_str.starts_with(|s| s == ' ' || s == '\t') {
             with_default_domain = true;
@@ -106,7 +101,7 @@ impl ResourceRecord {
         let mut token = token.unwrap();
         // if already set ,then parse for ttl, class or type.
         // otherwise check if include @ replace with default domain later
-        if is_domain_set == false {
+        if !is_domain_set {
             if token.eq("@") {
                 // domain exist with @
                 with_default_domain = true;
@@ -116,13 +111,13 @@ impl ResourceRecord {
             }
             // get a new token
             match s_iter.next() {
-                Some(t) => token = t,
+                Some(token_str) => token = token_str,
                 // next required is domain type but got nothing
                 _ => return Err(ParseRRErr::NoDomainType),
             }
         }
 
-        if with_default_domain == true {
+        if with_default_domain {
             if let Some(default_domain_str) = default_domain {
                 name = default_domain_str;
             } else {
@@ -130,7 +125,7 @@ impl ResourceRecord {
             }
         }
         let domain_fqdn: String;
-        if is_fqdn(name) != true {
+        if !is_fqdn(name) {
             if let Some(origin) = default_origin {
                 domain_fqdn = format!("{}.{}", name.to_owned(), origin.to_owned());
             } else {
@@ -139,7 +134,7 @@ impl ResourceRecord {
         } else {
             domain_fqdn = name.to_owned();
         }
-        if valid_domain(name) == false {
+        if !valid_domain(name) {
             return Err(ParseRRErr::ValidDomainErr(name.to_owned()));
         }
         // token must be ttl or class or type
@@ -160,12 +155,12 @@ impl ResourceRecord {
             is_class_set = false;
         }
 
-        if is_ttl_set == false {
+        if !is_ttl_set {
             is_ttl_set = true;
             with_default_ttl = true;
         }
 
-        if is_class_set == true {
+        if is_class_set {
             is_ttl_set = true;
             with_default_ttl = true;
         }
@@ -175,8 +170,8 @@ impl ResourceRecord {
         // there are two options
         // 1. token is ttl when is_ttl_set = true and with_default_ttl = false
         // 2. token is dns type
-        if is_class_set == false {
-            if is_ttl_set == true && with_default_ttl == false {
+        if !is_class_set {
+            if is_ttl_set && !with_default_ttl {
                 // current token must be ttl, get a new token
                 if let Some(token) = s_iter.next() {
                     // maybe class or type
@@ -185,7 +180,7 @@ impl ResourceRecord {
                         // get a new type
                         if let Some(token) = s_iter.next() {
                             // token is domain type now
-                            rtype = token.as_ref();
+                            rtype = token;
                         } else {
                             return Err(ParseRRErr::NoDomainType);
                         }
@@ -194,26 +189,26 @@ impl ResourceRecord {
                         // get a new type
                         if let Some(token) = s_iter.next() {
                             // token is domain type now
-                            rtype = token.as_ref();
+                            rtype = token;
                         } else {
                             return Err(ParseRRErr::NoDomainType);
                         }
                     } else {
                         // current token is type
-                        rtype = token.as_ref();
+                        rtype = token;
                     }
                 } else {
                     return Err(ParseRRErr::NoDomainType);
                 }
             } else {
                 // this token is domain type
-                rtype = token.as_ref();
+                rtype = token;
             }
         } else {
             // class is been set , so get a new token must be dns type
             if let Some(token) = s_iter.next() {
                 // token is domain type now
-                rtype = token.as_ref();
+                rtype = token;
             } else {
                 return Err(ParseRRErr::NoDomainType);
             }
@@ -233,12 +228,12 @@ impl ResourceRecord {
         let mut rest_rdata_vec = vec![];
         let mut begin_item_processed = false;
 
-        while let Some(v) = s_iter.next() {
-            if begin_item_processed == false && v == "@" {
+        for v in s_iter {
+            if !begin_item_processed && v == "@" {
                 let fqdn: String;
                 if let Some(default_domain_str) = default_domain {
                     // default_domain exist but may not be fqdn , we also need to get orgin
-                    if is_fqdn(default_domain_str) != true {
+                    if !is_fqdn(default_domain_str) {
                         if let Some(orign) = default_origin {
                             fqdn = format!("{}.{}", default_domain_str, orign);
                             rest_rdata_vec.push(fqdn);
@@ -253,7 +248,7 @@ impl ResourceRecord {
                 }
                 begin_item_processed = true;
             } else {
-                if v.starts_with(";") {
+                if v.starts_with(';') {
                     break;
                 }
                 rest_rdata_vec.push(v.to_owned());
@@ -262,7 +257,7 @@ impl ResourceRecord {
         r_data = rest_rdata_vec.join(" ");
 
         // rr.r_data = s_iter.flat_map(|s| s.chars()).collect();
-        if with_default_ttl == true {
+        if with_default_ttl {
             if let Some(t) = default_ttl {
                 ttl = t;
             } else {
@@ -272,10 +267,10 @@ impl ResourceRecord {
 
         Ok(ResourceRecord {
             name: domain_fqdn,
-            ttl: ttl,
-            r_class: r_class,
-            r_type: r_type,
-            r_data: r_data.to_owned(),
+            ttl,
+            r_class,
+            r_type,
+            r_data,
         })
     }
 }

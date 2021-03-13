@@ -1,11 +1,12 @@
+#![allow(dead_code)]
+
+use crate::errors::*;
+use crate::record::{DNSClass, ResourceRecord};
+use crate::utils::{is_fqdn, valid_domain};
+use regex::Regex;
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
-
-use crate::errors::*;
-use crate::record::{DNSType, DNSClass, ResourceRecord};
-use crate::utils::{is_fqdn, valid_domain};
-use regex::Regex;
 
 pub trait ZoneReader {
     fn read_line(&self) -> &str;
@@ -55,7 +56,7 @@ impl<'a> Iterator for ZoneStr<'a> {
                 }
                 if let Some(line) = new_line.as_mut() {
                     // Comments start with a semicolon ";" and go to the end of line.
-                    if let Some(line_cutter) = line.find(";") {
+                    if let Some(line_cutter) = line.find(';') {
                         *line = &line[..line_cutter];
                     }
                     // Empty lines are allowed; any combination of tabs and spaces acts as a delimiter.
@@ -63,7 +64,7 @@ impl<'a> Iterator for ZoneStr<'a> {
                         break 'inner;
                     }
                     multi_line = multi_line + line.matches('(').count() - line.matches(')').count();
-                    joined_line.push(line.clone());
+                    joined_line.push(<&str>::clone(line));
                     if multi_line == 0 {
                         break 'outer;
                     } else {
@@ -75,10 +76,10 @@ impl<'a> Iterator for ZoneStr<'a> {
         if multi_line != 0 {
             return None;
         }
-        if joined_line.len() == 0 {
+        if joined_line.is_empty() {
             return None;
         }
-        return Some(joined_line.join(""));
+        Some(joined_line.join(""))
     }
 }
 
@@ -103,7 +104,7 @@ where
     fn new(line_iterator: T, default_origin: Option<String>) -> Zone<T> {
         if let Some(ref origin) = default_origin {
             // must be fqdn
-            if is_fqdn(origin.as_str()) == false {
+            if !is_fqdn(origin.as_str()) {
                 panic!("origin must be fqdn")
             }
         }
@@ -113,7 +114,7 @@ where
             current_class: None,
             current_origin: default_origin.clone(),
             current_ttl: None,
-            default_origin: default_origin.clone(),
+            default_origin,
         }
     }
 
@@ -129,7 +130,7 @@ where
         // line is start with $ then split it take second token.
         let mut spliter = line.split_whitespace();
         match spliter.next() {
-            Some(v) if v.to_uppercase() == "$TTL".to_owned() => {
+            Some(token) if token.to_uppercase().eq("$TTL") => {
                 if let Ok(token) = spliter.next().unwrap().parse::<u32>() {
                     self.update_ttl(token);
                 } else {
@@ -139,7 +140,7 @@ where
                     )));
                 }
             }
-            Some(v) if v.to_uppercase() == "$ORIGIN".to_owned() => {
+            Some(token) if token.to_uppercase().eq("$ORIGIN") => {
                 let origin = spliter.next().unwrap();
                 if is_fqdn(origin) && valid_domain(origin) {
                     self.default_origin = Some(origin.to_owned());
@@ -149,7 +150,7 @@ where
                     )));
                 }
             }
-            Some(v) if v.to_uppercase() == "$INCLUDE".to_owned() => unimplemented!(),
+            Some(val) if val.to_uppercase().eq("$INCLUDE") => unimplemented!(),
             // started with $ but unknown
             Some(_) => {
                 return Err(ParseZoneErr::ParseZoneDataError(format!(
@@ -164,7 +165,7 @@ where
                 )))
             }
         }
-        return Ok(());
+        Ok(())
     }
 }
 
@@ -175,36 +176,30 @@ where
     type Item = Result<ResourceRecord, ParseZoneErr>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            if let Some(line) = self.line_iterator.next() {
-                if line.starts_with("$") {
-                    if let Err(e) = self.update_meta(line) {
-                        return Some(Err(ParseZoneErr::from(e)));
-                    };
-                } else {
-                    match ResourceRecord::new(
-                        (line as String).as_str(),
-                        self.current_ttl,
-                        self.current_class,
-                        self.current_domain.as_deref(),
-                        self.current_origin.as_deref(),
-                    ) {
-                        Ok(v) => {
-                            return {
-                                self.current_domain = Some(v.name.clone());
-                                self.current_class = Some(v.r_class.clone());
-                                self.current_ttl = Some(v.ttl);
-                                Some(Ok(v))
-                            }
-                        }
-                        Err(e) => return Some(Err(ParseZoneErr::from(e))),
-                    }
-                }
+        while let Some(line) = self.line_iterator.next() {
+            if line.starts_with('$') {
+                if let Err(e) = self.update_meta(line) {
+                    return Some(Err(e));
+                };
             } else {
-                break;
+                return match ResourceRecord::new(
+                    (line as String).as_str(),
+                    self.current_ttl,
+                    self.current_class,
+                    self.current_domain.as_deref(),
+                    self.current_origin.as_deref(),
+                ) {
+                    Ok(rr) => {
+                        self.current_domain = Some(rr.name.clone());
+                        self.current_class = Some(rr.r_class);
+                        self.current_ttl = Some(rr.ttl);
+                        Some(Ok(rr))
+                    }
+                    Err(err) => Some(Err(ParseZoneErr::from(err))),
+                };
             }
         }
-        return None;
+        None
     }
 }
 
@@ -217,15 +212,11 @@ impl ZoneFileParser {
     fn new(path: &str) -> Result<ZoneFileParser, ParseZoneErr> {
         // check file exist
         match std::fs::metadata(path) {
-            Ok(_) => {
-                return Ok(ZoneFileParser {
-                    lines: read_lines(path),
-                    empty_line_checker: Regex::new(r"^\s*$").unwrap(),
-                });
-            }
-            Err(err) => {
-                return Err(ParseZoneErr::FileNotExist(err.to_string()));
-            }
+            Ok(_) => Ok(ZoneFileParser {
+                lines: read_lines(path),
+                empty_line_checker: Regex::new(r"^\s*$").unwrap(),
+            }),
+            Err(err) => Err(ParseZoneErr::FileNotExist(err.to_string())),
         }
     }
 }
@@ -239,6 +230,7 @@ impl Iterator for ZoneFileParser {
             return None;
         }
         let line_iter = self.lines.as_mut().unwrap();
+        #[allow(clippy::never_loop)]
         'outer: loop {
             // loop for a truncated line (with '(' or ')' )
             'inner: loop {
@@ -274,7 +266,7 @@ impl Iterator for ZoneFileParser {
         if multi_line != 0 {
             return None;
         }
-        if joined_line.len() == 0 {
+        if joined_line.is_empty() {
             return None;
         }
         Some(joined_line.join::<&str>(""))
@@ -430,6 +422,8 @@ www.a.shifen.com.	300	IN	A	61.135.169.121
 
 #[test]
 fn test_zone_iterator() {
+    use crate::record::DNSType;
+
     let zone_str = ZoneStr::new(
         "ns      86400      IN  A     192.0.2.2             ; IPv4 address for ns.example.com
               IN  AAAA  2001:db8:10::2        ; IPv6 address for ns.example.com",

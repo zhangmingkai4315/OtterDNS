@@ -9,13 +9,13 @@ extern crate num_enum;
 #[macro_use]
 extern crate nom;
 
-pub mod types;
 pub mod errors;
-pub mod record;
-pub mod utils;
-pub mod zone;
 pub mod label;
 pub mod message;
+pub mod record;
+pub mod types;
+pub mod utils;
+pub mod zone;
 
 pub fn version() -> &'static str {
     "v0.1.0"

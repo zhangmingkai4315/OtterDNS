@@ -16,11 +16,15 @@ impl Label {
         }
         Ok(Label(Rc::from(bytes)))
     }
-    pub fn from_str(s: &str) -> DNSTypeResult<Self> {
-        if valid_label(s) {
-            Ok(Label(Rc::from(s.as_bytes())))
+}
+
+impl FromStr for Label {
+    type Err = String;
+    fn from_str(label_str: &str) -> DNSTypeResult<Self> {
+        if valid_label(label_str) {
+            Ok(Label(Rc::from(label_str.as_bytes())))
         } else {
-            Err(format!("{}", s))
+            Err(label_str.to_string())
         }
     }
 }
@@ -33,8 +37,35 @@ pub struct DomainName {
 }
 
 impl DomainName {
-    fn to_string(&self) -> String {
-        "".to_owned()
+    fn new(domain: &str) -> Result<DomainName, ParseRRErr> {
+        if domain.is_empty() {
+            return Ok(DomainName {
+                is_fqdn: false,
+                inner: vec![],
+            });
+        }
+        if domain.eq(".") {
+            return Ok(DomainName {
+                is_fqdn: true,
+                inner: vec![],
+            });
+        }
+        let mut inner_vec = vec![];
+        for i in domain.split('.') {
+            if i.is_empty() {
+                continue;
+            }
+            match Label::from_str(i) {
+                Ok(val) => inner_vec.push(val),
+                Err(err) => {
+                    return Err(ParseTypeErr(format!("domain label validate fail: {}", err)))
+                }
+            }
+        }
+        Ok(DomainName {
+            inner: inner_vec,
+            is_fqdn: is_fqdn(domain),
+        })
     }
 }
 
@@ -46,25 +77,11 @@ impl Default for DomainName {
         }
     }
 }
+
 impl FromStr for DomainName {
     type Err = ParseRRErr;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.len() == 0 || s == "." {
-            // root domain as default
-            return Ok(DomainName::default());
-        }
-        let mut domain = DomainName::default();
-        domain.is_fqdn = is_fqdn(s);
-        for i in s.split('.') {
-            if i.len() == 0 {
-                continue;
-            }
-            match Label::from_str(i) {
-                Ok(v) => domain.inner.push(v),
-                Err(e) => return Err(ParseTypeErr(format!("domain label validate fail: {}", e))),
-            }
-        }
-        Ok(domain)
+    fn from_str(domain: &str) -> Result<Self, Self::Err> {
+        DomainName::new(domain)
     }
 }
 

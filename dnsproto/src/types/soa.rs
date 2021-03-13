@@ -4,7 +4,6 @@ use crate::label::DomainName;
 // use std::str::FromStr;
 // use std::{fmt, fmt::Formatter};
 
-
 // https://tools.ietf.org/html/rfc1035#section-3.3.13
 //
 // 3.3.13 SOA RDATA format
@@ -49,8 +48,6 @@ pub struct DnsTypeSOA {
 //         write!(f, "{}", self.m_name)
 //     }
 // }
-
-
 
 // impl FromStr for DnsTypeSOA {
 //     type Err = ParseRRErr;

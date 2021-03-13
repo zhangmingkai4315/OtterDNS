@@ -3,7 +3,7 @@ pub fn fqdn(domain: &str) -> String {
     if is_fqdn(domain) {
         return domain.to_owned();
     }
-    return domain.to_owned() + ".";
+    domain.to_owned() + "."
 }
 
 #[test]
@@ -41,10 +41,10 @@ pub fn valid_domain(domain: &str) -> bool {
         return false;
     }
     let domain_str = domain_str.trim_end_matches('.');
-    if domain_str == "" {
+    if domain_str.is_empty() {
         return true;
     }
-    let labels = domain_str.split(".");
+    let labels = domain_str.split('.');
 
     for single_label in labels {
         if single_label.len() > 63 {
@@ -56,18 +56,17 @@ pub fn valid_domain(domain: &str) -> bool {
         // rfc1912:  llowable characters in a label for a host name are only ASCII letters, digits,
         // and the `-' character. Labels may not be all numbers,but may have a leading digit (e.g., 3com.com).
         // Labels must end and begin only with a letter or digit.
-        if single_label
+        if !single_label
             .chars()
             .all(|x| (x.is_ascii_alphanumeric() || x == '-'))
-            == false
         {
             return false;
         }
-        if single_label.starts_with('-') == true || single_label.ends_with('-') == true {
+        if single_label.starts_with('-') || single_label.ends_with('-') {
             return false;
         }
     }
-    return true;
+    true
 }
 
 #[test]
@@ -85,10 +84,10 @@ fn test_valid_domain() {
     assert_eq!(valid_domain((oversize_label + ".com").as_str()), false);
 }
 
-fn is_safe_ascii(c: char, is_first: bool) -> bool {
-    match c {
-        c if !c.is_ascii() => false,
-        c if c.is_alphanumeric() => true,
+fn is_safe_ascii(c_char: char, is_first: bool) -> bool {
+    match c_char {
+        check_c_char if !check_c_char.is_ascii() => false,
+        check_c_char if check_c_char.is_alphanumeric() => true,
         '-' if !is_first => true, // dash is allowed
         '_' => true,              // SRV like labels
         '*' if is_first => true,  // wildcard
@@ -112,12 +111,12 @@ fn test_is_safe_ascii() {
     assert_eq!(is_safe_ascii('*', false), false);
 }
 
-pub fn valid_label(s: &str) -> bool {
-    s.len() <= 63
-        && !s.is_empty()
-        && s.is_ascii()
-        && s.chars().take(1).all(|c| is_safe_ascii(c, true))
-        && s.chars().skip(1).all(|c| is_safe_ascii(c, false))
+pub fn valid_label(label: &str) -> bool {
+    label.len() <= 63
+        && !label.is_empty()
+        && label.is_ascii()
+        && label.chars().take(1).all(|c| is_safe_ascii(c, true))
+        && label.chars().skip(1).all(|c| is_safe_ascii(c, false))
 }
 
 #[test]

@@ -17,11 +17,15 @@ pub enum ParseZoneErr {
 }
 
 impl fmt::Display for ParseZoneErr {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, format: &mut Formatter<'_>) -> fmt::Result {
         match *self {
-            ParseZoneErr::FileNotExist(ref file_path) => write!(f, "file: {} not exist", file_path),
-            ParseZoneErr::ReadFileError(ref err) => write!(f, "read file error: {}", err),
-            ParseZoneErr::ParseZoneDataError(ref err) => write!(f, "zone parse error: {}", err),
+            ParseZoneErr::FileNotExist(ref file_path) => {
+                write!(format, "file: {} not exist", file_path)
+            }
+            ParseZoneErr::ReadFileError(ref err) => write!(format, "read file error: {}", err),
+            ParseZoneErr::ParseZoneDataError(ref err) => {
+                write!(format, "zone parse error: {}", err)
+            }
         }
     }
 }
@@ -41,19 +45,19 @@ pub enum ParseRRErr {
 }
 
 impl fmt::Display for ParseRRErr {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, format: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            ParseRRErr::ValidDomainErr(domain) => write!(f, "domain: {} is not valid", domain),
+            ParseRRErr::ValidDomainErr(domain) => write!(format, "domain: {} is not valid", domain),
             ParseRRErr::ValidOriginErr(domain) => {
-                write!(f, "origin: {} is not a valid fqdn", domain)
+                write!(format, "origin: {} is not a valid fqdn", domain)
             }
-            ParseRRErr::NoDefaultTTL => write!(f, "default ttl is not set"),
-            ParseRRErr::NoOriginDomain => write!(f, "default origin domain is not set"),
-            ParseRRErr::NoDefaultDomain => write!(f, "default domain is not set"),
-            ParseRRErr::NoDomainType => write!(f, "default domain type is not set"),
-            ParseRRErr::GeneralFail(err) => write!(f, "general error: {}", err),
-            ParseRRErr::EmptyStrErr => write!(f, "empty zone data error"),
-            _ => write!(f, "unknown error"),
+            ParseRRErr::NoDefaultTTL => write!(format, "default ttl is not set"),
+            ParseRRErr::NoOriginDomain => write!(format, "default origin domain is not set"),
+            ParseRRErr::NoDefaultDomain => write!(format, "default domain is not set"),
+            ParseRRErr::NoDomainType => write!(format, "default domain type is not set"),
+            ParseRRErr::GeneralFail(err) => write!(format, "general error: {}", err),
+            ParseRRErr::EmptyStrErr => write!(format, "empty zone data error"),
+            _ => write!(format, "unknown error"),
         }
     }
 }

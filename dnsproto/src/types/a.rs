@@ -1,8 +1,8 @@
 use crate::errors::{PacketProcessErr, ParseRRErr};
+use crate::types::DNSFrame;
 use std::net::Ipv4Addr;
 use std::str::FromStr;
 use std::{fmt, fmt::Formatter};
-use crate::types::DNSFrame;
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct DnsTypeA(Ipv4Addr);
@@ -14,7 +14,7 @@ impl DNSFrame for DnsTypeA {
             return Err(PacketProcessErr::PacketParseError);
         }
         let data = unsafe { &*(data as *const [u8] as *const [u8; 4]) };
-        return Ok(DnsTypeA(Ipv4Addr::from(*data)));
+        Ok(DnsTypeA(Ipv4Addr::from(*data)))
     }
 
     fn encode(&self) -> Result<Vec<u8>, PacketProcessErr> {
@@ -24,17 +24,17 @@ impl DNSFrame for DnsTypeA {
 
 impl FromStr for DnsTypeA {
     type Err = ParseRRErr;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.parse::<Ipv4Addr>() {
-            Ok(v) => Ok(DnsTypeA(v)),
-            Err(e) => Err(ParseRRErr::from(e)),
+    fn from_str(a_str: &str) -> Result<Self, Self::Err> {
+        match a_str.parse::<Ipv4Addr>() {
+            Ok(v4_addr) => Ok(DnsTypeA(v4_addr)),
+            Err(err) => Err(ParseRRErr::from(err)),
         }
     }
 }
 
 impl fmt::Display for DnsTypeA {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0.to_string())
+    fn fmt(&self, format: &mut Formatter<'_>) -> fmt::Result {
+        write!(format, "{}", self.0.to_string())
     }
 }
 
@@ -92,19 +92,11 @@ fn test_dns_type_a() {
         &[1, 2, 3, 4]
     );
     assert_eq!(
-        "192.168.1.1"
-            .parse::<DnsTypeA>()
-            .unwrap()
-            .encode()
-            .unwrap(),
+        "192.168.1.1".parse::<DnsTypeA>().unwrap().encode().unwrap(),
         &[192, 168, 1, 1]
     );
     assert_eq!(
-        "127.0.0.1"
-            .parse::<DnsTypeA>()
-            .unwrap()
-            .encode()
-            .unwrap(),
+        "127.0.0.1".parse::<DnsTypeA>().unwrap().encode().unwrap(),
         &[127, 0, 0, 1]
     );
     assert_eq!(
