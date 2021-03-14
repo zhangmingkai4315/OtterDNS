@@ -445,9 +445,7 @@ fn test_zone_iterator() {
     );
     let mut zone = Zone::new(zone_str, Some("google.com.".to_owned()));
     match zone.next() {
-        Some(Err(DNSProtoErr::ParseZoneDataErr(_))) => {
-            assert!(true)
-        }
+        Some(Err(DNSProtoErr::ParseZoneDataErr(_))) => assert!(true),
         _ => {
             assert!(false);
         }

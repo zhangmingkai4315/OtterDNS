@@ -1,0 +1,53 @@
+server:
+    listen: 0.0.0.0:53
+
+zone:
+  - domain: abc.com
+    storage: /abc/zones/
+    file: abc.com.zone
+    master: master01
+    acl:
+      - notify_from_master
+
+  - domain: com
+    storage: /abc/zones/
+    file: com.zone
+    notify: slave1
+    acl: [slave1_acl,others_acl]
+
+  - domain: example.com
+    storage: /abc/zones/
+    file: example.com.zone
+    acl: [update_acl]
+
+key:
+  - id: slave1_key
+    algorithm: hmac-md5
+    secret: Wg==
+
+log:
+  - target: stdout
+    server: info
+    query: warning
+    control: debug
+
+remote:
+  - id: master01
+    address: 127.0.0.1
+  - id: slave1
+    address: 192.168.2.1@53
+    key: slave1_key
+
+acl:
+  - id: notify_from_master
+    address: 192.168.1.1
+    action: notify
+  - id: slave1_acl
+    address: 192.168.2.1
+    action: transfer
+  - id: others_acl
+    address: 192.168.3.0/24
+    action: transfer
+  - id: update_acl
+    address: 192.168.3.0/24
+    action: update

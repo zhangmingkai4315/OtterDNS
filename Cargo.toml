@@ -7,4 +7,5 @@ members = [
     "dnsproto",
     "utils",
     "storage",
+    "otterlib",
 ]

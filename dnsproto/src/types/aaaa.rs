@@ -9,7 +9,7 @@ pub struct DnsTypeAAAA(Ipv6Addr);
 
 impl DNSWireFrame for DnsTypeAAAA {
     type Item = Self;
-    fn decode(data: &[u8],_: Option<&[u8]>) -> Result<Self::Item, DNSProtoErr> {
+    fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self::Item, DNSProtoErr> {
         if data.len() < 16 {
             return Err(DNSProtoErr::PacketParseError);
         }
@@ -17,7 +17,7 @@ impl DNSWireFrame for DnsTypeAAAA {
         Ok(DnsTypeAAAA(Ipv6Addr::from(*data)))
     }
 
-    fn encode(&self,_: Option<&[u8]>) -> Result<Vec<u8>, DNSProtoErr> {
+    fn encode(&self, _: Option<&[u8]>) -> Result<Vec<u8>, DNSProtoErr> {
         Ok(self.0.octets().to_vec())
     }
 }
@@ -45,11 +45,14 @@ fn test_dns_type_aaaa() {
         Ok(DnsTypeAAAA(Ipv6Addr::from_str("::").unwrap()))
     );
     assert_eq!(
-        DnsTypeAAAA::decode(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 127, 0, 0, 1],None),
+        DnsTypeAAAA::decode(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 127, 0, 0, 1], None),
         Ok(DnsTypeAAAA(Ipv6Addr::from_str("::127.0.0.1").unwrap()))
     );
     assert_eq!(
-        DnsTypeAAAA::decode(&[255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 192, 168, 64, 32], None),
+        DnsTypeAAAA::decode(
+            &[255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 192, 168, 64, 32],
+            None
+        ),
         Ok(DnsTypeAAAA(
             Ipv6Addr::from_str("FF00::192.168.64.32").unwrap()
         ))
@@ -64,7 +67,11 @@ fn test_dns_type_aaaa() {
         "::127.0.0.1".parse::<DnsTypeAAAA>().unwrap()
     );
     assert_eq!(
-        DnsTypeAAAA::decode(&[255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 192, 168, 64, 32], None).unwrap(),
+        DnsTypeAAAA::decode(
+            &[255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 192, 168, 64, 32],
+            None
+        )
+        .unwrap(),
         "FF00::192.168.64.32".parse::<DnsTypeAAAA>().unwrap()
     );
 
@@ -77,9 +84,7 @@ fn test_dns_type_aaaa() {
     ] {
         match failed_ip.parse::<DnsTypeAAAA>() {
             Err(ParseZoneDataErr::AddrParseError(_)) => {}
-            _ => {
-                assert!(false, format!("parse {} should return error", failed_ip))
-            }
+            _ => assert!(false, format!("parse {} should return error", failed_ip)),
         }
     }
 }

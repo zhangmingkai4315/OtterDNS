@@ -9,6 +9,7 @@
       <sourceFolder url="file://$MODULE_DIR$/otter/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/storage/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/utils/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/otterlib/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/dnsproto/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>

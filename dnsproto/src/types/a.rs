@@ -9,7 +9,7 @@ pub struct DnsTypeA(Ipv4Addr);
 
 impl DNSWireFrame for DnsTypeA {
     type Item = Self;
-    fn decode(data: &[u8],_: Option<&[u8]>) -> Result<Self::Item, DNSProtoErr> {
+    fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self::Item, DNSProtoErr> {
         if data.len() < 4 {
             return Err(DNSProtoErr::PacketParseError);
         }
@@ -17,7 +17,7 @@ impl DNSWireFrame for DnsTypeA {
         Ok(DnsTypeA(Ipv4Addr::from(*data)))
     }
 
-    fn encode(&self,_: Option<&[u8]>) -> Result<Vec<u8>, DNSProtoErr> {
+    fn encode(&self, _: Option<&[u8]>) -> Result<Vec<u8>, DNSProtoErr> {
         Ok(self.0.octets().to_vec())
     }
 }
@@ -45,11 +45,11 @@ fn test_dns_type_a() {
         DnsTypeA(Ipv4Addr::new(0, 0, 0, 0))
     );
     assert_eq!(
-        DnsTypeA::decode(&[127, 0, 0, 1],None).unwrap(),
+        DnsTypeA::decode(&[127, 0, 0, 1], None).unwrap(),
         DnsTypeA(Ipv4Addr::new(127, 0, 0, 1))
     );
     assert_eq!(
-        DnsTypeA::decode(&[255, 255, 255, 255],None).unwrap(),
+        DnsTypeA::decode(&[255, 255, 255, 255], None).unwrap(),
         DnsTypeA(Ipv4Addr::new(255, 255, 255, 255))
     );
 
@@ -73,9 +73,7 @@ fn test_dns_type_a() {
     for failed_ip in vec!["-1.-1.-2.-3", "256.256.265.23", "", "1.2.3", "1.2.3"] {
         match failed_ip.parse::<DnsTypeA>() {
             Err(ParseZoneDataErr::AddrParseError(_)) => {}
-            _ => {
-                assert!(false, format!("parse {} should return error", failed_ip))
-            }
+            _ => assert!(false, format!("parse {} should return error", failed_ip)),
         }
     }
 
@@ -84,11 +82,19 @@ fn test_dns_type_a() {
         &[1, 2, 3, 4]
     );
     assert_eq!(
-        "192.168.1.1".parse::<DnsTypeA>().unwrap().encode(None).unwrap(),
+        "192.168.1.1"
+            .parse::<DnsTypeA>()
+            .unwrap()
+            .encode(None)
+            .unwrap(),
         &[192, 168, 1, 1]
     );
     assert_eq!(
-        "127.0.0.1".parse::<DnsTypeA>().unwrap().encode(None).unwrap(),
+        "127.0.0.1"
+            .parse::<DnsTypeA>()
+            .unwrap()
+            .encode(None)
+            .unwrap(),
         &[127, 0, 0, 1]
     );
     assert_eq!(
