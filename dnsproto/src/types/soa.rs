@@ -2,6 +2,8 @@ use crate::errors::DNSProtoErr;
 use crate::message::{parse_name, DNSName};
 use crate::types::DNSWireFrame;
 use nom::number::complete::be_u32;
+use std::collections::HashMap;
+
 #[derive(Debug, PartialEq)]
 pub struct DnsTypeSOA {
     m_name: DNSName,
@@ -43,42 +45,76 @@ impl DNSWireFrame for DnsTypeSOA {
         }
     }
 
-    fn encode(&self, _original: Option<&[u8]>) -> Result<Vec<u8>, DNSProtoErr> {
-        Err(DNSProtoErr::UnImplementedError)
+    fn encode(
+        &self,
+        compression: Option<(&mut HashMap<String, usize>, usize)>,
+    ) -> Result<Vec<u8>, DNSProtoErr> {
+        let mut data = vec![];
+        match compression {
+            Some((compression_map, size)) => {
+                let m_name = self.m_name.to_binary(Some((compression_map, size)));
+                data.extend_from_slice(m_name.as_slice());
+                let r_name = self
+                    .r_name
+                    .to_binary(Some((compression_map, size + m_name.len())));
+                data.extend_from_slice(r_name.as_slice());
+            }
+            _ => {
+                let m_name = self.m_name.to_binary(None);
+                data.extend_from_slice(m_name.as_slice());
+                let r_name = self.r_name.to_binary(None);
+                data.extend_from_slice(r_name.as_slice());
+            }
+        }
+        data.extend_from_slice(&self.serial.to_be_bytes()[..]);
+        data.extend_from_slice(&self.refresh.to_be_bytes()[..]);
+        data.extend_from_slice(&self.retry.to_be_bytes()[..]);
+        data.extend_from_slice(&self.expire.to_be_bytes()[..]);
+        data.extend_from_slice(&self.minimum.to_be_bytes()[..]);
+        Ok(data)
     }
 }
 
-//
-// impl FromStr for DnsTypeSOA {
-//     type Err = ParseRRErr;
-//     fn from_str(s: &str) -> Result<Self, Self::Err> {
-//         // localhost. root.localhost. 1999010100 ( 10800 900 604800 86400 )
-//         match s.parse::<Ipv4Addr>() {
-//             Ok(v) => Ok(DnsTypeA(v)),
-//             Err(e) => Err(ParseRRErr::from(e)),
-//         }
-//     }
-// }
-//
-// impl fmt::Display for DnsTypeSOA {
-//     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-//         write!(f, "{}", self.m_name)
-//     }
-// }
-
-// impl FromStr for DnsTypeSOA {
-//     type Err = ParseRRErr;
-//     fn from_str(s: &str) -> Result<Self, Self::Err> {
-//         // localhost. root.localhost. 1999010100 ( 10800 900 604800 86400 )
-//         let s1 = s.replace("(", " ").replace(")", " ");
-//         let mut token = s1.split_whitespace();
-//         let domain: DomainName;
-//         if let Some(v) = token.next(){
-//             match  v.parse::<DomainName>(){
-//                 Ok(dn)=> domain = dn,
-//                 Err(e) => return Err(e),
-//             }
-//         }
-//
-//     }
-// }
+#[test]
+fn test_soa_encode() {
+    let non_compression_vec: Vec<u8> = vec![
+        1, 97, 12, 103, 116, 108, 100, 45, 115, 101, 114, 118, 101, 114, 115, 3, 110, 101, 116, 0,
+        5, 110, 115, 116, 108, 100, 12, 118, 101, 114, 105, 115, 105, 103, 110, 45, 103, 114, 115,
+        3, 99, 111, 109, 0, 96, 79, 29, 111, 0, 0, 7, 8, 0, 0, 3, 132, 0, 9, 58, 128, 0, 1, 81,
+        128,
+    ];
+    let compression_vec: Vec<u8> = vec![
+        1, 97, 12, 103, 116, 108, 100, 45, 115, 101, 114, 118, 101, 114, 115, 3, 110, 101, 116, 0,
+        5, 110, 115, 116, 108, 100, 12, 118, 101, 114, 105, 115, 105, 103, 110, 45, 103, 114, 115,
+        0xc0, 0x0c, 96, 79, 29, 111, 0, 0, 7, 8, 0, 0, 3, 132, 0, 9, 58, 128, 0, 1, 81, 128,
+    ];
+    let soa = DnsTypeSOA {
+        m_name: DNSName::new("a.gtld-servers.net.").unwrap(),
+        r_name: DNSName::new("nstld.verisign-grs.com.").unwrap(),
+        serial: 1615797615,
+        refresh: 1800,
+        retry: 900,
+        expire: 604800,
+        minimum: 86400,
+    };
+    match soa.encode(None) {
+        Ok(v) => {
+            println!("{:x?}", v);
+            assert_eq!(v, non_compression_vec, "soa encode not equal")
+        }
+        Err(err) => {
+            assert!(false, format!("error: {:?}", err));
+        }
+    }
+    let mut compression_map = HashMap::new();
+    compression_map.insert("com".to_owned(), 12);
+    match soa.encode(Some((&mut compression_map, 0))) {
+        Ok(v) => {
+            // println!("{:x?}", v);
+            assert_eq!(v, compression_vec, "soa encode not equal")
+        }
+        Err(err) => {
+            assert!(false, format!("error: {:?}", err));
+        }
+    }
+}

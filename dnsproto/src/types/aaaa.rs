@@ -1,5 +1,6 @@
 use crate::errors::{DNSProtoErr, ParseZoneDataErr};
 use crate::types::DNSWireFrame;
+use std::collections::HashMap;
 use std::net::Ipv6Addr;
 use std::str::FromStr;
 use std::{fmt, fmt::Formatter};
@@ -17,7 +18,10 @@ impl DNSWireFrame for DnsTypeAAAA {
         Ok(DnsTypeAAAA(Ipv6Addr::from(*data)))
     }
 
-    fn encode(&self, _: Option<&[u8]>) -> Result<Vec<u8>, DNSProtoErr> {
+    fn encode(
+        &self,
+        _: Option<(&mut HashMap<String, usize>, usize)>,
+    ) -> Result<Vec<u8>, DNSProtoErr> {
         Ok(self.0.octets().to_vec())
     }
 }

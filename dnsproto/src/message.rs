@@ -1,16 +1,99 @@
 // http://www.networksorcery.com/enp/protocol/dns.htm
 use crate::record::{DNSClass, DNSType};
+use crate::utils::{is_fqdn, valid_label};
 use nom::number::complete::{be_u16, be_u32};
 use nom::{Err::Incomplete, IResult, Needed};
 
 use crate::errors::DNSProtoErr;
 // use crate::types::{DNSFrameEncoder, get_dns_struct_from_raw};
+use crate::errors::ParseZoneDataErr;
+use nom::lib::std::collections::HashMap;
 use nom::lib::std::fmt::Formatter;
 use std::convert::TryFrom;
 
 #[derive(Debug, PartialEq)]
 pub struct DNSName {
+    pub is_fqdn: bool,
     pub labels: Vec<String>,
+}
+
+impl DNSName {
+    #[allow(dead_code)]
+    fn root() -> Self {
+        DNSName {
+            is_fqdn: true,
+            labels: Vec::new(),
+        }
+    }
+    pub fn new(domain: &str) -> Result<DNSName, ParseZoneDataErr> {
+        if domain.is_empty() {
+            return Ok(DNSName {
+                is_fqdn: false,
+                labels: vec![],
+            });
+        }
+        if domain.eq(".") {
+            return Ok(DNSName {
+                is_fqdn: true,
+                labels: vec![],
+            });
+        }
+        let mut inner_vec = vec![];
+        for i in domain.split('.') {
+            if i.is_empty() {
+                continue;
+            }
+            if !valid_label(i) {
+                return Err(ParseZoneDataErr::ValidDomainErr(domain.to_owned()));
+            } else {
+                inner_vec.push(i.to_owned());
+            }
+        }
+        Ok(DNSName {
+            labels: inner_vec,
+            is_fqdn: is_fqdn(domain),
+        })
+    }
+    pub fn to_binary(&self, compression: Option<(&mut HashMap<String, usize>, usize)>) -> Vec<u8> {
+        let mut binary_store: Vec<u8> = vec![];
+        let mut index = 0;
+        let mut with_pointer = false;
+        let mut current_offset = 0;
+        match compression {
+            Some((store, offset)) => {
+                for label in self.labels.iter() {
+                    let current_key: String = (&self.labels[index..]).join(".");
+                    index += 1;
+                    match store.get(current_key.as_str()) {
+                        Some(location) => {
+                            let pointer = (*location) | 0xc000;
+                            binary_store.push((pointer >> 8) as u8);
+                            binary_store.push((pointer & 0x00ff) as u8);
+                            with_pointer = true;
+                            break;
+                        }
+                        _ => {
+                            binary_store.push(label.len() as u8);
+                            binary_store.extend_from_slice(label.as_bytes());
+                            store.insert(current_key, offset + current_offset);
+                            current_offset = current_offset + label.len() + 1;
+                        }
+                    }
+                }
+                if !with_pointer {
+                    binary_store.push(0x00);
+                }
+            }
+            _ => {
+                for label in self.labels.iter() {
+                    binary_store.push(label.len() as u8);
+                    binary_store.extend_from_slice(label.as_bytes())
+                }
+                binary_store.push(0x00);
+            }
+        }
+        binary_store
+    }
 }
 
 impl std::fmt::Display for DNSName {
@@ -26,7 +109,10 @@ impl std::fmt::Display for DNSName {
 
 impl Default for DNSName {
     fn default() -> Self {
-        DNSName { labels: Vec::new() }
+        DNSName {
+            is_fqdn: false,
+            labels: Vec::new(),
+        }
     }
 }
 
@@ -217,12 +303,24 @@ pub fn parse_name<'a>(input: &'a [u8], original: &'_ [u8]) -> IResult<&'a [u8], 
                     Err(_) => return Err(Incomplete(Needed::Unknown)),
                 };
                 shift += 2;
-                return Ok((&input[shift..], DNSName { labels }));
+                return Ok((
+                    &input[shift..],
+                    DNSName {
+                        is_fqdn: true,
+                        labels,
+                    },
+                ));
             }
             _ => return Err(Incomplete(Needed::Unknown)),
         }
     }
-    Ok((&input[shift..], DNSName { labels }))
+    Ok((
+        &input[shift..],
+        DNSName {
+            is_fqdn: true,
+            labels,
+        },
+    ))
 }
 
 named_args!(parse_answer<'a>(original: &[u8])<&'a [u8], Record>,
@@ -395,6 +493,7 @@ mod test {
         let result = parse_question(&a);
         let question = Question {
             q_name: DNSName {
+                is_fqdn: true,
                 labels: vec![
                     String::from("storage"),
                     String::from("live"),
@@ -443,6 +542,7 @@ mod test {
         assert_eq!(a.as_ref().is_ok(), true);
         let result = Record::AnswerRecord(Answer {
             name: DNSName {
+                is_fqdn: true,
                 labels: vec![
                     String::from("www"),
                     String::from("google"),
@@ -464,6 +564,7 @@ mod test {
         let a = parse_answer(&answer, &original);
         let result = Record::AnswerRecord(Answer {
             name: DNSName {
+                is_fqdn: true,
                 labels: vec![String::from("google"), String::from("com")],
             },
             qtype: DNSType::NS,
@@ -478,7 +579,10 @@ mod test {
         ];
         let a = parse_answer(&edns, &original);
         let result = Record::EDNSRecord(EDNS {
-            name: DNSName { labels: vec![] },
+            name: DNSName {
+                is_fqdn: true,
+                labels: vec![],
+            },
             qtype: DNSType::OPT,
             payload_size: 4096,
             extension: 0,
@@ -632,5 +736,57 @@ mod test {
         let a = [];
         let result = parse_message(&a, &a);
         assert_eq!(result.as_ref().is_err(), true);
+    }
+}
+
+#[test]
+fn test_encode_dnsname() {
+    // let mut compression: HashMap<String, usize> = HashMap::new();
+    let cases = vec![
+        (
+            "www.baidu.com.",
+            vec![
+                3, 119, 119, 119, 5, 98, 97, 105, 100, 117, 3, 99, 111, 109, 0,
+            ],
+        ),
+        (
+            "www.baidu.com",
+            vec![
+                3, 119, 119, 119, 5, 98, 97, 105, 100, 117, 3, 99, 111, 109, 0,
+            ],
+        ),
+        (".", vec![0]),
+        ("com", vec![3, 99, 111, 109, 0]),
+    ];
+    for case in cases.into_iter() {
+        match DNSName::new(case.0) {
+            Ok(name) => {
+                let result = name.to_binary(None);
+                assert_eq!(result, case.1, "binary array should equal success");
+            }
+            Err(err) => {
+                assert!(false, format!("should return name success: {:?}", err))
+            }
+        }
+    }
+    let mut compression: HashMap<String, usize> = HashMap::new();
+    compression.insert("com".to_owned(), 10);
+    let cases = vec![
+        (
+            "www.baidu.com.",
+            vec![3, 119, 119, 119, 5, 98, 97, 105, 100, 117, 192, 10],
+        ),
+        ("www.baidu.com.", vec![192, 20]),
+    ];
+    for case in cases.into_iter() {
+        match DNSName::new(case.0) {
+            Ok(name) => {
+                let result = name.to_binary(Some((&mut compression, 20)));
+                assert_eq!(result, case.1, "binary array should equal success");
+            }
+            Err(err) => {
+                assert!(false, format!("should return name success: {:?}", err))
+            }
+        }
     }
 }

@@ -95,7 +95,7 @@ impl Settings {
     //         self.key_cache.insert(key.id.clone(), (*key).clone());
     //     }
     // }
-
+    #[allow(dead_code)]
     pub fn get_acl_by_id(&self, id: &str) -> Option<ACL> {
         for acl in self.acl.iter() {
             if acl.id == id {
@@ -104,7 +104,7 @@ impl Settings {
         }
         None
     }
-
+    #[allow(dead_code)]
     pub fn get_remote_by_id(&self, id: &str) -> Option<Remote> {
         for remote in self.remote.iter() {
             if remote.id == id {
@@ -113,7 +113,7 @@ impl Settings {
         }
         None
     }
-
+    #[allow(dead_code)]
     pub fn get_key_by_id(&self, id: &str) -> Option<Key> {
         for key in self.key.iter() {
             if key.id == id {
