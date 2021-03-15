@@ -23,7 +23,7 @@ zone:
 key:
   - id: slave1_key
     algorithm: hmac-md5
-    secret: Wg==
+    secret: hmac-md5
 
 log:
   - target: stdout
