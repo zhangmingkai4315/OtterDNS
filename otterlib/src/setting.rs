@@ -1,61 +1,62 @@
 use config::{Config, ConfigError, File};
 use validator::{Validate, ValidationError, ValidationErrors};
 
-#[derive(Debug, Validate, Deserialize)]
-struct Server {
-    listen: String,
+#[derive(Debug, Validate, PartialEq, Deserialize)]
+pub struct Server {
+    pub listen: String,
 }
 
-#[derive(Debug, Validate, Deserialize)]
-struct Zone {
-    domain: String,
-    storage: String,
-    file: String,
-    master: Option<String>,
-    acl: Option<Vec<String>>,
+#[derive(Debug, Validate, PartialEq, Deserialize)]
+pub struct Zone {
+    pub domain: String,
+    pub storage: String,
+    pub file: String,
+    pub master: Option<String>,
+    pub notify: Option<String>,
+    pub acl: Option<Vec<String>>,
 }
 
-#[derive(Debug, Validate, Deserialize)]
-struct Key {
-    id: String,
-    algorithm: String,
-    secret: String,
+#[derive(Debug, Validate,PartialEq, Deserialize)]
+pub struct Key {
+    pub id: String,
+    pub algorithm: String,
+    pub secret: String,
 }
 
-#[derive(Debug, Validate, Deserialize)]
-struct Log {
-    target: String,
+#[derive(Debug, Validate, PartialEq, Deserialize)]
+pub struct Log {
+    pub target: String,
     #[validate(custom = "validate_log_level")]
-    server: Option<String>,
+    pub server: Option<String>,
     #[validate(custom = "validate_log_level")]
-    query: Option<String>,
+    pub query: Option<String>,
     #[validate(custom = "validate_log_level")]
-    control: Option<String>,
+    pub control: Option<String>,
 }
 
-#[derive(Debug, Validate, Deserialize)]
-struct Remote {
-    id: String,
-    address: String,
-    key: Option<String>,
+#[derive(Debug, Validate, PartialEq, Deserialize)]
+pub struct Remote {
+    pub id: String,
+    pub address: String,
+    pub key: Option<String>,
 }
 
-#[derive(Debug, Validate, Deserialize)]
-struct ACL {
-    id: String,
-    address: String,
+#[derive(Debug, Validate, PartialEq, Deserialize)]
+pub struct ACL {
+    pub id: String,
+    pub address: String,
     #[validate(custom = "validate_action")]
-    action: String,
+    pub action: String,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, PartialEq, Deserialize)]
 pub struct Settings {
-    server: Server,
-    zone: Vec<Zone>,
-    key: Vec<Key>,
-    log: Vec<Log>,
-    remote: Vec<Remote>,
-    acl: Vec<ACL>,
+    pub server: Server,
+    pub zone: Vec<Zone>,
+    pub key: Vec<Key>,
+    pub log: Vec<Log>,
+    pub remote: Vec<Remote>,
+    pub acl: Vec<ACL>,
 }
 
 impl Settings {
