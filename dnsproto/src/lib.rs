@@ -11,7 +11,6 @@ extern crate nom;
 extern crate rand;
 extern crate thiserror;
 
-
 pub mod dnsname;
 pub mod errors;
 pub mod label;

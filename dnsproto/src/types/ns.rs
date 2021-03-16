@@ -5,7 +5,7 @@ use nom::lib::std::collections::HashMap;
 
 #[derive(Debug, PartialEq)]
 pub struct DnsTypeNS {
-    ns: DNSName,
+    pub(crate) ns: DNSName,
 }
 
 named_args!(parse_ns<'a>(original: &[u8])<DnsTypeNS>,
@@ -18,18 +18,22 @@ named_args!(parse_ns<'a>(original: &[u8])<DnsTypeNS>,
 ));
 
 impl DNSWireFrame for DnsTypeNS {
-    type Item = Self;
-    fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self::Item, DNSProtoErr> {
-        match parse_ns(data, original.unwrap_or(&[])) {
-            Ok((_, ns)) => Ok(ns),
-            Err(_err) => Err(DNSProtoErr::PacketParseError),
-        }
-    }
-
     fn encode(
         &self,
         _original: Option<(&mut HashMap<String, usize>, usize)>,
     ) -> Result<Vec<u8>, DNSProtoErr> {
         Err(DNSProtoErr::UnImplementedError)
+    }
+}
+
+impl DnsTypeNS {
+    fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr>
+    where
+        Self: Sized,
+    {
+        match parse_ns(data, original.unwrap_or(&[])) {
+            Ok((_, ns)) => Ok(ns),
+            Err(_err) => Err(DNSProtoErr::PacketParseError),
+        }
     }
 }

@@ -9,20 +9,21 @@ use std::{fmt, fmt::Formatter};
 pub struct DnsTypeA(Ipv4Addr);
 
 impl DNSWireFrame for DnsTypeA {
-    type Item = Self;
-    fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self::Item, DNSProtoErr> {
-        if data.len() < 4 {
-            return Err(DNSProtoErr::PacketParseError);
-        }
-        let data = unsafe { &*(data as *const [u8] as *const [u8; 4]) };
-        Ok(DnsTypeA(Ipv4Addr::from(*data)))
-    }
-
     fn encode(
         &self,
         _: Option<(&mut HashMap<String, usize>, usize)>,
     ) -> Result<Vec<u8>, DNSProtoErr> {
         Ok(self.0.octets().to_vec())
+    }
+}
+
+impl DnsTypeA {
+    fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
+        if data.len() < 4 {
+            return Err(DNSProtoErr::PacketParseError);
+        }
+        let data = unsafe { &*(data as *const [u8] as *const [u8; 4]) };
+        Ok(DnsTypeA(Ipv4Addr::from(*data)))
     }
 }
 

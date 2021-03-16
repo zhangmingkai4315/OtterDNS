@@ -2,12 +2,14 @@
 use crate::dnsname::{parse_name, DNSName};
 use crate::errors::DNSProtoErr;
 use crate::record::{DNSClass, DNSType};
+use crate::types::{DNSWireFrame, DnsTypeNS};
 use byteorder::{BigEndian, WriteBytesExt};
+use nom::lib::std::collections::HashMap;
 use nom::number::complete::{be_u16, be_u32};
 use rand::Rng;
 use std::convert::TryFrom;
 use std::error::Error;
-use std::io::Cursor;
+use std::io::{Cursor, Write};
 
 // https://tools.ietf.org/html/rfc1035
 // 1  1  1  1  1  1
@@ -107,6 +109,18 @@ impl Default for Header {
     }
 }
 
+// 1  1  1  1  1  1
+// 0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+// |                                               |
+// /                     QNAME                     /
+// /                                               /
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+// |                     QTYPE                     |
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+// |                     QCLASS                    |
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+
 #[derive(Debug, PartialEq)]
 pub struct Question {
     q_name: DNSName,
@@ -114,14 +128,109 @@ pub struct Question {
     q_class: DNSClass,
 }
 
-#[derive(Debug, PartialEq)]
+impl Question {
+    pub fn encode(
+        &self,
+        wireframe: &mut Vec<u8>,
+        offset: usize,
+        compression: Option<(&mut HashMap<String, usize>, usize)>,
+    ) -> Result<usize, Box<dyn Error>> {
+        let frame = self.q_name.to_binary(compression);
+        let desired_len = frame.len() + offset + 4;
+        if wireframe.len() < desired_len {
+            wireframe.resize(desired_len, 0);
+        }
+        let mut cursor = Cursor::new(wireframe);
+        cursor.set_position(offset as u64);
+        cursor.write_all(frame.as_slice())?;
+        cursor.write_u16::<BigEndian>(self.q_type as u16)?;
+        cursor.write_u16::<BigEndian>(self.q_class as u16)?;
+        Ok(desired_len)
+    }
+}
+
+// 1  1  1  1  1  1
+// 0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+// |                                               |
+// /                                               /
+// /                      NAME                     /
+// |                                               |
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+// |                      TYPE                     |
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+// |                     CLASS                     |
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+// |                      TTL                      |
+// |                                               |
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+// |                   RDLENGTH                    |
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--|
+// /                     RDATA                     /
+// /                                               /
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+#[derive(Debug)]
 pub struct Answer {
     name: DNSName,
     qtype: DNSType,
     qclass: DNSClass,
     ttl: u32,
     raw_data: Vec<u8>,
-    // data: Box<dyn DNSWireFrame>
+    data: Option<Box<dyn DNSWireFrame>>,
+}
+
+impl Answer {
+    pub fn encode(
+        &self,
+        wireframe: &mut Vec<u8>,
+        offset: usize,
+        compression: Option<(&mut HashMap<String, usize>, usize)>,
+    ) -> Result<usize, Box<dyn Error>> {
+        // TODO:
+        // match compression {
+        //     Some((compression_map, size)) => {
+        //         let m_name = self.name.to_binary(Some((compression_map, size)));
+        //         data.extend_from_slice(m_name.as_slice());
+        //         let r_name = self
+        //             .r_name
+        //             .to_binary(Some((compression_map, size + m_name.len())));
+        //         data.extend_from_slice(r_name.as_slice());
+        //     }
+        //     _ => {
+        //         let m_name = self.m_name.to_binary(None);
+        //         data.extend_from_slice(m_name.as_slice());
+        //         let r_name = self.r_name.to_binary(None);
+        //         data.extend_from_slice(r_name.as_slice());
+        //     }
+        // }
+        let frame = self.name.to_binary(compression);
+        // 10 = type(2) + class(2) + ttl(4) + rd_length(2)
+        let desired_len = frame.len() + offset + 10 + self.raw_data.len();
+
+        if wireframe.len() < desired_len {
+            wireframe.resize(desired_len, 0);
+        }
+        let mut cursor = Cursor::new(wireframe);
+        cursor.set_position(offset as u64);
+        cursor.write_all(frame.as_slice())?;
+        cursor.write_u16::<BigEndian>(self.qtype as u16)?;
+        cursor.write_u16::<BigEndian>(self.qclass as u16)?;
+        cursor.write_u32::<BigEndian>(self.ttl)?;
+        match self.data {
+            Some(frame) => match frame.encode(Some((compression, offset))) {
+                Ok(data) => {
+                    cursor.write_all(data.as_slice())?;
+                    Ok(desired_len)
+                }
+                _ => Err(Box::new(DNSProtoErr::PacketSerializeError)),
+            },
+            _ => Err(Box::new(DNSProtoErr::PacketSerializeError)),
+        }
+    }
+
+    pub fn set_rdata(&mut self, rdata: &[u8]) {
+        self.raw_data = rdata.to_vec();
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -478,6 +587,7 @@ fn test_parse_answer() {
         qclass: DNSClass::IN,
         ttl: 64,
         raw_data: vec![69, 171, 228, 20],
+        data: None,
     });
     assert_eq!(result, a.unwrap().1);
 
@@ -496,6 +606,7 @@ fn test_parse_answer() {
         qclass: DNSClass::IN,
         ttl: 156585,
         raw_data: vec![0x03, 0x6e, 0x73, 0x33, 0xc0, 0x10],
+        data: None,
     });
     assert_eq!(result, a.unwrap().1);
 
@@ -600,4 +711,88 @@ fn test_encode_header() {
             assert!(false, "should not return err: {}", err.to_string());
         }
     }
+}
+
+#[test]
+fn test_question_encode() {
+    let question = Question {
+        q_name: DNSName::new("com").unwrap(),
+        q_type: DNSType::NS,
+        q_class: DNSClass::IN,
+    };
+    let mut bin_message: Vec<u8> = vec![];
+
+    match question.encode(&mut bin_message, 0, None) {
+        Ok(offset) => {
+            assert_eq!(offset, 9);
+            assert_eq!(bin_message, vec![3, 99, 111, 109, 0, 0, 2, 0, 1]);
+        }
+        Err(e) => assert!(false, format!("error: {}", e.to_string())),
+    }
+
+    let question = Question {
+        q_name: DNSName::new("google.com").unwrap(),
+        q_type: DNSType::NS,
+        q_class: DNSClass::IN,
+    };
+
+    let mut compression = HashMap::new();
+    compression.insert("com".to_owned(), 2usize);
+    let compression = Some((&mut compression, 0));
+    let mut bin_message: Vec<u8> = vec![];
+    match question.encode(&mut bin_message, 0, compression) {
+        Ok(offset) => {
+            assert_eq!(offset, 13);
+            assert_eq!(
+                bin_message,
+                vec![6, 103, 111, 111, 103, 108, 101, 192, 2, 0, 2, 0, 1]
+            );
+        }
+        Err(e) => assert!(false, format!("error: {}", e.to_string())),
+    }
+}
+
+#[test]
+fn test_answer_encode() {
+    let nsdata = DnsTypeNS {
+        ns: DNSName::new("ns1.com").unwrap(),
+    };
+
+    let answer = Answer {
+        ttl: 3600,
+        name: DNSName::new("com").unwrap(),
+        qtype: DNSType::NS,
+        qclass: DNSClass::IN,
+        raw_data: vec![],
+        data: Some(Box::new(nsdata)),
+    };
+
+    let mut bin_message: Vec<u8> = vec![];
+    match answer.encode(&mut bin_message, 0, None) {
+        Ok(offset) => {
+            assert_eq!(offset, 9);
+            assert_eq!(bin_message, vec![3, 99, 111, 109, 0, 0, 2, 0, 1]);
+        }
+        Err(e) => assert!(false, format!("error: {}", e.to_string())),
+    }
+
+    // let question = Question{
+    //     q_name: DNSName::new("google.com").unwrap(),
+    //     q_type: DNSType::NS,
+    //     q_class: DNSClass::IN,
+    // };
+    //
+    // let mut compression = HashMap::new();
+    // compression.insert("com".to_owned(), 2usize);
+    // let compression = Some((&mut compression, 0));
+    // let mut bin_message: Vec<u8> = vec![];
+    // match question.encode(&mut bin_message, 0, compression){
+    //     Ok(offset) => {
+    //         assert_eq!(offset, 13);
+    //         assert_eq!(bin_message, vec![6, 103, 111, 111, 103, 108, 101, 192, 2, 0, 2, 0, 1]);
+    //     },
+    //     Err(e) => {
+    //         assert!(false, format!("error: {}", e.to_string()))
+    //     }
+    // }
 }
