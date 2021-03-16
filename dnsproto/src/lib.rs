@@ -10,6 +10,7 @@ extern crate num_enum;
 extern crate nom;
 extern crate thiserror;
 
+pub mod dnsname;
 pub mod errors;
 pub mod label;
 pub mod message;

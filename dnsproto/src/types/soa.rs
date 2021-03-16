@@ -1,5 +1,5 @@
+use crate::dnsname::{parse_name, DNSName};
 use crate::errors::DNSProtoErr;
-use crate::message::{parse_name, DNSName};
 use crate::types::DNSWireFrame;
 use nom::number::complete::be_u32;
 use std::collections::HashMap;
