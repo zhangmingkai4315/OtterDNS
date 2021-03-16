@@ -287,7 +287,7 @@ fn test_config_method() {
             Key {
                 id: "slave1_key".to_string(),
                 algorithm: "hmac-md5".to_string(),
-                secret: "hmac-md5".to_string()
+                secret: "Wg==".to_string()
             }
         );
     } else {
