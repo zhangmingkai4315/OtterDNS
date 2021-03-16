@@ -17,6 +17,6 @@ pub trait DNSWireFrame: Debug {
     fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self::Item, DNSProtoErr>;
     fn encode(
         &self,
-        original: Option<(&mut HashMap<String, usize>, usize)>,
+        compression: Option<(&mut HashMap<String, usize>, usize)>,
     ) -> Result<Vec<u8>, DNSProtoErr>;
 }

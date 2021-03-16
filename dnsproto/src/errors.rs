@@ -11,6 +11,9 @@ pub enum DNSProtoErr {
     #[error(transparent)]
     ParseZoneDataErr(#[from] ParseZoneDataErr),
 
+    #[error("packet encode error")]
+    EncodeError,
+
     #[error("read zone file: `{path:?}` error: {err:?}")]
     IOError { path: String, err: String },
 

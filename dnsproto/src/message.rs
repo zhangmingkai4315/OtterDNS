@@ -2,8 +2,28 @@
 use crate::dnsname::{parse_name, DNSName};
 use crate::errors::DNSProtoErr;
 use crate::record::{DNSClass, DNSType};
+use byteorder::{BigEndian, WriteBytesExt};
 use nom::number::complete::{be_u16, be_u32};
 use std::convert::TryFrom;
+use std::error::Error;
+use std::io::Cursor;
+
+// https://tools.ietf.org/html/rfc1035
+// 1  1  1  1  1  1
+// 0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+// |                      ID                       |
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+// |QR|   Opcode  |AA|TC|RD|RA|   Z    |   RCODE   |
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+// |                    QDCOUNT                    |
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+// |                    ANCOUNT                    |
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+// |                    NSCOUNT                    |
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+// |                    ARCOUNT                    |
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Header {
@@ -22,6 +42,34 @@ pub struct Header {
     answer_count: u16,
     ns_count: u16,
     additional_count: u16,
+}
+impl Header {
+    fn encode(&self, wireframe: &mut Vec<u8>) -> Result<usize, Box<dyn Error>> {
+        if wireframe.len() <= 12 {
+            wireframe.resize(12, 0);
+        }
+        let mut cursor = Cursor::new(wireframe);
+
+        cursor.write_u16::<BigEndian>(self.id)?;
+        let mut h0 = (self.qr as u8) << 7;
+        let opcode: u8 = self.op_code.into();
+        h0 |= (opcode) << 3;
+        h0 |= (self.aa as u8) << 2;
+        h0 |= (self.aa as u8) << 1;
+        h0 |= self.rd as u8;
+
+        let mut h1 = (self.ra as u8) << 7;
+        let rcode: u8 = self.r_code.into();
+        h1 |= (self.z as u8) << 6;
+        h1 |= rcode;
+        cursor.write_u8(h0)?;
+        cursor.write_u8(h1)?;
+        cursor.write_u16::<BigEndian>(self.question_count)?;
+        cursor.write_u16::<BigEndian>(self.answer_count)?;
+        cursor.write_u16::<BigEndian>(self.ns_count)?;
+        cursor.write_u16::<BigEndian>(self.additional_count)?;
+        Ok(12)
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -53,7 +101,7 @@ pub struct EDNS {
     // data: Box<dyn DNSWireFrame>
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OpCode {
     Query,
     IQuery,
@@ -76,8 +124,21 @@ impl From<u8> for OpCode {
     }
 }
 
+impl Into<u8> for OpCode {
+    fn into(self) -> u8 {
+        match self {
+            OpCode::Query => 0,
+            OpCode::IQuery => 1,
+            OpCode::Status => 2,
+            OpCode::Reserved => 3,
+            OpCode::Notify => 4,
+            OpCode::Update => 5,
+        }
+    }
+}
+
 // http://www.tcpipguide.com/free/t_DNSMessageHeaderandQuestionSectionFormat.htm
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RCode {
     NoError,
     FormatError,
@@ -108,6 +169,24 @@ impl From<u8> for RCode {
             9 => RCode::NotAuth,
             10 => RCode::NotZone,
             _ => RCode::Unknown,
+        }
+    }
+}
+impl Into<u8> for RCode {
+    fn into(self) -> u8 {
+        match self {
+            RCode::NoError => 0,
+            RCode::FormatError => 1,
+            RCode::ServerFailure => 2,
+            RCode::NameError => 3,
+            RCode::NotImplemented => 4,
+            RCode::Refused => 5,
+            RCode::YxDomain => 6,
+            RCode::YxRRSet => 7,
+            RCode::NxRRSet => 8,
+            RCode::NotAuth => 9,
+            RCode::NotZone => 10,
+            RCode::Unknown => 11,
         }
     }
 }
@@ -453,4 +532,37 @@ fn test_parse_message() {
     let a = [];
     let result = parse_message(&a, &a);
     assert_eq!(result.as_ref().is_err(), true);
+}
+
+#[test]
+fn test_encode_header() {
+    let header = Header {
+        id: 0x2b01,
+        qr: false,
+        op_code: OpCode::Query,
+        aa: false,
+        tc: false,
+        rd: true,
+        ra: false,
+        z: false,
+        ad: true,
+        cd: false,
+        r_code: RCode::NoError,
+        question_count: 1,
+        answer_count: 0,
+        ns_count: 0,
+        additional_count: 1,
+    };
+    let mut bin_message = vec![];
+    match header.encode(&mut bin_message) {
+        Ok(_offset) => {
+            assert_eq!(
+                bin_message,
+                vec![0x2b, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01]
+            );
+        }
+        Err(err) => {
+            assert!(false, "should not return err: {}", err.to_string());
+        }
+    }
 }
