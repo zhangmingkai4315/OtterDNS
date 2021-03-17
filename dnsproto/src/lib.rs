@@ -8,8 +8,10 @@ extern crate regex;
 extern crate num_enum;
 #[macro_use]
 extern crate nom;
+extern crate rand;
 extern crate thiserror;
 
+pub mod dnsname;
 pub mod errors;
 pub mod label;
 pub mod message;

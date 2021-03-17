@@ -68,11 +68,11 @@ impl Settings {
             return Err(SettingError::ParseConfigError(err.to_string()));
         }
         match config_obj.try_into::<Settings>() {
-            Ok(v) => {
-                if let Err(e) = v.validation() {
+            Ok(setting) => {
+                if let Err(e) = setting.validation() {
                     return Err(SettingError::ValidationError(e.to_string()));
                 }
-                Ok(v)
+                Ok(setting)
             }
             Err(err) => Err(SettingError::ParseConfigError(err.to_string())),
         }
@@ -287,7 +287,7 @@ fn test_config_method() {
             Key {
                 id: "slave1_key".to_string(),
                 algorithm: "hmac-md5".to_string(),
-                secret: "hmac-md5".to_string()
+                secret: "Wg==".to_string()
             }
         );
     } else {

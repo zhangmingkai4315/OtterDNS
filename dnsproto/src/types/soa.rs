@@ -1,5 +1,5 @@
+use crate::dnsname::{parse_name, DNSName};
 use crate::errors::DNSProtoErr;
-use crate::message::{parse_name, DNSName};
 use crate::types::DNSWireFrame;
 use nom::number::complete::be_u32;
 use std::collections::HashMap;
@@ -36,15 +36,16 @@ named_args!(parse_soa<'a>(original: &[u8])<DnsTypeSOA>,
     )
 ));
 
-impl DNSWireFrame for DnsTypeSOA {
-    type Item = Self;
-    fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self::Item, DNSProtoErr> {
+impl DnsTypeSOA {
+    fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
         match parse_soa(data, original.unwrap_or(&[])) {
             Ok((_, soa)) => Ok(soa),
             Err(_err) => Err(DNSProtoErr::PacketParseError),
         }
     }
+}
 
+impl DNSWireFrame for DnsTypeSOA {
     fn encode(
         &self,
         compression: Option<(&mut HashMap<String, usize>, usize)>,
