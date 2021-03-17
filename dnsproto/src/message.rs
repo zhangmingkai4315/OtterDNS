@@ -2,13 +2,14 @@
 use crate::dnsname::{parse_name, DNSName};
 use crate::errors::DNSProtoErr;
 use crate::record::{DNSClass, DNSType};
-use crate::types::{DNSWireFrame, DnsTypeNS};
+use crate::types::DNSWireFrame;
 use byteorder::{BigEndian, WriteBytesExt};
 use nom::lib::std::collections::HashMap;
 use nom::number::complete::{be_u16, be_u32};
 use rand::Rng;
 use std::convert::TryFrom;
 use std::error::Error;
+use std::hash::Hasher;
 use std::io::{Cursor, Write};
 
 // https://tools.ietf.org/html/rfc1035
@@ -179,51 +180,62 @@ pub struct Answer {
     data: Option<Box<dyn DNSWireFrame>>,
 }
 
+impl PartialEq for Answer {
+    fn eq(&self, other: &Self) -> bool {
+        (self.name == other.name)
+            && (self.qtype == other.qtype)
+            && (self.qclass == other.qclass)
+            && (self.ttl == other.ttl)
+            && (self.raw_data == other.raw_data)
+    }
+}
+
 impl Answer {
     pub fn encode(
-        &self,
+        &mut self,
         wireframe: &mut Vec<u8>,
         offset: usize,
-        compression: Option<(&mut HashMap<String, usize>, usize)>,
+        compression: Option<&mut HashMap<String, usize>>,
     ) -> Result<usize, Box<dyn Error>> {
-        // TODO:
-        // match compression {
-        //     Some((compression_map, size)) => {
-        //         let m_name = self.name.to_binary(Some((compression_map, size)));
-        //         data.extend_from_slice(m_name.as_slice());
-        //         let r_name = self
-        //             .r_name
-        //             .to_binary(Some((compression_map, size + m_name.len())));
-        //         data.extend_from_slice(r_name.as_slice());
-        //     }
-        //     _ => {
-        //         let m_name = self.m_name.to_binary(None);
-        //         data.extend_from_slice(m_name.as_slice());
-        //         let r_name = self.r_name.to_binary(None);
-        //         data.extend_from_slice(r_name.as_slice());
-        //     }
-        // }
-        let frame = self.name.to_binary(compression);
-        // 10 = type(2) + class(2) + ttl(4) + rd_length(2)
-        let desired_len = frame.len() + offset + 10 + self.raw_data.len();
+        if self.data.is_none() {
+            return Err(Box::new(DNSProtoErr::PacketSerializeError));
+        }
+        let (frame, compression) = match compression {
+            Some(cp) => (self.name.to_binary(Some((cp, offset))), Some(cp)),
+            _ => (self.name.to_binary(None), None),
+        };
+
+        // 10 = type(2) + class(2) + ttl(4)
+        let mut desired_len = frame.len() + offset + 8;
 
         if wireframe.len() < desired_len {
             wireframe.resize(desired_len, 0);
         }
-        let mut cursor = Cursor::new(wireframe);
-        cursor.set_position(offset as u64);
+
+        let (_, mut right) = wireframe.split_at_mut(offset);
+        let mut cursor = Cursor::new(right);
         cursor.write_all(frame.as_slice())?;
         cursor.write_u16::<BigEndian>(self.qtype as u16)?;
         cursor.write_u16::<BigEndian>(self.qclass as u16)?;
         cursor.write_u32::<BigEndian>(self.ttl)?;
-        match self.data {
-            Some(frame) => match frame.encode(Some((compression, offset))) {
-                Ok(data) => {
-                    cursor.write_all(data.as_slice())?;
-                    Ok(desired_len)
+
+        let encoded = match compression {
+            Some(cp) => self.data.as_ref().unwrap().encode(Some((cp, desired_len))),
+            _ => self.data.as_ref().unwrap().encode(None),
+        };
+        match encoded {
+            Ok(data) => {
+                let old_length = desired_len;
+                desired_len += data.len() + 2;
+                if wireframe.len() < desired_len {
+                    wireframe.resize(desired_len, 0);
                 }
-                _ => Err(Box::new(DNSProtoErr::PacketSerializeError)),
-            },
+                let (_, mut right) = wireframe.split_at_mut(old_length);
+                let mut cursor = Cursor::new(right);
+                cursor.write_u16::<BigEndian>(data.len() as u16)?;
+                cursor.write_all(data.as_slice())?;
+                Ok(desired_len)
+            }
             _ => Err(Box::new(DNSProtoErr::PacketSerializeError)),
         }
     }
@@ -385,6 +397,7 @@ named_args!(parse_answer<'a>(original: &[u8])<&'a [u8], Record>,
             false => {
                 let qtype = DNSType::try_from(qtype).unwrap();
                 Record::AnswerRecord(Answer{
+                    data:None,
                     name,
                     qtype,
                     qclass: DNSClass::try_from(qclass).unwrap(),
@@ -754,12 +767,13 @@ fn test_question_encode() {
 
 #[test]
 fn test_answer_encode() {
+    use crate::types::DnsTypeNS;
     let nsdata = DnsTypeNS {
-        ns: DNSName::new("ns1.com").unwrap(),
+        ns: DNSName::new("b.gtld-servers.net").unwrap(),
     };
 
-    let answer = Answer {
-        ttl: 3600,
+    let mut answer = Answer {
+        ttl: 256,
         name: DNSName::new("com").unwrap(),
         qtype: DNSType::NS,
         qclass: DNSClass::IN,
@@ -770,8 +784,15 @@ fn test_answer_encode() {
     let mut bin_message: Vec<u8> = vec![];
     match answer.encode(&mut bin_message, 0, None) {
         Ok(offset) => {
-            assert_eq!(offset, 9);
-            assert_eq!(bin_message, vec![3, 99, 111, 109, 0, 0, 2, 0, 1]);
+            // assert_eq!(offset, 15);
+            // println!("{:02X?}", bin_message);
+            assert_eq!(
+                bin_message,
+                vec![
+                    3, 99, 111, 109, 0, 0, 2, 0, 1, 0, 0, 1, 0, 0, 20, 1, 98, 12, 103, 116, 108,
+                    100, 45, 115, 101, 114, 118, 101, 114, 115, 3, 110, 101, 116, 0
+                ]
+            );
         }
         Err(e) => assert!(false, format!("error: {}", e.to_string())),
     }
@@ -782,17 +803,20 @@ fn test_answer_encode() {
     //     q_class: DNSClass::IN,
     // };
     //
-    // let mut compression = HashMap::new();
-    // compression.insert("com".to_owned(), 2usize);
-    // let compression = Some((&mut compression, 0));
-    // let mut bin_message: Vec<u8> = vec![];
-    // match question.encode(&mut bin_message, 0, compression){
-    //     Ok(offset) => {
-    //         assert_eq!(offset, 13);
-    //         assert_eq!(bin_message, vec![6, 103, 111, 111, 103, 108, 101, 192, 2, 0, 2, 0, 1]);
-    //     },
-    //     Err(e) => {
-    //         assert!(false, format!("error: {}", e.to_string()))
-    //     }
-    // }
+    let mut compression = HashMap::new();
+    compression.insert("gtld-servers.net".to_owned(), 2usize);
+    let compression = Some(&mut compression);
+    let mut bin_message: Vec<u8> = vec![];
+    match answer.encode(&mut bin_message, 0, compression) {
+        Ok(offset) => {
+            assert_eq!(offset, 19);
+            assert_eq!(
+                bin_message,
+                vec![3, 99, 111, 109, 0, 0, 2, 0, 1, 0, 0, 1, 0, 0, 4, 1, 98, 192, 2]
+            );
+        }
+        Err(e) => {
+            assert!(false, format!("error: {}", e.to_string()))
+        }
+    }
 }
