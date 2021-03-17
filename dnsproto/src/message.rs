@@ -1,15 +1,15 @@
 // http://www.networksorcery.com/enp/protocol/dns.htm
 use crate::dnsname::{parse_name, DNSName};
 use crate::errors::DNSProtoErr;
+use crate::record::DNSType::OPT;
 use crate::record::{DNSClass, DNSType};
-use crate::types::DNSWireFrame;
+use crate::types::{DNSTypeOpt, DNSWireFrame};
 use byteorder::{BigEndian, WriteBytesExt};
 use nom::lib::std::collections::HashMap;
 use nom::number::complete::{be_u16, be_u32};
 use rand::Rng;
 use std::convert::TryFrom;
 use std::error::Error;
-use std::hash::Hasher;
 use std::io::{Cursor, Write};
 
 // https://tools.ietf.org/html/rfc1035
@@ -135,7 +135,7 @@ impl Question {
         wireframe: &mut Vec<u8>,
         offset: usize,
         compression: Option<(&mut HashMap<String, usize>, usize)>,
-    ) -> Result<usize, Box<dyn Error>> {
+    ) -> Result<usize, DNSProtoErr> {
         let frame = self.q_name.to_binary(compression);
         let desired_len = frame.len() + offset + 4;
         if wireframe.len() < desired_len {
@@ -212,7 +212,7 @@ impl Answer {
             wireframe.resize(desired_len, 0);
         }
 
-        let (_, mut right) = wireframe.split_at_mut(offset);
+        let (_, right) = wireframe.split_at_mut(offset);
         let mut cursor = Cursor::new(right);
         cursor.write_all(frame.as_slice())?;
         cursor.write_u16::<BigEndian>(self.qtype as u16)?;
@@ -230,7 +230,7 @@ impl Answer {
                 if wireframe.len() < desired_len {
                     wireframe.resize(desired_len, 0);
                 }
-                let (_, mut right) = wireframe.split_at_mut(old_length);
+                let (_, right) = wireframe.split_at_mut(old_length);
                 let mut cursor = Cursor::new(right);
                 cursor.write_u16::<BigEndian>(data.len() as u16)?;
                 cursor.write_all(data.as_slice())?;
@@ -244,17 +244,65 @@ impl Answer {
         self.raw_data = rdata.to_vec();
     }
 }
+impl PartialEq for EDNS {
+    fn eq(&self, other: &Self) -> bool {
+        (self.name == other.name)
+            && (self.qtype == other.qtype)
+            && (self.extension == other.extension)
+            && (self.do_bit == other.do_bit)
+            && (self.payload_size == other.payload_size)
+            && (self.raw_data == other.raw_data)
+    }
+}
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct EDNS {
     name: DNSName,
     qtype: DNSType,
     payload_size: u16,
-    extension: u16,
+    extension: u8,
     version: u8,
     do_bit: bool,
     raw_data: Vec<u8>,
-    // data: Box<dyn DNSWireFrame>
+    data: Option<Box<dyn DNSWireFrame>>,
+}
+
+impl EDNS {
+    pub fn encode(
+        &mut self,
+        wireframe: &mut Vec<u8>,
+        offset: usize,
+        _compression: Option<&mut HashMap<String, usize>>,
+    ) -> Result<usize, DNSProtoErr> {
+        // let (_, right) = wireframe.split_at_mut(offset);
+        let mut cursor = Cursor::new(wireframe);
+        cursor.set_position(offset as u64);
+        let header_length = offset + 10;
+        cursor.write_u8(0)?; // root
+        cursor.write_u16::<BigEndian>(self.qtype as u16)?;
+        cursor.write_u16::<BigEndian>(self.payload_size)?;
+        cursor.write_u8(self.extension)?;
+        cursor.write_u8(self.version)?;
+        cursor.write_u16::<BigEndian>((self.do_bit as u16) << 15)?;
+        if self.data.is_none() {
+            cursor.write_u16::<BigEndian>(0)?;
+            Ok(header_length)
+        } else {
+            match self.data.as_ref().unwrap().encode(None) {
+                Ok(encoded) => {
+                    let data_length = encoded.len();
+                    cursor.write_u16::<BigEndian>(0)?;
+                    cursor.write_all(encoded.as_slice())?;
+                    Ok(header_length + data_length)
+                }
+                _ => Err(DNSProtoErr::PacketSerializeError),
+            }
+        }
+    }
+
+    pub fn set_rdata(&mut self, rdata: &[u8]) {
+        self.raw_data = rdata.to_vec();
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -388,11 +436,11 @@ named_args!(parse_answer<'a>(original: &[u8])<&'a [u8], Record>,
                 name,
                 qtype: DNSType::OPT,
                 payload_size: qclass,
-                extension: (ttl & 0xff000000 >> 24 )as u16,
+                extension: (ttl & 0xff000000 >> 24 )as u8,
                 version: (ttl & 0x00ff0000 >> 16 )as u8,
                 do_bit: (ttl & 0x0000ff00 >> 15) == 1,
                 raw_data: data.to_vec(),
-                // data: get_dns_struct_from_raw(DNSType::OPT, data, original),
+                data: None,
             }),
             false => {
                 let qtype = DNSType::try_from(qtype).unwrap();
@@ -638,6 +686,7 @@ fn test_parse_answer() {
         version: 0,
         do_bit: false,
         raw_data: vec![],
+        data: None,
     });
     assert_eq!(result, a.unwrap().1);
 }
@@ -784,7 +833,7 @@ fn test_answer_encode() {
     let mut bin_message: Vec<u8> = vec![];
     match answer.encode(&mut bin_message, 0, None) {
         Ok(offset) => {
-            // assert_eq!(offset, 15);
+            assert_eq!(offset, 35);
             // println!("{:02X?}", bin_message);
             assert_eq!(
                 bin_message,
@@ -817,6 +866,33 @@ fn test_answer_encode() {
         }
         Err(e) => {
             assert!(false, format!("error: {}", e.to_string()))
+        }
+    }
+}
+
+#[test]
+fn test_edns_message_encode() {
+    let mut edns = EDNS {
+        name: Default::default(),
+        qtype: DNSType::OPT,
+        payload_size: 512,
+        extension: 0,
+        version: 0,
+        do_bit: true,
+        raw_data: vec![],
+        data: Some(Box::new(DNSTypeOpt::default())),
+    };
+    let mut data = vec![];
+
+    match edns.encode(&mut data, 0, None) {
+        Ok(v) => {
+            assert_eq!(
+                data.clone(),
+                vec![0, 0, 41, 2, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0]
+            );
+        }
+        Err(e) => {
+            assert!(false, format!("{:?}", e));
         }
     }
 }
