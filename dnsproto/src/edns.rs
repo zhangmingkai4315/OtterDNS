@@ -15,7 +15,7 @@ pub struct EDNS {
     pub(crate) extension: u8,
     pub(crate) version: u8,
     pub(crate) do_bit: bool,
-    pub(crate) raw_data: Vec<u8>,
+    pub(crate) raw_data: Option<Vec<u8>>,
     pub(crate) data: Option<Box<dyn DNSWireFrame>>,
 }
 impl Default for EDNS {
@@ -33,7 +33,7 @@ impl EDNS {
             extension: 0,
             version: 0,
             do_bit: false,
-            raw_data: Vec::new(),
+            raw_data: None,
             data: None,
         }
     }
@@ -72,7 +72,7 @@ impl EDNS {
     }
 
     pub fn set_rdata(&mut self, rdata: &[u8]) {
-        self.raw_data = rdata.to_vec();
+        self.raw_data = Some(rdata.to_vec());
     }
 }
 

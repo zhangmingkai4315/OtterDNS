@@ -209,9 +209,7 @@ fn test_ecs_create() {
                 Err(_) => assert!(false),
             }
         }
-        Err(_) => {
-            assert!(false)
-        }
+        Err(_) => assert!(false),
     }
     match EdnsECS::new_ipv4("1.1.0.0".parse().unwrap(), 16, 0) {
         Ok(ecs) => {
@@ -224,9 +222,7 @@ fn test_ecs_create() {
                 Err(_) => assert!(false),
             }
         }
-        Err(_) => {
-            assert!(false)
-        }
+        Err(_) => assert!(false),
     }
 }
 

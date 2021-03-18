@@ -145,7 +145,7 @@ impl Question {
     pub fn encode<'a>(
         &self,
         cursor: &'a mut Cursor<Vec<u8>>,
-        compression: Option<(&mut HashMap<String, usize>)>,
+        compression: Option<&mut HashMap<String, usize>>,
     ) -> Result<&'a mut Cursor<Vec<u8>>, DNSProtoErr> {
         let frame = {
             if compression.is_none() {
@@ -188,7 +188,7 @@ pub struct Answer {
     pub(crate) qtype: DNSType,
     pub(crate) qclass: DNSClass,
     pub(crate) ttl: u32,
-    pub(crate) raw_data: Vec<u8>,
+    pub(crate) raw_data: Option<Vec<u8>>,
     pub(crate) data: Option<Box<dyn DNSWireFrame>>,
 }
 
@@ -203,6 +203,23 @@ impl PartialEq for Answer {
 }
 
 impl Answer {
+    pub fn new(
+        domain: &str,
+        qtype: DNSType,
+        qclass: DNSClass,
+        ttl: u32,
+        data: Option<Box<dyn DNSWireFrame>>,
+    ) -> Result<Answer, DNSProtoErr> {
+        Ok(Answer {
+            name: DNSName::new(domain)?,
+            qtype,
+            qclass,
+            ttl,
+            raw_data: None,
+            data,
+        })
+    }
+
     pub fn encode<'a>(
         &mut self,
         cursor: &'a mut Cursor<Vec<u8>>,
@@ -240,7 +257,7 @@ impl Answer {
     }
 
     pub fn set_rdata(&mut self, rdata: &[u8]) {
-        self.raw_data = rdata.to_vec();
+        self.raw_data = Some(rdata.to_vec());
     }
 }
 

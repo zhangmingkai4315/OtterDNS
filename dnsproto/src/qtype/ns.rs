@@ -8,6 +8,14 @@ pub struct DnsTypeNS {
     pub(crate) ns: DNSName,
 }
 
+impl DnsTypeNS {
+    pub fn new(name: &str) -> Result<DnsTypeNS, DNSProtoErr> {
+        Ok(DnsTypeNS {
+            ns: DNSName::new(name)?,
+        })
+    }
+}
+
 named_args!(parse_ns<'a>(original: &[u8])<DnsTypeNS>,
     do_parse!(
         ns: call!(parse_name, original)>>
@@ -35,9 +43,7 @@ fn test_ns_encode() {
         ns: DNSName::new("f.gtld-servers.net").unwrap(),
     };
     match ns.encode(None) {
-        Ok(ns_data) => {
-            assert_eq!(ns_data, non_compression_vec)
-        }
+        Ok(ns_data) => assert_eq!(ns_data, non_compression_vec),
         _ => {
             assert!(false);
         }
@@ -46,18 +52,14 @@ fn test_ns_encode() {
     compression_map.insert("gtld-servers.net".to_owned(), 23);
     let compression_vec: Vec<u8> = vec![1, 102, 192, 23];
     match ns.encode(Some((&mut compression_map, 30))) {
-        Ok(ns_data) => {
-            assert_eq!(ns_data, compression_vec)
-        }
+        Ok(ns_data) => assert_eq!(ns_data, compression_vec),
         _ => {
             assert!(false);
         }
     }
     let update_vec = vec![192, 30];
     match ns.encode(Some((&mut compression_map, 0))) {
-        Ok(ns_data) => {
-            assert_eq!(ns_data, update_vec)
-        }
+        Ok(ns_data) => assert_eq!(ns_data, update_vec),
         _ => {
             assert!(false);
         }
