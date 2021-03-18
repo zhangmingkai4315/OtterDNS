@@ -8,6 +8,8 @@ use crate::qtype::DNSTypeOpt;
 use nom::number::complete::{be_u16, be_u32};
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::io::Cursor;
+
 #[derive(Debug, PartialEq)]
 pub struct Message {
     header: Header,
@@ -15,6 +17,61 @@ pub struct Message {
     answers: Vec<Record>,
     authorities: Vec<Record>,
     additional: Vec<Record>,
+}
+
+impl Message{
+    fn new()->Message{
+        Message{
+            header: Default::default(),
+            questions: vec![],
+            answers: vec![],
+            authorities: vec![],
+            additional: vec![]
+        }
+    }
+
+    fn encode(&self)->Result<Vec<u8>, DNSProtoErr>{
+        let buffer: Vec<u8> = {
+            if self.header.qr{
+                Vec::with_capacity(256)
+            }else{
+                Vec::with_capacity(128)
+            }
+
+        };
+        let cursor = Cursor::new(buffer);
+
+        // self.header.encode()
+
+        Ok(vec![])
+    }
+
+    fn set_question(&mut self, question: Question){
+
+        if self.questions.len() == 0{
+            self.questions.push(question)
+        }else{
+            self.questions[0] = question
+        }
+        self.header.question_count = 1;
+    }
+
+    fn append_answer(&mut self, answer: Answer){
+        self.answers.push(Record::AnswerRecord(answer));
+        self.header.answer_count = self.answers.len() as u16;
+    }
+    fn append_additional(&mut self, additional: Answer){
+        self.additional.push(Record::AnswerRecord(additional));
+        self.header.additional_count = self.additional.len() as u16;
+    }
+    fn append_edns(&mut self, edns: EDNS){
+        self.additional.push(Record::EDNSRecord(edns));
+        self.header.additional_count = self.additional.len() as u16;
+    }
+    fn append_authority(&mut self, answer: Answer){
+        self.authorities.push(Record::AnswerRecord(answer));
+        self.header.ns_count = self.authorities.len() as u16;
+    }
 }
 
 named!(parse_question<&[u8], Question>,
@@ -374,11 +431,11 @@ fn test_encode_header() {
         ns_count: 0,
         additional_count: 1,
     };
-    let mut bin_message = vec![];
+    let mut bin_message = Cursor::new(vec![]);
     match header.encode(&mut bin_message) {
         Ok(_offset) => {
             assert_eq!(
-                bin_message,
+                bin_message.into_inner(),
                 vec![0x2b, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01]
             );
         }
@@ -512,11 +569,15 @@ fn test_encode_edns_message() {
 
 #[test]
 fn test_encode_message() {
-    // let message = Message{
-    //     header: Header::new(),
-    //     questions: vec![],
-    //     answers: vec![],
-    //     authorities: vec![],
-    //     additional: vec![]
-    // }
+    let mut header = Header::new();
+    header.rd = true;
+    // serialize a question
+    let question = Question::new("google.com", DNSType::NS, DNSClass::IN).unwrap();
+    let mut edns = EDNS::new();
+    edns.set_dnssec_enable(true);
+    let mut message = Message::new();
+    message.header.set_rd(true);
+    message.set_question(question);
+    message.append_edns(edns);
+
 }

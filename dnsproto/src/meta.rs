@@ -27,21 +27,21 @@ use std::io::{Cursor, Write};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Header {
-    pub id: u16,
-    pub qr: bool,
-    pub op_code: OpCode,
-    pub aa: bool,
-    pub tc: bool,
-    pub rd: bool,
-    pub ra: bool,
-    pub z: bool,
-    pub ad: bool,
-    pub cd: bool,
-    pub r_code: RCode,
-    pub question_count: u16,
-    pub answer_count: u16,
-    pub ns_count: u16,
-    pub additional_count: u16,
+    pub(crate) id: u16,
+    pub(crate) qr: bool,
+    pub(crate) op_code: OpCode,
+    pub(crate) aa: bool,
+    pub(crate) tc: bool,
+    pub(crate) rd: bool,
+    pub(crate) ra: bool,
+    pub(crate) z: bool,
+    pub(crate) ad: bool,
+    pub(crate) cd: bool,
+    pub(crate) r_code: RCode,
+    pub(crate) question_count: u16,
+    pub(crate) answer_count: u16,
+    pub(crate) ns_count: u16,
+    pub(crate) additional_count: u16,
 }
 impl Header {
     pub fn new() -> Header {
@@ -58,7 +58,7 @@ impl Header {
             ad: false,
             cd: false,
             r_code: RCode::NoError,
-            question_count: 1,
+            question_count: 0,
             answer_count: 0,
             ns_count: 0,
             additional_count: 0,
@@ -67,17 +67,23 @@ impl Header {
     pub fn set_id(&mut self, id: u16) {
         self.id = id
     }
+    pub fn set_rd(&mut self, rd: bool){
+        self.rd = rd;
+    }
+    pub fn set_qr(&mut self, qr: bool){
+        self.qr = qr;
+    }
     pub fn set_random_id(&mut self) -> u16 {
         let mut rng = rand::thread_rng();
         let id = rng.gen::<u16>();
         self.id = id;
         id
     }
-    pub fn encode(&self, wireframe: &mut Vec<u8>) -> Result<usize, Box<dyn Error>> {
-        if wireframe.len() <= 12 {
-            wireframe.resize(12, 0);
-        }
-        let mut cursor = Cursor::new(wireframe);
+    pub fn encode<'a>(&self, cursor: &'a mut Cursor<Vec<u8>>) -> Result<&'a mut Cursor<Vec<u8>>, Box<dyn Error>> {
+        // if wireframe.len() <= 12 {
+        //     wireframe.resize(12, 0);
+        // }
+        // let mut cursor = Cursor::new(wireframe);
 
         cursor.write_u16::<BigEndian>(self.id)?;
         let mut h0 = (self.qr as u8) << 7;
@@ -97,7 +103,7 @@ impl Header {
         cursor.write_u16::<BigEndian>(self.answer_count)?;
         cursor.write_u16::<BigEndian>(self.ns_count)?;
         cursor.write_u16::<BigEndian>(self.additional_count)?;
-        Ok(12)
+        Ok(cursor)
     }
 }
 impl Default for Header {
@@ -126,6 +132,13 @@ pub struct Question {
 }
 
 impl Question {
+    pub fn new(domain: &str, q_type: DNSType, q_class: DNSClass) -> Result<Question, DNSProtoErr>{
+        Ok(Question{
+            q_name: DNSName::new(domain)?,
+            q_type,
+            q_class,
+        })
+    }
     pub fn encode(
         &self,
         wireframe: &mut Vec<u8>,

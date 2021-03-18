@@ -18,8 +18,32 @@ pub struct EDNS {
     pub(crate) raw_data: Vec<u8>,
     pub(crate) data: Option<Box<dyn DNSWireFrame>>,
 }
+impl Default for EDNS{
+    fn default() -> Self {
+         EDNS::new()
+    }
+}
 
 impl EDNS {
+    pub fn new() -> Self{
+        EDNS{
+            name: DNSName::new("").unwrap(),
+            qtype: DNSType::OPT,
+            payload_size: 1024,
+            extension: 0,
+            version: 0,
+            do_bit: false,
+            raw_data: Vec::new(),
+            data: None,
+        }
+    }
+    pub fn set_dnssec_enable(&mut self, status: bool){
+        self.do_bit = status
+    }
+    pub fn set_payload_size(&mut self, size: u16){
+        self.payload_size = size
+    }
+
     pub fn encode(
         &mut self,
         wireframe: &mut Vec<u8>,
