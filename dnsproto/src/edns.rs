@@ -18,18 +18,18 @@ pub struct EDNS {
     pub(crate) raw_data: Vec<u8>,
     pub(crate) data: Option<Box<dyn DNSWireFrame>>,
 }
-impl Default for EDNS{
+impl Default for EDNS {
     fn default() -> Self {
-         EDNS::new()
+        EDNS::new()
     }
 }
 
 impl EDNS {
-    pub fn new() -> Self{
-        EDNS{
+    pub fn new() -> Self {
+        EDNS {
             name: DNSName::new("").unwrap(),
             qtype: DNSType::OPT,
-            payload_size: 1024,
+            payload_size: 1243,
             extension: 0,
             version: 0,
             do_bit: false,
@@ -37,23 +37,18 @@ impl EDNS {
             data: None,
         }
     }
-    pub fn set_dnssec_enable(&mut self, status: bool){
+    pub fn set_dnssec_enable(&mut self, status: bool) {
         self.do_bit = status
     }
-    pub fn set_payload_size(&mut self, size: u16){
+    pub fn set_payload_size(&mut self, size: u16) {
         self.payload_size = size
     }
 
-    pub fn encode(
+    pub fn encode<'a>(
         &mut self,
-        wireframe: &mut Vec<u8>,
-        offset: usize,
+        cursor: &'a mut Cursor<Vec<u8>>,
         _compression: Option<&mut HashMap<String, usize>>,
-    ) -> Result<usize, DNSProtoErr> {
-        // let (_, right) = wireframe.split_at_mut(offset);
-        let mut cursor = Cursor::new(wireframe);
-        cursor.set_position(offset as u64);
-        let header_length = offset + 10;
+    ) -> Result<&'a mut Cursor<Vec<u8>>, DNSProtoErr> {
         cursor.write_u8(0)?; // root
         cursor.write_u16::<BigEndian>(self.qtype as u16)?;
         cursor.write_u16::<BigEndian>(self.payload_size)?;
@@ -62,14 +57,14 @@ impl EDNS {
         cursor.write_u16::<BigEndian>((self.do_bit as u16) << 15)?;
         if self.data.is_none() {
             cursor.write_u16::<BigEndian>(0)?;
-            Ok(header_length)
+            Ok(cursor)
         } else {
             match self.data.as_ref().unwrap().encode(None) {
                 Ok(encoded) => {
                     let data_length = encoded.len();
-                    cursor.write_u16::<BigEndian>(0)?;
+                    cursor.write_u16::<BigEndian>(data_length as u16)?;
                     cursor.write_all(encoded.as_slice())?;
-                    Ok(header_length + data_length)
+                    Ok(cursor)
                 }
                 _ => Err(DNSProtoErr::PacketSerializeError),
             }

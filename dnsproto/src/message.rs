@@ -9,6 +9,7 @@ use nom::number::complete::{be_u16, be_u32};
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::io::Cursor;
+use std::thread::current;
 
 #[derive(Debug, PartialEq)]
 pub struct Message {
@@ -19,56 +20,79 @@ pub struct Message {
     additional: Vec<Record>,
 }
 
-impl Message{
-    fn new()->Message{
-        Message{
+impl Message {
+    fn new() -> Message {
+        Message {
             header: Default::default(),
             questions: vec![],
             answers: vec![],
             authorities: vec![],
-            additional: vec![]
+            additional: vec![],
         }
     }
-
-    fn encode(&self)->Result<Vec<u8>, DNSProtoErr>{
+    fn new_with_header(header: Header) -> Message {
+        Message {
+            header,
+            questions: vec![],
+            answers: vec![],
+            authorities: vec![],
+            additional: vec![],
+        }
+    }
+    pub fn encode(&mut self) -> Result<Vec<u8>, DNSProtoErr> {
         let buffer: Vec<u8> = {
-            if self.header.qr{
+            if self.header.qr {
                 Vec::with_capacity(256)
-            }else{
+            } else {
                 Vec::with_capacity(128)
             }
-
         };
-        let cursor = Cursor::new(buffer);
-
-        // self.header.encode()
-
-        Ok(vec![])
+        // self.cursor = Some(&mut Cursor::new(buffer));
+        // let cursor = self.cursor.unwrap();
+        let ref mut cursor = Cursor::new(buffer);
+        let ref mut compression = HashMap::new();
+        let mut cursor = self.header.encode(cursor)?;
+        for question in self.questions.as_slice() {
+            cursor = question.encode(cursor, Some((compression)))?
+        }
+        for answer in self.answers.as_mut_slice() {
+            cursor = answer.encode(cursor, Some(compression))?
+        }
+        for ns_record in self.authorities.as_mut_slice() {
+            cursor = ns_record.encode(cursor, Some(compression))?
+        }
+        // Opt is ends type not answer type
+        for additional in self.additional.as_mut_slice() {
+            cursor = additional.encode(cursor, Some(compression))?
+        }
+        let result = cursor.get_ref().clone();
+        Ok(result)
     }
-
-    fn set_question(&mut self, question: Question){
-
-        if self.questions.len() == 0{
+    pub fn set_header(&mut self, header: Header) {
+        self.header = header;
+    }
+    pub fn set_question(&mut self, question: Question) {
+        if self.questions.len() == 0 {
             self.questions.push(question)
-        }else{
+        } else {
             self.questions[0] = question
         }
         self.header.question_count = 1;
     }
 
-    fn append_answer(&mut self, answer: Answer){
+    pub fn append_answer(&mut self, answer: Answer) {
         self.answers.push(Record::AnswerRecord(answer));
         self.header.answer_count = self.answers.len() as u16;
     }
-    fn append_additional(&mut self, additional: Answer){
+    pub fn append_additional(&mut self, additional: Answer) {
         self.additional.push(Record::AnswerRecord(additional));
         self.header.additional_count = self.additional.len() as u16;
     }
-    fn append_edns(&mut self, edns: EDNS){
+    pub fn append_edns(&mut self, edns: EDNS) {
         self.additional.push(Record::EDNSRecord(edns));
         self.header.additional_count = self.additional.len() as u16;
     }
-    fn append_authority(&mut self, answer: Answer){
+    pub fn append_authority(&mut self, answer: Answer) {
         self.authorities.push(Record::AnswerRecord(answer));
         self.header.ns_count = self.authorities.len() as u16;
     }
@@ -91,6 +115,28 @@ named!(parse_question<&[u8], Question>,
 pub enum Record {
     AnswerRecord(Answer),
     EDNSRecord(EDNS),
+}
+
+impl Record {
+    fn encode<'a>(
+        &mut self,
+        cursor: &'a mut Cursor<Vec<u8>>,
+        compression: Option<&mut HashMap<String, usize>>,
+    ) -> Result<&'a mut Cursor<Vec<u8>>, DNSProtoErr> {
+        match self {
+            Record::AnswerRecord(answer) => {
+                if let Ok(cursor) = answer.encode(cursor, compression) {
+                    return Ok(cursor);
+                }
+            }
+            Record::EDNSRecord(edns) => {
+                if let Ok(cursor) = edns.encode(cursor, compression) {
+                    return Ok(cursor);
+                }
+            }
+        }
+        Err(DNSProtoErr::PacketSerializeError)
+    }
 }
 
 named_args!(parse_answer<'a>(original: &[u8])<&'a [u8], Record>,
@@ -431,11 +477,11 @@ fn test_encode_header() {
         ns_count: 0,
         additional_count: 1,
     };
-    let mut bin_message = Cursor::new(vec![]);
-    match header.encode(&mut bin_message) {
+    let ref mut cursor = Cursor::new(vec![]);
+    match header.encode(cursor) {
         Ok(_offset) => {
             assert_eq!(
-                bin_message.into_inner(),
+                cursor.get_ref().clone(),
                 vec![0x2b, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01]
             );
         }
@@ -452,12 +498,14 @@ fn test_encode_question() {
         q_type: DNSType::NS,
         q_class: DNSClass::IN,
     };
-    let mut bin_message: Vec<u8> = vec![];
+    let ref mut cursor = Cursor::new(vec![]);
 
-    match question.encode(&mut bin_message, 0, None) {
-        Ok(offset) => {
-            assert_eq!(offset, 9);
-            assert_eq!(bin_message, vec![3, 99, 111, 109, 0, 0, 2, 0, 1]);
+    match question.encode(cursor, None) {
+        Ok(cursor) => {
+            assert_eq!(
+                cursor.get_ref().clone(),
+                vec![3, 99, 111, 109, 0, 0, 2, 0, 1]
+            );
         }
         Err(e) => assert!(false, format!("error: {}", e.to_string())),
     }
@@ -470,13 +518,12 @@ fn test_encode_question() {
 
     let mut compression = HashMap::new();
     compression.insert("com".to_owned(), 2usize);
-    let compression = Some((&mut compression, 0));
-    let mut bin_message: Vec<u8> = vec![];
-    match question.encode(&mut bin_message, 0, compression) {
-        Ok(offset) => {
-            assert_eq!(offset, 13);
+    let compression = Some(&mut compression);
+    let ref mut cursor = Cursor::new(vec![]);
+    match question.encode(cursor, compression) {
+        Ok(cursor) => {
             assert_eq!(
-                bin_message,
+                cursor.get_ref().clone(),
                 vec![6, 103, 111, 111, 103, 108, 101, 192, 2, 0, 2, 0, 1]
             );
         }
@@ -500,13 +547,11 @@ fn test_encode_answer() {
         data: Some(Box::new(nsdata)),
     };
 
-    let mut bin_message: Vec<u8> = vec![];
-    match answer.encode(&mut bin_message, 0, None) {
-        Ok(offset) => {
-            assert_eq!(offset, 35);
-            // println!("{:02X?}", bin_message);
+    let ref mut cursor = Cursor::new(vec![]);
+    match answer.encode(cursor, None) {
+        Ok(cursor) => {
             assert_eq!(
-                bin_message,
+                cursor.get_ref().clone(),
                 vec![
                     3, 99, 111, 109, 0, 0, 2, 0, 1, 0, 0, 1, 0, 0, 20, 1, 98, 12, 103, 116, 108,
                     100, 45, 115, 101, 114, 118, 101, 114, 115, 3, 110, 101, 116, 0
@@ -516,26 +561,18 @@ fn test_encode_answer() {
         Err(e) => assert!(false, format!("error: {}", e.to_string())),
     }
 
-    // let question = Question{
-    //     q_name: DNSName::new("google.com").unwrap(),
-    //     q_type: DNSType::NS,
-    //     q_class: DNSClass::IN,
-    // };
-    //
-    let mut compression = HashMap::new();
+    let ref mut compression = HashMap::new();
     compression.insert("gtld-servers.net".to_owned(), 2usize);
-    let compression = Some(&mut compression);
-    let mut bin_message: Vec<u8> = vec![];
-    match answer.encode(&mut bin_message, 0, compression) {
-        Ok(offset) => {
-            assert_eq!(offset, 19);
+    let ref mut cursor = Cursor::new(vec![]);
+    match answer.encode(cursor, Some(compression)) {
+        Ok(cursor) => {
             assert_eq!(
-                bin_message,
+                cursor.get_ref().clone(),
                 vec![3, 99, 111, 109, 0, 0, 2, 0, 1, 0, 0, 1, 0, 0, 4, 1, 98, 192, 2]
             );
         }
-        Err(e) => {
-            assert!(false, format!("error: {}", e.to_string()))
+        Err(err) => {
+            assert!(false, format!("error: {}", err.to_string()))
         }
     }
 }
@@ -545,20 +582,21 @@ fn test_encode_edns_message() {
     let mut edns = EDNS {
         name: Default::default(),
         qtype: DNSType::OPT,
-        payload_size: 512,
+        payload_size: 4096,
         extension: 0,
         version: 0,
         do_bit: true,
         raw_data: vec![],
-        data: Some(Box::new(DNSTypeOpt::default())),
+        data: None,
     };
-    let mut data = vec![];
+    let ref mut cursor = Cursor::new(vec![]);
 
-    match edns.encode(&mut data, 0, None) {
-        Ok(_) => {
+    match edns.encode(cursor, None) {
+        Ok(cursor) => {
+            // println!("{:2x?}", cursor.get_ref().clone());
             assert_eq!(
-                data.clone(),
-                vec![0, 0, 41, 2, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0]
+                cursor.get_ref().clone(),
+                vec![0, 0, 41, 16, 0, 0, 0, 128, 0, 0, 0]
             );
         }
         Err(e) => {
@@ -570,14 +608,26 @@ fn test_encode_edns_message() {
 #[test]
 fn test_encode_message() {
     let mut header = Header::new();
+    header.set_id(0xcab1);
     header.rd = true;
     // serialize a question
     let question = Question::new("google.com", DNSType::NS, DNSClass::IN).unwrap();
     let mut edns = EDNS::new();
-    edns.set_dnssec_enable(true);
-    let mut message = Message::new();
-    message.header.set_rd(true);
+    let mut message = Message::new_with_header(header);
     message.set_question(question);
     message.append_edns(edns);
-
+    match message.encode() {
+        Ok(data) => {
+            assert_eq!(
+                data,
+                vec![
+                    202, 177, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 6, 103, 111, 111, 103, 108, 101, 3, 99,
+                    111, 109, 0, 0, 2, 0, 1, 0, 0, 41, 4, 219, 0, 0, 0, 0, 0, 0
+                ],
+            );
+        }
+        _ => {
+            assert!(false)
+        }
+    }
 }

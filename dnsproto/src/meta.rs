@@ -67,10 +67,10 @@ impl Header {
     pub fn set_id(&mut self, id: u16) {
         self.id = id
     }
-    pub fn set_rd(&mut self, rd: bool){
+    pub fn set_rd(&mut self, rd: bool) {
         self.rd = rd;
     }
-    pub fn set_qr(&mut self, qr: bool){
+    pub fn set_qr(&mut self, qr: bool) {
         self.qr = qr;
     }
     pub fn set_random_id(&mut self) -> u16 {
@@ -79,7 +79,10 @@ impl Header {
         self.id = id;
         id
     }
-    pub fn encode<'a>(&self, cursor: &'a mut Cursor<Vec<u8>>) -> Result<&'a mut Cursor<Vec<u8>>, Box<dyn Error>> {
+    pub fn encode<'a>(
+        &self,
+        cursor: &'a mut Cursor<Vec<u8>>,
+    ) -> Result<&'a mut Cursor<Vec<u8>>, DNSProtoErr> {
         // if wireframe.len() <= 12 {
         //     wireframe.resize(12, 0);
         // }
@@ -132,30 +135,30 @@ pub struct Question {
 }
 
 impl Question {
-    pub fn new(domain: &str, q_type: DNSType, q_class: DNSClass) -> Result<Question, DNSProtoErr>{
-        Ok(Question{
+    pub fn new(domain: &str, q_type: DNSType, q_class: DNSClass) -> Result<Question, DNSProtoErr> {
+        Ok(Question {
             q_name: DNSName::new(domain)?,
             q_type,
             q_class,
         })
     }
-    pub fn encode(
+    pub fn encode<'a>(
         &self,
-        wireframe: &mut Vec<u8>,
-        offset: usize,
-        compression: Option<(&mut HashMap<String, usize>, usize)>,
-    ) -> Result<usize, DNSProtoErr> {
-        let frame = self.q_name.to_binary(compression);
-        let desired_len = frame.len() + offset + 4;
-        if wireframe.len() < desired_len {
-            wireframe.resize(desired_len, 0);
-        }
-        let mut cursor = Cursor::new(wireframe);
-        cursor.set_position(offset as u64);
+        cursor: &'a mut Cursor<Vec<u8>>,
+        compression: Option<(&mut HashMap<String, usize>)>,
+    ) -> Result<&'a mut Cursor<Vec<u8>>, DNSProtoErr> {
+        let frame = {
+            if compression.is_none() {
+                self.q_name.to_binary(None)
+            } else {
+                self.q_name
+                    .to_binary(Some((compression.unwrap(), cursor.position() as usize)))
+            }
+        };
         cursor.write_all(frame.as_slice())?;
         cursor.write_u16::<BigEndian>(self.q_type as u16)?;
         cursor.write_u16::<BigEndian>(self.q_class as u16)?;
-        Ok(desired_len)
+        Ok(cursor)
     }
 }
 
@@ -200,53 +203,40 @@ impl PartialEq for Answer {
 }
 
 impl Answer {
-    pub fn encode(
+    pub fn encode<'a>(
         &mut self,
-        wireframe: &mut Vec<u8>,
-        offset: usize,
+        cursor: &'a mut Cursor<Vec<u8>>,
         compression: Option<&mut HashMap<String, usize>>,
-    ) -> Result<usize, Box<dyn Error>> {
+    ) -> Result<&'a mut Cursor<Vec<u8>>, DNSProtoErr> {
+        let offset = cursor.position();
         if self.data.is_none() {
-            return Err(Box::new(DNSProtoErr::PacketSerializeError));
+            return Err(DNSProtoErr::PacketSerializeError);
         }
         let (frame, compression) = match compression {
-            Some(cp) => (self.name.to_binary(Some((cp, offset))), Some(cp)),
+            Some(cp) => (self.name.to_binary(Some((cp, offset as usize))), Some(cp)),
             _ => (self.name.to_binary(None), None),
         };
-
-        // 10 = type(2) + class(2) + ttl(4)
-        let mut desired_len = frame.len() + offset + 8;
-
-        if wireframe.len() < desired_len {
-            wireframe.resize(desired_len, 0);
-        }
-
-        let (_, right) = wireframe.split_at_mut(offset);
-        let mut cursor = Cursor::new(right);
         cursor.write_all(frame.as_slice())?;
         cursor.write_u16::<BigEndian>(self.qtype as u16)?;
         cursor.write_u16::<BigEndian>(self.qclass as u16)?;
         cursor.write_u32::<BigEndian>(self.ttl)?;
 
         let encoded = match compression {
-            Some(cp) => self.data.as_ref().unwrap().encode(Some((cp, desired_len))),
+            Some(cp) => self
+                .data
+                .as_ref()
+                .unwrap()
+                .encode(Some((cp, cursor.position() as usize))),
             _ => self.data.as_ref().unwrap().encode(None),
         };
-        match encoded {
-            Ok(data) => {
-                let old_length = desired_len;
-                desired_len += data.len() + 2;
-                if wireframe.len() < desired_len {
-                    wireframe.resize(desired_len, 0);
-                }
-                let (_, right) = wireframe.split_at_mut(old_length);
-                let mut cursor = Cursor::new(right);
-                cursor.write_u16::<BigEndian>(data.len() as u16)?;
-                cursor.write_all(data.as_slice())?;
-                Ok(desired_len)
-            }
-            _ => Err(Box::new(DNSProtoErr::PacketSerializeError)),
+        if encoded.is_err() {
+            return Err(DNSProtoErr::PacketSerializeError);
         }
+        let data = encoded.unwrap();
+        let length = data.len() as u16;
+        cursor.write_u16::<BigEndian>(length)?;
+        cursor.write_all(data.as_slice())?;
+        Ok(cursor)
     }
 
     pub fn set_rdata(&mut self, rdata: &[u8]) {

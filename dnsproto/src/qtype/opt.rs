@@ -126,9 +126,8 @@ impl DNSWireFrame for DNSTypeOpt {
     ) -> Result<Vec<u8>, DNSProtoErr> {
         let frame = vec![];
         let mut cursor = Cursor::new(frame);
-        cursor.write_u16::<BigEndian>(self.code as u16)?;
-        cursor.write_u16::<BigEndian>(0)?;
         if self.data.is_none() {
+            cursor.write_u16::<BigEndian>(0)?;
             return Ok(cursor.into_inner());
         }
         if let Ok((mut cursor, size)) = {
