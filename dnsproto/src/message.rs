@@ -1,400 +1,13 @@
 // http://www.networksorcery.com/enp/protocol/dns.htm
 use crate::dnsname::{parse_name, DNSName};
+use crate::edns::EDNS;
 use crate::errors::DNSProtoErr;
-use crate::record::DNSType::OPT;
-use crate::record::{DNSClass, DNSType};
-use crate::types::{DNSTypeOpt, DNSWireFrame};
-use byteorder::{BigEndian, WriteBytesExt};
-use nom::lib::std::collections::HashMap;
+use crate::meta::{Answer, Header, OpCode, Question, RCode};
+use crate::meta::{DNSClass, DNSType};
+use crate::qtype::DNSTypeOpt;
 use nom::number::complete::{be_u16, be_u32};
-use rand::Rng;
+use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::error::Error;
-use std::io::{Cursor, Write};
-
-// https://tools.ietf.org/html/rfc1035
-// 1  1  1  1  1  1
-// 0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
-// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-// |                      ID                       |
-// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-// |QR|   Opcode  |AA|TC|RD|RA|   Z    |   RCODE   |
-// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-// |                    QDCOUNT                    |
-// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-// |                    ANCOUNT                    |
-// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-// |                    NSCOUNT                    |
-// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-// |                    ARCOUNT                    |
-// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct Header {
-    pub id: u16,
-    pub qr: bool,
-    pub op_code: OpCode,
-    pub aa: bool,
-    pub tc: bool,
-    pub rd: bool,
-    pub ra: bool,
-    pub z: bool,
-    pub ad: bool,
-    pub cd: bool,
-    pub r_code: RCode,
-    pub question_count: u16,
-    pub answer_count: u16,
-    pub ns_count: u16,
-    pub additional_count: u16,
-}
-impl Header {
-    pub fn new() -> Header {
-        let mut rng = rand::thread_rng();
-        Header {
-            id: rng.gen::<u16>(),
-            qr: false,
-            op_code: OpCode::Query,
-            aa: false,
-            tc: false,
-            rd: false,
-            ra: false,
-            z: false,
-            ad: false,
-            cd: false,
-            r_code: RCode::NoError,
-            question_count: 1,
-            answer_count: 0,
-            ns_count: 0,
-            additional_count: 0,
-        }
-    }
-    pub fn set_id(&mut self, id: u16) {
-        self.id = id
-    }
-    pub fn set_random_id(&mut self) -> u16 {
-        let mut rng = rand::thread_rng();
-        let id = rng.gen::<u16>();
-        self.id = id;
-        id
-    }
-    pub fn encode(&self, wireframe: &mut Vec<u8>) -> Result<usize, Box<dyn Error>> {
-        if wireframe.len() <= 12 {
-            wireframe.resize(12, 0);
-        }
-        let mut cursor = Cursor::new(wireframe);
-
-        cursor.write_u16::<BigEndian>(self.id)?;
-        let mut h0 = (self.qr as u8) << 7;
-        let opcode: u8 = self.op_code.into();
-        h0 |= (opcode) << 3;
-        h0 |= (self.aa as u8) << 2;
-        h0 |= (self.aa as u8) << 1;
-        h0 |= self.rd as u8;
-
-        let mut h1 = (self.ra as u8) << 7;
-        let rcode: u8 = self.r_code.into();
-        h1 |= (self.z as u8) << 6;
-        h1 |= rcode;
-        cursor.write_u8(h0)?;
-        cursor.write_u8(h1)?;
-        cursor.write_u16::<BigEndian>(self.question_count)?;
-        cursor.write_u16::<BigEndian>(self.answer_count)?;
-        cursor.write_u16::<BigEndian>(self.ns_count)?;
-        cursor.write_u16::<BigEndian>(self.additional_count)?;
-        Ok(12)
-    }
-}
-impl Default for Header {
-    fn default() -> Self {
-        Header::new()
-    }
-}
-
-// 1  1  1  1  1  1
-// 0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
-// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-// |                                               |
-// /                     QNAME                     /
-// /                                               /
-// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-// |                     QTYPE                     |
-// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-// |                     QCLASS                    |
-// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-
-#[derive(Debug, PartialEq)]
-pub struct Question {
-    q_name: DNSName,
-    q_type: DNSType,
-    q_class: DNSClass,
-}
-
-impl Question {
-    pub fn encode(
-        &self,
-        wireframe: &mut Vec<u8>,
-        offset: usize,
-        compression: Option<(&mut HashMap<String, usize>, usize)>,
-    ) -> Result<usize, DNSProtoErr> {
-        let frame = self.q_name.to_binary(compression);
-        let desired_len = frame.len() + offset + 4;
-        if wireframe.len() < desired_len {
-            wireframe.resize(desired_len, 0);
-        }
-        let mut cursor = Cursor::new(wireframe);
-        cursor.set_position(offset as u64);
-        cursor.write_all(frame.as_slice())?;
-        cursor.write_u16::<BigEndian>(self.q_type as u16)?;
-        cursor.write_u16::<BigEndian>(self.q_class as u16)?;
-        Ok(desired_len)
-    }
-}
-
-// 1  1  1  1  1  1
-// 0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
-// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-// |                                               |
-// /                                               /
-// /                      NAME                     /
-// |                                               |
-// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-// |                      TYPE                     |
-// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-// |                     CLASS                     |
-// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-// |                      TTL                      |
-// |                                               |
-// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-// |                   RDLENGTH                    |
-// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--|
-// /                     RDATA                     /
-// /                                               /
-// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-#[derive(Debug)]
-pub struct Answer {
-    name: DNSName,
-    qtype: DNSType,
-    qclass: DNSClass,
-    ttl: u32,
-    raw_data: Vec<u8>,
-    data: Option<Box<dyn DNSWireFrame>>,
-}
-
-impl PartialEq for Answer {
-    fn eq(&self, other: &Self) -> bool {
-        (self.name == other.name)
-            && (self.qtype == other.qtype)
-            && (self.qclass == other.qclass)
-            && (self.ttl == other.ttl)
-            && (self.raw_data == other.raw_data)
-    }
-}
-
-impl Answer {
-    pub fn encode(
-        &mut self,
-        wireframe: &mut Vec<u8>,
-        offset: usize,
-        compression: Option<&mut HashMap<String, usize>>,
-    ) -> Result<usize, Box<dyn Error>> {
-        if self.data.is_none() {
-            return Err(Box::new(DNSProtoErr::PacketSerializeError));
-        }
-        let (frame, compression) = match compression {
-            Some(cp) => (self.name.to_binary(Some((cp, offset))), Some(cp)),
-            _ => (self.name.to_binary(None), None),
-        };
-
-        // 10 = type(2) + class(2) + ttl(4)
-        let mut desired_len = frame.len() + offset + 8;
-
-        if wireframe.len() < desired_len {
-            wireframe.resize(desired_len, 0);
-        }
-
-        let (_, right) = wireframe.split_at_mut(offset);
-        let mut cursor = Cursor::new(right);
-        cursor.write_all(frame.as_slice())?;
-        cursor.write_u16::<BigEndian>(self.qtype as u16)?;
-        cursor.write_u16::<BigEndian>(self.qclass as u16)?;
-        cursor.write_u32::<BigEndian>(self.ttl)?;
-
-        let encoded = match compression {
-            Some(cp) => self.data.as_ref().unwrap().encode(Some((cp, desired_len))),
-            _ => self.data.as_ref().unwrap().encode(None),
-        };
-        match encoded {
-            Ok(data) => {
-                let old_length = desired_len;
-                desired_len += data.len() + 2;
-                if wireframe.len() < desired_len {
-                    wireframe.resize(desired_len, 0);
-                }
-                let (_, right) = wireframe.split_at_mut(old_length);
-                let mut cursor = Cursor::new(right);
-                cursor.write_u16::<BigEndian>(data.len() as u16)?;
-                cursor.write_all(data.as_slice())?;
-                Ok(desired_len)
-            }
-            _ => Err(Box::new(DNSProtoErr::PacketSerializeError)),
-        }
-    }
-
-    pub fn set_rdata(&mut self, rdata: &[u8]) {
-        self.raw_data = rdata.to_vec();
-    }
-}
-impl PartialEq for EDNS {
-    fn eq(&self, other: &Self) -> bool {
-        (self.name == other.name)
-            && (self.qtype == other.qtype)
-            && (self.extension == other.extension)
-            && (self.do_bit == other.do_bit)
-            && (self.payload_size == other.payload_size)
-            && (self.raw_data == other.raw_data)
-    }
-}
-
-#[derive(Debug)]
-pub struct EDNS {
-    name: DNSName,
-    qtype: DNSType,
-    payload_size: u16,
-    extension: u8,
-    version: u8,
-    do_bit: bool,
-    raw_data: Vec<u8>,
-    data: Option<Box<dyn DNSWireFrame>>,
-}
-
-impl EDNS {
-    pub fn encode(
-        &mut self,
-        wireframe: &mut Vec<u8>,
-        offset: usize,
-        _compression: Option<&mut HashMap<String, usize>>,
-    ) -> Result<usize, DNSProtoErr> {
-        // let (_, right) = wireframe.split_at_mut(offset);
-        let mut cursor = Cursor::new(wireframe);
-        cursor.set_position(offset as u64);
-        let header_length = offset + 10;
-        cursor.write_u8(0)?; // root
-        cursor.write_u16::<BigEndian>(self.qtype as u16)?;
-        cursor.write_u16::<BigEndian>(self.payload_size)?;
-        cursor.write_u8(self.extension)?;
-        cursor.write_u8(self.version)?;
-        cursor.write_u16::<BigEndian>((self.do_bit as u16) << 15)?;
-        if self.data.is_none() {
-            cursor.write_u16::<BigEndian>(0)?;
-            Ok(header_length)
-        } else {
-            match self.data.as_ref().unwrap().encode(None) {
-                Ok(encoded) => {
-                    let data_length = encoded.len();
-                    cursor.write_u16::<BigEndian>(0)?;
-                    cursor.write_all(encoded.as_slice())?;
-                    Ok(header_length + data_length)
-                }
-                _ => Err(DNSProtoErr::PacketSerializeError),
-            }
-        }
-    }
-
-    pub fn set_rdata(&mut self, rdata: &[u8]) {
-        self.raw_data = rdata.to_vec();
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OpCode {
-    Query,
-    IQuery,
-    Status,
-    Reserved,
-    Notify,
-    Update,
-}
-impl From<u8> for OpCode {
-    fn from(opcode: u8) -> Self {
-        match opcode {
-            0 => OpCode::Query,
-            1 => OpCode::IQuery,
-            2 => OpCode::Status,
-            3 => OpCode::Reserved,
-            4 => OpCode::Notify,
-            5 => OpCode::Update,
-            _ => OpCode::Reserved,
-        }
-    }
-}
-
-impl Into<u8> for OpCode {
-    fn into(self) -> u8 {
-        match self {
-            OpCode::Query => 0,
-            OpCode::IQuery => 1,
-            OpCode::Status => 2,
-            OpCode::Reserved => 3,
-            OpCode::Notify => 4,
-            OpCode::Update => 5,
-        }
-    }
-}
-
-// http://www.tcpipguide.com/free/t_DNSMessageHeaderandQuestionSectionFormat.htm
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RCode {
-    NoError,
-    FormatError,
-    ServerFailure,
-    NameError,
-    NotImplemented,
-    Refused,
-    YxDomain,
-    YxRRSet,
-    NxRRSet,
-    NotAuth,
-    NotZone,
-    Unknown,
-}
-
-impl From<u8> for RCode {
-    fn from(rcode: u8) -> Self {
-        match rcode {
-            0 => RCode::NoError,
-            1 => RCode::FormatError,
-            2 => RCode::ServerFailure,
-            3 => RCode::NameError,
-            4 => RCode::NotImplemented,
-            5 => RCode::Refused,
-            6 => RCode::YxDomain,
-            7 => RCode::YxRRSet,
-            8 => RCode::NxRRSet,
-            9 => RCode::NotAuth,
-            10 => RCode::NotZone,
-            _ => RCode::Unknown,
-        }
-    }
-}
-impl Into<u8> for RCode {
-    fn into(self) -> u8 {
-        match self {
-            RCode::NoError => 0,
-            RCode::FormatError => 1,
-            RCode::ServerFailure => 2,
-            RCode::NameError => 3,
-            RCode::NotImplemented => 4,
-            RCode::Refused => 5,
-            RCode::YxDomain => 6,
-            RCode::YxRRSet => 7,
-            RCode::NxRRSet => 8,
-            RCode::NotAuth => 9,
-            RCode::NotZone => 10,
-            RCode::Unknown => 11,
-        }
-    }
-}
-
 #[derive(Debug, PartialEq)]
 pub struct Message {
     header: Header,
@@ -776,7 +389,7 @@ fn test_encode_header() {
 }
 
 #[test]
-fn test_question_encode() {
+fn test_encode_question() {
     let question = Question {
         q_name: DNSName::new("com").unwrap(),
         q_type: DNSType::NS,
@@ -815,8 +428,8 @@ fn test_question_encode() {
 }
 
 #[test]
-fn test_answer_encode() {
-    use crate::types::DnsTypeNS;
+fn test_encode_answer() {
+    use crate::qtype::DnsTypeNS;
     let nsdata = DnsTypeNS {
         ns: DNSName::new("b.gtld-servers.net").unwrap(),
     };
@@ -871,7 +484,7 @@ fn test_answer_encode() {
 }
 
 #[test]
-fn test_edns_message_encode() {
+fn test_encode_edns_message() {
     let mut edns = EDNS {
         name: Default::default(),
         qtype: DNSType::OPT,
@@ -885,7 +498,7 @@ fn test_edns_message_encode() {
     let mut data = vec![];
 
     match edns.encode(&mut data, 0, None) {
-        Ok(v) => {
+        Ok(_) => {
             assert_eq!(
                 data.clone(),
                 vec![0, 0, 41, 2, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0]
@@ -895,4 +508,15 @@ fn test_edns_message_encode() {
             assert!(false, format!("{:?}", e));
         }
     }
+}
+
+#[test]
+fn test_encode_message() {
+    // let message = Message{
+    //     header: Header::new(),
+    //     questions: vec![],
+    //     answers: vec![],
+    //     authorities: vec![],
+    //     additional: vec![]
+    // }
 }

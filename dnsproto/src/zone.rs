@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 
 use crate::errors::*;
-use crate::record::{DNSClass, ResourceRecord};
+use crate::meta::{DNSClass, DNSType};
+use crate::record::ResourceRecord;
 use crate::utils::{is_fqdn, valid_domain};
 use regex::Regex;
 use std::fs::File;
@@ -417,8 +418,6 @@ www.a.shifen.com.	300	IN	A	61.135.169.121
 
 #[test]
 fn test_zone_iterator() {
-    use crate::record::DNSType;
-
     let zone_str = ZoneStr::new(
         "ns      86400      IN  A     192.0.2.2             ; IPv4 address for ns.example.com
               IN  AAAA  2001:db8:10::2        ; IPv6 address for ns.example.com",

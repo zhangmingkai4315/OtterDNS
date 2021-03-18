@@ -1,6 +1,6 @@
 use crate::dnsname::{parse_name, DNSName};
 use crate::errors::DNSProtoErr;
-use crate::types::DNSWireFrame;
+use crate::qtype::DNSWireFrame;
 use nom::lib::std::collections::HashMap;
 
 #[derive(Debug, PartialEq)]

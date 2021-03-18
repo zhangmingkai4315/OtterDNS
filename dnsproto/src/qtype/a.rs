@@ -1,5 +1,5 @@
 use crate::errors::{DNSProtoErr, ParseZoneDataErr};
-use crate::types::DNSWireFrame;
+use crate::qtype::DNSWireFrame;
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
 use std::str::FromStr;

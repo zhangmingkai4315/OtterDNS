@@ -1,10 +1,10 @@
 use crate::errors::DNSProtoErr;
-use crate::types::DNSWireFrame;
+use crate::qtype::DNSWireFrame;
 use byteorder::{BigEndian, WriteBytesExt};
 use nom::number::complete::{be_u16, be_u8};
 use std::collections::HashMap;
 use std::io::{Cursor, Write};
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::net::{Ipv4Addr, Ipv6Addr};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[repr(u16)]
@@ -42,7 +42,7 @@ impl EdnsECS {
     }
 
     fn new_ipv6(ipaddr: Ipv6Addr, source_mask: u8, scope_mask: u8) -> Result<Self, DNSProtoErr> {
-        let mut client_subnet = ipaddr.octets();
+        let client_subnet = ipaddr.octets();
         let mut size = source_mask / 8;
         if source_mask % 8 != 0 {
             size = size + 1;
@@ -59,7 +59,7 @@ impl EdnsECS {
         if source_mask > 32 {
             return Err(DNSProtoErr::PacketSerializeError);
         }
-        let mut client_subnet = ipaddr.octets();
+        let client_subnet = ipaddr.octets();
         let mut size = source_mask / 8;
         if source_mask % 8 != 0 {
             size = size + 1;
@@ -114,9 +114,9 @@ pub enum Opt {
 #[derive(Debug, PartialEq)]
 pub struct DNSTypeOpt {
     pub(crate) code: EDNSOptionCode,
-    length: u16,
-    raw_data: Vec<u8>,
-    data: Option<Opt>,
+    pub(crate) length: u16,
+    pub(crate) raw_data: Vec<u8>,
+    pub(crate) data: Option<Opt>,
 }
 
 impl DNSWireFrame for DNSTypeOpt {
@@ -204,13 +204,13 @@ fn test_ecs_create() {
             let data = Vec::new();
             let cursor = Cursor::new(data);
             match ecs.encode(cursor) {
-                Ok((v, size)) => {
-                    assert_eq!(v.into_inner(), vec![0, 1, 8, 0, 1]);
+                Ok((val, _)) => {
+                    assert_eq!(val.into_inner(), vec![0, 1, 8, 0, 1]);
                 }
-                Err(err) => assert!(false),
+                Err(_) => assert!(false),
             }
         }
-        Err(e) => {
+        Err(_) => {
             assert!(false)
         }
     }
@@ -219,13 +219,13 @@ fn test_ecs_create() {
             let data = Vec::new();
             let cursor = Cursor::new(data);
             match ecs.encode(cursor) {
-                Ok((v, size)) => {
-                    assert_eq!(v.into_inner(), vec![0, 1, 16, 0, 1, 1]);
+                Ok((val, _)) => {
+                    assert_eq!(val.into_inner(), vec![0, 1, 16, 0, 1, 1]);
                 }
-                Err(err) => assert!(false),
+                Err(_) => assert!(false),
             }
         }
-        Err(e) => {
+        Err(_) => {
             assert!(false)
         }
     }

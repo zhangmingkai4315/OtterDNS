@@ -1,60 +1,6 @@
 use crate::errors::*;
+use crate::meta::{DNSClass, DNSType};
 use crate::utils::{is_fqdn, valid_domain};
-use num_enum::{IntoPrimitive, TryFromPrimitive};
-
-/// https://tools.ietf.org/html/rfc1035#section-3.2.4
-/// specify the class of the dns record data
-#[derive(Debug, PartialEq, Copy, Clone, IntoPrimitive, TryFromPrimitive)]
-#[repr(u16)]
-pub enum DNSClass {
-    #[num_enum(default)]
-    IN = 1,
-    // 1 the Internet
-    CS,
-    // 2 the CSNET class
-    CH,
-    // 3 the CHAOS class
-    HS, // 4 Hesiod
-}
-
-impl Default for DNSClass {
-    fn default() -> Self {
-        DNSClass::IN
-    }
-}
-
-#[derive(Debug, PartialEq, Copy, Clone, IntoPrimitive, FromPrimitive)]
-#[repr(u16)]
-#[derive(EnumString)]
-pub enum DNSType {
-    #[num_enum(default)]
-    A = 1,
-    NS = 2,
-    CNAME = 5,
-    SOA = 6,
-    PTR = 12,
-    HINFO = 13,
-    MX = 15,
-    TXT = 16,
-    AAAA = 28,
-    SRV = 33,
-    OPT = 41,
-    DS = 43,
-    RRSIG = 46,
-    NSEC = 47,
-    DNSKEY = 48,
-    NSEC3 = 50,
-    NSEC3PARAM = 51,
-    AXFR = 252,
-    Any = 255, // Rfc1035: return all records of all types known to the dns server
-}
-
-impl Default for DNSType {
-    fn default() -> Self {
-        DNSType::A
-    }
-}
-
 #[derive(Debug, PartialEq, Default)]
 pub struct ResourceRecord {
     pub name: String,
