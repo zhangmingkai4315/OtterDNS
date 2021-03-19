@@ -27,7 +27,7 @@ impl From<std::io::Error> for DNSProtoErr {
     }
 }
 
-impl From<std::net::AddrParseError> for DNSProtoErr{
+impl From<std::net::AddrParseError> for DNSProtoErr {
     fn from(_: AddrParseError) -> Self {
         DNSProtoErr::PacketParseError
     }
@@ -50,18 +50,21 @@ pub enum ParseZoneDataErr {
     #[error("dns origin: `{0}` validate fail")]
     ValidOriginErr(String),
     #[error("default domain ttl is not set")]
-    NoDefaultTTL,
+    NoDefaultTTLErr,
     #[error("default domain name is not set")]
-    NoDefaultDomain,
+    NoDefaultDomainErr,
     #[error("default domain type is not set")]
-    NoDomainType,
+    NoDomainTypeErr,
     #[error("default origin domain is not set")]
-    NoOriginDomain,
+    NoOriginDomainErr,
     #[error("general fail: `{0}`")]
-    GeneralFail(String),
+    GeneralErr(String),
 
     #[error(transparent)]
     AddrParseError(#[from] AddrParseError),
     #[error("empty zone data error")]
     EmptyStrErr,
+
+    #[error("unimplemented")]
+    UnimplementedErr,
 }

@@ -1,11 +1,10 @@
 extern crate dnsproto;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-use dnsproto::message::Message;
-use dnsproto::meta::{Header, ResourceRecord, Question, DNSType, DNSClass};
-use dnsproto::qtype::{DnsTypeA,DNSTypeOpt,DnsTypeNS};
 use dnsproto::edns::EDNS;
-
+use dnsproto::message::Message;
+use dnsproto::meta::{DNSClass, DNSType, Header, Question, ResourceRecord};
+use dnsproto::qtype::{DNSTypeOpt, DnsTypeA, DnsTypeNS};
 
 fn dns_parse_message(c: &mut Criterion) {
     let message = [
@@ -42,7 +41,9 @@ fn dns_parse_message(c: &mut Criterion) {
         0xc1, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x08, 0xf3, 0x00, 0x04, 0x34, 0x2e, 0xb6,
         0xfc, 0x00, 0x00, 0x29, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     ];
-    c.bench_function("decode_message", |b| b.iter(|| Message::parse_dns_message(&message)));
+    c.bench_function("decode_message", |b| {
+        b.iter(|| Message::parse_dns_message(&message))
+    });
 }
 
 fn dns_encode_answer_message(c: &mut Criterion) {
@@ -67,16 +68,16 @@ fn dns_encode_answer_message(c: &mut Criterion) {
             DNSClass::IN,
             10000,
             Some(Box::new(DnsTypeNS::new(ns).unwrap())),
-        ).unwrap();
+        )
+        .unwrap();
         message.append_answer(answer);
     }
     message.header.set_qr(true);
     message.header.set_rd(true);
-    c.bench_function("encode_answer_message", |b|
+    c.bench_function("encode_answer_message", |b| {
         b.iter(|| Message::encode(&mut message))
-    );
+    });
 }
-
 
 fn dns_encode_question_message(c: &mut Criterion) {
     let mut header = Header::new();
@@ -90,10 +91,15 @@ fn dns_encode_question_message(c: &mut Criterion) {
     message.append_edns(edns);
     message.header.set_qr(false);
     message.header.set_rd(true);
-    c.bench_function("encode_question_message", |b|
+    c.bench_function("encode_question_message", |b| {
         b.iter(|| Message::encode(&mut message))
-    );
+    });
 }
 
-criterion_group!(benches, dns_parse_message,dns_encode_question_message,dns_encode_answer_message);
+criterion_group!(
+    benches,
+    dns_parse_message,
+    dns_encode_question_message,
+    dns_encode_answer_message
+);
 criterion_main!(benches);

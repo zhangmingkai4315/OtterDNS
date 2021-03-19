@@ -3,9 +3,9 @@ use crate::qtype::DNSWireFrame;
 use byteorder::{BigEndian, WriteBytesExt};
 use nom::number::complete::{be_u16, be_u8};
 use std::collections::HashMap;
+use std::fmt::{self, format, Formatter};
 use std::io::{Cursor, Write};
 use std::net::{Ipv4Addr, Ipv6Addr};
-
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[repr(u16)]
 pub enum EDNSOptionCode {
@@ -119,8 +119,17 @@ pub struct DNSTypeOpt {
     pub(crate) data: Option<Opt>,
 }
 
+impl fmt::Display for DNSTypeOpt {
+    fn fmt(&self, format: &mut Formatter<'_>) -> fmt::Result {
+        unimplemented!()
+    }
+}
+
 impl DNSWireFrame for DNSTypeOpt {
-    fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr>  where Self:Sized{
+    fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr>
+    where
+        Self: Sized,
+    {
         match parse_opt(data) {
             Ok((_, mut opt)) => match opt.decode_with_type() {
                 Ok(_) => Ok(opt),

@@ -1,22 +1,27 @@
 use crate::errors::{DNSProtoErr, ParseZoneDataErr};
 use crate::qtype::DNSWireFrame;
+use nom::lib::std::collections::hash_map::RandomState;
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
 use std::str::FromStr;
 use std::{fmt, fmt::Formatter};
-use nom::lib::std::collections::hash_map::RandomState;
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct DnsTypeA(Ipv4Addr);
 
-impl DnsTypeA{
-    pub fn new(ip: &str) ->Result<Self, DNSProtoErr>{
+impl DnsTypeA {
+    pub fn new(ip: &str) -> Result<Self, DNSProtoErr> {
         Ok(DnsTypeA(Ipv4Addr::from_str(ip)?))
     }
 }
 
+impl fmt::Display for DnsTypeA {
+    fn fmt(&self, format: &mut Formatter<'_>) -> fmt::Result {
+        write!(format, "{}", self.0.to_string())
+    }
+}
 impl DNSWireFrame for DnsTypeA {
-    fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr> where Self:Sized{
+    fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
         if data.len() < 4 {
             return Err(DNSProtoErr::PacketParseError);
         }
@@ -24,7 +29,10 @@ impl DNSWireFrame for DnsTypeA {
         Ok(DnsTypeA(Ipv4Addr::from(*data)))
     }
 
-    fn encode(&self, _: Option<(&mut HashMap<String, usize, RandomState>, usize)>) -> Result<Vec<u8>, DNSProtoErr> {
+    fn encode(
+        &self,
+        _: Option<(&mut HashMap<String, usize, RandomState>, usize)>,
+    ) -> Result<Vec<u8>, DNSProtoErr> {
         Ok(self.0.octets().to_vec())
     }
 }
@@ -36,12 +44,6 @@ impl FromStr for DnsTypeA {
             Ok(v4_addr) => Ok(DnsTypeA(v4_addr)),
             Err(err) => Err(ParseZoneDataErr::AddrParseError(err)),
         }
-    }
-}
-
-impl fmt::Display for DnsTypeA {
-    fn fmt(&self, format: &mut Formatter<'_>) -> fmt::Result {
-        write!(format, "{}", self.0.to_string())
     }
 }
 

@@ -187,7 +187,7 @@ pub struct ResourceRecord {
     pub(crate) qtype: DNSType,
     pub(crate) qclass: DNSClass,
     pub(crate) ttl: u32,
-    pub(crate) data: Option<Box<dyn DNSWireFrame>>
+    pub(crate) data: Option<Box<dyn DNSWireFrame>>,
 }
 
 impl PartialEq for ResourceRecord {
@@ -196,7 +196,7 @@ impl PartialEq for ResourceRecord {
             && (self.qtype == other.qtype)
             && (self.qclass == other.qclass)
             && (self.ttl == other.ttl)
-            // && (self.raw_data == other.raw_data)
+        // && (self.raw_data == other.raw_data)
     }
 }
 
@@ -206,7 +206,7 @@ impl ResourceRecord {
         qtype: DNSType,
         qclass: DNSClass,
         ttl: u32,
-        data: Option<Box<dyn DNSWireFrame>>
+        data: Option<Box<dyn DNSWireFrame>>,
     ) -> Result<ResourceRecord, DNSProtoErr> {
         Ok(ResourceRecord {
             name: DNSName::new(domain)?,

@@ -13,6 +13,19 @@ pub struct DNSName {
     pub labels: Vec<String>,
 }
 
+impl Clone for DNSName {
+    fn clone(&self) -> Self {
+        DNSName {
+            is_fqdn: self.is_fqdn,
+            labels: self
+                .labels
+                .iter()
+                .map(|f| f.to_string())
+                .collect::<Vec<String>>(),
+        }
+    }
+}
+
 impl DNSName {
     #[allow(dead_code)]
     fn root() -> Self {

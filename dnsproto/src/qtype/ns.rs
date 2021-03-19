@@ -1,11 +1,23 @@
 use crate::dnsname::{parse_name, DNSName};
-use crate::errors::DNSProtoErr;
+use crate::errors::{DNSProtoErr, ParseZoneDataErr};
 use crate::qtype::DNSWireFrame;
 use nom::lib::std::collections::HashMap;
+use std::fmt;
+use std::fmt::Formatter;
+use std::str::FromStr;
 
 #[derive(Debug, PartialEq)]
 pub struct DnsTypeNS {
     pub(crate) ns: DNSName,
+}
+
+impl FromStr for DnsTypeNS {
+    type Err = ParseZoneDataErr;
+    fn from_str(a_str: &str) -> Result<Self, Self::Err> {
+        Ok(DnsTypeNS {
+            ns: DNSName::new(a_str)?,
+        })
+    }
 }
 
 impl DnsTypeNS {
@@ -16,6 +28,11 @@ impl DnsTypeNS {
     }
 }
 
+impl fmt::Display for DnsTypeNS {
+    fn fmt(&self, format: &mut Formatter<'_>) -> fmt::Result {
+        write!(format, "{}", self.ns.to_string())
+    }
+}
 named_args!(parse_ns<'a>(original: &[u8])<DnsTypeNS>,
     do_parse!(
         ns: call!(parse_name, original)>>
@@ -26,8 +43,7 @@ named_args!(parse_ns<'a>(original: &[u8])<DnsTypeNS>,
 ));
 
 impl DNSWireFrame for DnsTypeNS {
-    fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> where Self:Sized
-    {
+    fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
         match parse_ns(data, original.unwrap_or(&[])) {
             Ok((_, ns)) => Ok(ns),
             Err(_err) => Err(DNSProtoErr::PacketParseError),
@@ -72,4 +88,3 @@ fn test_ns_encode() {
         }
     }
 }
-

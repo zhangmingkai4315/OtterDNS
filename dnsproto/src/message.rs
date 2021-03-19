@@ -2,9 +2,9 @@
 use crate::dnsname::{parse_name, DNSName};
 use crate::edns::EDNS;
 use crate::errors::DNSProtoErr;
-use crate::meta::{ResourceRecord, Header, OpCode, Question, RCode};
 use crate::meta::{DNSClass, DNSType};
-use crate::qtype::{DnsTypeNS, decode_message_data, DnsTypeA};
+use crate::meta::{Header, OpCode, Question, RCode, ResourceRecord};
+use crate::qtype::{decode_message_data, DnsTypeA, DnsTypeNS};
 use nom::number::complete::{be_u16, be_u32};
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -227,8 +227,6 @@ named!(parse_header_frame<&[u8], Header>,
     )
 );
 
-
-
 named_args!(parse_message<'a>(original: &[u8])<&'a [u8], Message>,
     do_parse!(
         header:  parse_header_frame >>
@@ -419,9 +417,8 @@ fn test_parse_answer() {
     assert_eq!(result, a.unwrap().1);
 }
 
-
 #[test]
-fn test_decode_incorrect_packet(){
+fn test_decode_incorrect_packet() {
     let a = [];
     let result = Message::parse_dns_message(&a);
     assert_eq!(result.is_err(), true);
@@ -435,15 +432,13 @@ fn test_decode_incorrect_packet(){
 
     // only header and without question
     let a = [
-        0xa4, 0xac, 0x01, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
-        0x00, 0x00, 0x29, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0xa4, 0xac, 0x01, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x29,
+        0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     ];
     let result = Message::parse_dns_message(&a);
     //TODO:  without a question is correct packets?
     assert_eq!(result.is_err(), false);
 }
-
-
 
 #[test]
 fn test_decode_message() {
@@ -490,8 +485,6 @@ fn test_decode_message() {
     ];
     let result = parse_message(&a, &a);
     assert_eq!(result.as_ref().is_ok(), true);
-
-
 }
 
 #[test]
@@ -567,7 +560,6 @@ fn test_encode_question() {
     }
 }
 
-
 #[test]
 fn test_encode_answer() {
     use crate::qtype::DnsTypeNS;
@@ -611,7 +603,6 @@ fn test_encode_answer() {
     }
 }
 
-
 #[test]
 fn test_encode_edns_message() {
     let mut edns = EDNS {
@@ -640,7 +631,7 @@ fn test_encode_edns_message() {
     }
 }
 
-fn get_message() -> Message{
+fn get_message() -> Message {
     let mut header = Header::new();
     header.set_id(0xcab1);
     header.rd = true;
@@ -662,7 +653,8 @@ fn get_message() -> Message{
             DNSClass::IN,
             10000,
             Some(Box::new(DnsTypeNS::new(ns).unwrap())),
-        ).unwrap();
+        )
+        .unwrap();
         message.append_answer(answer);
     }
     message.header.set_qr(true);
@@ -693,23 +685,24 @@ fn test_encode_message() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
-fn test_decode_dns_message(){
+fn test_decode_dns_message() {
     let message = [
-        202u8, 177, 129, 0, 0, 1, 0, 4, 0, 0, 0, 1, 6, 103, 111, 111, 103, 108, 101, 3,
-        99, 111, 109, 0, 0, 2, 0, 1, 192, 12, 0, 2, 0, 1, 0, 0, 39, 16, 0, 6, 3, 110,
-        115, 49, 192, 12, 192, 12, 0, 2, 0, 1, 0, 0, 39, 16, 0, 6, 3, 110, 115, 50,
-        192, 12, 192, 12, 0, 2, 0, 1, 0, 0, 39, 16, 0, 6, 3, 110, 115, 51, 192, 12,
-        192, 12, 0, 2, 0, 1, 0, 0, 39, 16, 0, 6, 3, 110, 115, 52, 192, 12, 0, 0, 41, 4,
-        219, 0, 0, 0, 0, 0, 0
+        202u8, 177, 129, 0, 0, 1, 0, 4, 0, 0, 0, 1, 6, 103, 111, 111, 103, 108, 101, 3, 99, 111,
+        109, 0, 0, 2, 0, 1, 192, 12, 0, 2, 0, 1, 0, 0, 39, 16, 0, 6, 3, 110, 115, 49, 192, 12, 192,
+        12, 0, 2, 0, 1, 0, 0, 39, 16, 0, 6, 3, 110, 115, 50, 192, 12, 192, 12, 0, 2, 0, 1, 0, 0,
+        39, 16, 0, 6, 3, 110, 115, 51, 192, 12, 192, 12, 0, 2, 0, 1, 0, 0, 39, 16, 0, 6, 3, 110,
+        115, 52, 192, 12, 0, 0, 41, 4, 219, 0, 0, 0, 0, 0, 0,
     ];
     let message_s = get_message();
-    match Message::parse_dns_message(&message){
+    match Message::parse_dns_message(&message) {
         Ok(decoded_message) => {
             assert_eq!(decoded_message.header, message_s.header);
             assert_eq!(decoded_message.questions, message_s.questions);
             assert_eq!(decoded_message.answers, message_s.answers);
             assert_eq!(decoded_message.additional, message_s.additional);
-        },
-        _ => {assert!(false);}
+        }
+        _ => {
+            assert!(false);
+        }
     }
 }
