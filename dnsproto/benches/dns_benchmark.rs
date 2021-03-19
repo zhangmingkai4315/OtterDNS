@@ -1,8 +1,13 @@
-extern crate otterlib;
+extern crate dnsproto;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use otterlib::dns::message::parse_dns_message;
 
-fn dns_parse_message_benchmark(c: &mut Criterion) {
+use dnsproto::message::Message;
+use dnsproto::meta::{Header,Answer,Question,DNSType,DNSClass};
+use dnsproto::qtype::{DnsTypeA,DNSTypeOpt,DnsTypeNS};
+use dnsproto::edns::EDNS;
+
+
+fn dns_parse_message(c: &mut Criterion) {
     let message = [
         0x8e, 0x28, 0x81, 0x80, 0x00, 0x01, 0x00, 0x08, 0x00, 0x06, 0x00, 0x07, 0x07, 0x67, 0x61,
         0x74, 0x65, 0x77, 0x61, 0x79, 0x02, 0x66, 0x65, 0x09, 0x61, 0x70, 0x70, 0x6c, 0x65, 0x2d,
@@ -37,8 +42,58 @@ fn dns_parse_message_benchmark(c: &mut Criterion) {
         0xc1, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x08, 0xf3, 0x00, 0x04, 0x34, 0x2e, 0xb6,
         0xfc, 0x00, 0x00, 0x29, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     ];
-    c.bench_function("parse_message", |b| b.iter(|| parse_dns_message(&message)));
+    c.bench_function("decode_message", |b| b.iter(|| Message::parse_dns_message(&message)));
 }
 
-criterion_group!(benches, dns_parse_message_benchmark);
+fn dns_encode_answer_message(c: &mut Criterion) {
+    let mut header = Header::new();
+    header.set_id(0xcab1);
+    header.set_rd(true);
+    // serialize a question
+    let question = Question::new("google.com.", DNSType::NS, DNSClass::IN).unwrap();
+    let edns = EDNS::new();
+    let mut message = Message::new_with_header(header);
+    message.set_question(question);
+    message.append_edns(edns);
+    for ns in vec![
+        "ns1.google.com.",
+        "ns2.google.com.",
+        "ns3.google.com.",
+        "ns4.google.com.",
+    ] {
+        let answer = Answer::new(
+            "google.com.",
+            DNSType::NS,
+            DNSClass::IN,
+            10000,
+            Some(Box::new(DnsTypeNS::new(ns).unwrap())),
+        ).unwrap();
+        message.append_answer(answer);
+    }
+    message.header.set_qr(true);
+    message.header.set_rd(true);
+    c.bench_function("encode_answer_message", |b|
+        b.iter(|| Message::encode(&mut message))
+    );
+}
+
+
+fn dns_encode_question_message(c: &mut Criterion) {
+    let mut header = Header::new();
+    header.set_id(0xcab1);
+    header.set_rd(true);
+    // serialize a question
+    let question = Question::new("google.com.", DNSType::NS, DNSClass::IN).unwrap();
+    let edns = EDNS::new();
+    let mut message = Message::new_with_header(header);
+    message.set_question(question);
+    message.append_edns(edns);
+    message.header.set_qr(false);
+    message.header.set_rd(true);
+    c.bench_function("encode_question_message", |b|
+        b.iter(|| Message::encode(&mut message))
+    );
+}
+
+criterion_group!(benches, dns_parse_message,dns_encode_question_message,dns_encode_answer_message);
 criterion_main!(benches);

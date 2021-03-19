@@ -15,7 +15,7 @@ use std::str::FromStr;
 
 #[derive(Debug, PartialEq)]
 pub struct Message {
-    header: Header,
+    pub header: Header,
     questions: Vec<Question>,
     answers: Vec<Record>,
     authorities: Vec<Record>,
@@ -32,7 +32,13 @@ impl Message {
             additional: vec![],
         }
     }
-    fn new_with_header(header: Header) -> Message {
+    pub fn parse_dns_message(message: &[u8]) -> Result<Message, DNSProtoErr> {
+        match parse_message(message, message) {
+            Ok(val) => Ok(val.1),
+            Err(_) => Err(DNSProtoErr::PacketParseError),
+        }
+    }
+    pub fn new_with_header(header: Header) -> Message {
         Message {
             header,
             questions: vec![],
@@ -105,7 +111,7 @@ named!(parse_question<&[u8], Question>,
         name: call!(parse_name, &[]) >>
         qtype: be_u16 >>
         qclass: be_u16 >>
-        ( Question {
+        (Question {
             q_name: name,
             q_type: DNSType::try_from(qtype).unwrap(),
             q_class: DNSClass::try_from(qclass).unwrap(),
@@ -224,12 +230,7 @@ named!(parse_header_frame<&[u8], Header>,
     )
 );
 
-pub fn parse_dns_message(message: &[u8]) -> Result<Message, DNSProtoErr> {
-    match parse_message(message, message) {
-        Ok(val) => Ok(val.1),
-        Err(_) => Err(DNSProtoErr::PacketParseError),
-    }
-}
+
 
 named_args!(parse_message<'a>(original: &[u8])<&'a [u8], Message>,
     do_parse!(
@@ -379,8 +380,8 @@ fn test_parse_answer() {
         qtype: DNSType::A,
         qclass: DNSClass::IN,
         ttl: 64,
-        raw_data: Some(vec![69, 171, 228, 20]),
-        data: None,
+        raw_data: None,
+        data: Some(Box::new(DnsTypeA::from_str("69.171.228.20").unwrap())),
     });
     assert_eq!(result, a.unwrap().1);
 
@@ -682,7 +683,7 @@ fn test_decode_dns_message(){
         219, 0, 0, 0, 0, 0, 0
     ];
     let mut message_s = get_message();
-    match parse_dns_message(&message){
+    match Message::parse_dns_message(&message){
         Ok(decoded_message) => {
             assert_eq!(decoded_message.header, message_s.header);
             assert_eq!(decoded_message.questions, message_s.questions);
