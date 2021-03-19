@@ -27,6 +27,12 @@ impl From<std::io::Error> for DNSProtoErr {
     }
 }
 
+impl From<std::net::AddrParseError> for DNSProtoErr{
+    fn from(_: AddrParseError) -> Self {
+        DNSProtoErr::PacketParseError
+    }
+}
+
 #[derive(Error, Debug, PartialEq)]
 pub enum ParseZoneDataErr {
     #[error("domain: `{0}` validate fail")]

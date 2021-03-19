@@ -7,7 +7,11 @@ use std::{fmt, fmt::Formatter};
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct DnsTypeAAAA(Ipv6Addr);
-
+impl DnsTypeAAAA{
+    pub fn new(ip: &str) ->Result<Self, DNSProtoErr>{
+        Ok(DnsTypeAAAA(Ipv6Addr::from_str(ip)?))
+    }
+}
 impl DNSWireFrame for DnsTypeAAAA {
     fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr>  where Self:Sized{
         if data.len() < 16 {

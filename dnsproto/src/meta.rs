@@ -5,7 +5,6 @@ use crate::qtype::DNSWireFrame;
 use byteorder::{BigEndian, WriteBytesExt};
 use nom::lib::std::collections::HashMap;
 use rand::Rng;
-use std::error::Error;
 use std::io::{Cursor, Write};
 
 // https://tools.ietf.org/html/rfc1035
@@ -183,45 +182,43 @@ impl Question {
 // /                                               /
 // +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
 #[derive(Debug)]
-pub struct Answer {
+pub struct ResourceRecord {
     pub(crate) name: DNSName,
     pub(crate) qtype: DNSType,
     pub(crate) qclass: DNSClass,
     pub(crate) ttl: u32,
-    pub(crate) raw_data: Option<Vec<u8>>,
     pub(crate) data: Option<Box<dyn DNSWireFrame>>
 }
 
-impl PartialEq for Answer {
+impl PartialEq for ResourceRecord {
     fn eq(&self, other: &Self) -> bool {
         (self.name == other.name)
             && (self.qtype == other.qtype)
             && (self.qclass == other.qclass)
             && (self.ttl == other.ttl)
-            && (self.raw_data == other.raw_data)
+            // && (self.raw_data == other.raw_data)
     }
 }
 
-impl Answer {
+impl ResourceRecord {
     pub fn new(
         domain: &str,
         qtype: DNSType,
         qclass: DNSClass,
         ttl: u32,
         data: Option<Box<dyn DNSWireFrame>>
-    ) -> Result<Answer, DNSProtoErr> {
-        Ok(Answer {
+    ) -> Result<ResourceRecord, DNSProtoErr> {
+        Ok(ResourceRecord {
             name: DNSName::new(domain)?,
             qtype,
             qclass,
             ttl,
-            raw_data: None,
             data,
         })
     }
 
     pub fn encode<'a>(
-        &mut self,
+        &self,
         cursor: &'a mut Cursor<Vec<u8>>,
         compression: Option<&mut HashMap<String, usize>>,
     ) -> Result<&'a mut Cursor<Vec<u8>>, DNSProtoErr> {
@@ -254,10 +251,6 @@ impl Answer {
         cursor.write_u16::<BigEndian>(length)?;
         cursor.write_all(data.as_slice())?;
         Ok(cursor)
-    }
-
-    pub fn set_rdata(&mut self, rdata: &[u8]) {
-        self.raw_data = Some(rdata.to_vec());
     }
 }
 

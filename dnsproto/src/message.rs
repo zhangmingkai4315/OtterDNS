@@ -2,15 +2,13 @@
 use crate::dnsname::{parse_name, DNSName};
 use crate::edns::EDNS;
 use crate::errors::DNSProtoErr;
-use crate::meta::DNSType::OPT;
-use crate::meta::{Answer, Header, OpCode, Question, RCode};
+use crate::meta::{ResourceRecord, Header, OpCode, Question, RCode};
 use crate::meta::{DNSClass, DNSType};
 use crate::qtype::{DnsTypeNS, decode_message_data, DnsTypeA};
 use nom::number::complete::{be_u16, be_u32};
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::io::Cursor;
-use std::thread::current;
 use std::str::FromStr;
 
 #[derive(Debug, PartialEq)]
@@ -61,7 +59,7 @@ impl Message {
         let ref mut compression = HashMap::new();
         let mut cursor = self.header.encode(cursor)?;
         for question in self.questions.as_slice() {
-            cursor = question.encode(cursor, Some((compression)))?
+            cursor = question.encode(cursor, Some(compression))?
         }
         for answer in self.answers.as_mut_slice() {
             cursor = answer.encode(cursor, Some(compression))?
@@ -88,11 +86,11 @@ impl Message {
         self.header.question_count = 1;
     }
 
-    pub fn append_answer(&mut self, answer: Answer) {
+    pub fn append_answer(&mut self, answer: ResourceRecord) {
         self.answers.push(Record::AnswerRecord(answer));
         self.header.answer_count = self.answers.len() as u16;
     }
-    pub fn append_additional(&mut self, additional: Answer) {
+    pub fn append_additional(&mut self, additional: ResourceRecord) {
         self.additional.push(Record::AnswerRecord(additional));
         self.header.additional_count = self.additional.len() as u16;
     }
@@ -100,7 +98,7 @@ impl Message {
         self.additional.push(Record::EDNSRecord(edns));
         self.header.additional_count = self.additional.len() as u16;
     }
-    pub fn append_authority(&mut self, answer: Answer) {
+    pub fn append_authority(&mut self, answer: ResourceRecord) {
         self.authorities.push(Record::AnswerRecord(answer));
         self.header.ns_count = self.authorities.len() as u16;
     }
@@ -121,13 +119,13 @@ named!(parse_question<&[u8], Question>,
 
 #[derive(Debug, PartialEq)]
 pub enum Record {
-    AnswerRecord(Answer),
+    AnswerRecord(ResourceRecord),
     EDNSRecord(EDNS),
 }
 
 impl Record {
     fn encode<'a>(
-        &mut self,
+        &self,
         cursor: &'a mut Cursor<Vec<u8>>,
         compression: Option<&mut HashMap<String, usize>>,
     ) -> Result<&'a mut Cursor<Vec<u8>>, DNSProtoErr> {
@@ -177,7 +175,7 @@ named_args!(parse_answer<'a>(original: &[u8])<&'a [u8], Record>,
             }),
             false => {
                 let qtype = DNSType::try_from(qtype).unwrap();
-                Record::AnswerRecord(Answer{
+                Record::AnswerRecord(ResourceRecord{
                     data:   {
                         match decode_message_data(data, original, qtype){
                             Ok(v) => Some(v),
@@ -188,7 +186,6 @@ named_args!(parse_answer<'a>(original: &[u8])<&'a [u8], Record>,
                     qtype,
                     qclass: DNSClass::try_from(qclass).unwrap(),
                     ttl,
-                    raw_data: None,
                 })
             }
         }) >>
@@ -368,7 +365,7 @@ fn test_parse_answer() {
 
     let a = parse_answer(&answer, &original);
     assert_eq!(a.as_ref().is_ok(), true);
-    let result = Record::AnswerRecord(Answer {
+    let result = Record::AnswerRecord(ResourceRecord {
         name: DNSName {
             is_fqdn: true,
             labels: vec![
@@ -380,7 +377,6 @@ fn test_parse_answer() {
         qtype: DNSType::A,
         qclass: DNSClass::IN,
         ttl: 64,
-        raw_data: None,
         data: Some(Box::new(DnsTypeA::from_str("69.171.228.20").unwrap())),
     });
     assert_eq!(result, a.unwrap().1);
@@ -391,7 +387,7 @@ fn test_parse_answer() {
     ];
 
     let a = parse_answer(&answer, &original);
-    let result = Record::AnswerRecord(Answer {
+    let result = Record::AnswerRecord(ResourceRecord {
         name: DNSName {
             is_fqdn: true,
             labels: vec![String::from("google"), String::from("com")],
@@ -399,7 +395,6 @@ fn test_parse_answer() {
         qtype: DNSType::NS,
         qclass: DNSClass::IN,
         ttl: 156585,
-        raw_data: None,
         data: Some(Box::new(DnsTypeA::from_str("69.171.228.20").unwrap())),
     });
     assert_eq!(result, a.unwrap().1);
@@ -424,8 +419,34 @@ fn test_parse_answer() {
     assert_eq!(result, a.unwrap().1);
 }
 
+
 #[test]
-fn test_parse_message() {
+fn test_decode_incorrect_packet(){
+    let a = [];
+    let result = Message::parse_dns_message(&a);
+    assert_eq!(result.is_err(), true);
+
+    // only header
+    let a = [
+        0xa4, 0xac, 0x01, 0x20, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+    ];
+    let result = Message::parse_dns_message(&a);
+    assert_eq!(result.is_err(), true);
+
+    // only header and without question
+    let a = [
+        0xa4, 0xac, 0x01, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+        0x00, 0x00, 0x29, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ];
+    let result = Message::parse_dns_message(&a);
+    //TODO:  without a question is correct packets?
+    assert_eq!(result.is_err(), false);
+}
+
+
+
+#[test]
+fn test_decode_message() {
     let a = [
         0xa4, 0xac, 0x01, 0x20, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x03, 0x77, 0x77,
         0x77, 0x06, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x03, 0x63, 0x6f, 0x6d, 0x00, 0x00, 0x01,
@@ -470,9 +491,7 @@ fn test_parse_message() {
     let result = parse_message(&a, &a);
     assert_eq!(result.as_ref().is_ok(), true);
 
-    let a = [];
-    let result = parse_message(&a, &a);
-    assert_eq!(result.as_ref().is_err(), true);
+
 }
 
 #[test]
@@ -548,6 +567,7 @@ fn test_encode_question() {
     }
 }
 
+
 #[test]
 fn test_encode_answer() {
     use crate::qtype::DnsTypeNS;
@@ -555,12 +575,11 @@ fn test_encode_answer() {
         ns: DNSName::new("b.gtld-servers.net").unwrap(),
     };
 
-    let mut answer = Answer {
+    let mut answer = ResourceRecord {
         ttl: 256,
         name: DNSName::new("com").unwrap(),
         qtype: DNSType::NS,
         qclass: DNSClass::IN,
-        raw_data: None,
         data: Some(Box::new(nsdata)),
     };
 
@@ -591,6 +610,7 @@ fn test_encode_answer() {
         Err(err) => assert!(false, format!("error: {}", err.to_string())),
     }
 }
+
 
 #[test]
 fn test_encode_edns_message() {
@@ -636,7 +656,7 @@ fn get_message() -> Message{
         "ns3.google.com.",
         "ns4.google.com.",
     ] {
-        let answer = Answer::new(
+        let answer = ResourceRecord::new(
             "google.com.",
             DNSType::NS,
             DNSClass::IN,
@@ -682,7 +702,7 @@ fn test_decode_dns_message(){
         192, 12, 0, 2, 0, 1, 0, 0, 39, 16, 0, 6, 3, 110, 115, 52, 192, 12, 0, 0, 41, 4,
         219, 0, 0, 0, 0, 0, 0
     ];
-    let mut message_s = get_message();
+    let message_s = get_message();
     match Message::parse_dns_message(&message){
         Ok(decoded_message) => {
             assert_eq!(decoded_message.header, message_s.header);

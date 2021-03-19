@@ -10,9 +10,9 @@ use nom::lib::std::collections::hash_map::RandomState;
 pub struct DnsTypeA(Ipv4Addr);
 
 impl DnsTypeA{
-    // fn new(ip: &str)->Result<Self, std::error::Error>{
-    //     DnsTypeA(Ipv4Addr::from_str(ip)?)
-    // }
+    pub fn new(ip: &str) ->Result<Self, DNSProtoErr>{
+        Ok(DnsTypeA(Ipv4Addr::from_str(ip)?))
+    }
 }
 
 impl DNSWireFrame for DnsTypeA {
@@ -24,7 +24,7 @@ impl DNSWireFrame for DnsTypeA {
         Ok(DnsTypeA(Ipv4Addr::from(*data)))
     }
 
-    fn encode(&self, compression: Option<(&mut HashMap<String, usize, RandomState>, usize)>) -> Result<Vec<u8>, DNSProtoErr> {
+    fn encode(&self, _: Option<(&mut HashMap<String, usize, RandomState>, usize)>) -> Result<Vec<u8>, DNSProtoErr> {
         Ok(self.0.octets().to_vec())
     }
 }

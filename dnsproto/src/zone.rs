@@ -2,7 +2,7 @@
 
 use crate::errors::*;
 use crate::meta::{DNSClass, DNSType};
-use crate::record::ResourceRecord;
+use crate::record::RawResource;
 use crate::utils::{is_fqdn, valid_domain};
 use regex::Regex;
 use std::fs::File;
@@ -166,7 +166,7 @@ impl<T> Iterator for Zone<T>
 where
     T: Iterator<Item = String>,
 {
-    type Item = Result<ResourceRecord, DNSProtoErr>;
+    type Item = Result<RawResource, DNSProtoErr>;
 
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(line) = self.line_iterator.next() {
@@ -175,7 +175,7 @@ where
                     return Some(Err(e));
                 };
             } else {
-                return match ResourceRecord::new(
+                return match RawResource::new(
                     (line as String).as_str(),
                     self.current_ttl,
                     self.current_class,

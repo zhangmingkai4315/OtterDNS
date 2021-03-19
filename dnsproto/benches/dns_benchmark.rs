@@ -2,7 +2,7 @@ extern crate dnsproto;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 use dnsproto::message::Message;
-use dnsproto::meta::{Header,Answer,Question,DNSType,DNSClass};
+use dnsproto::meta::{Header, ResourceRecord, Question, DNSType, DNSClass};
 use dnsproto::qtype::{DnsTypeA,DNSTypeOpt,DnsTypeNS};
 use dnsproto::edns::EDNS;
 
@@ -61,7 +61,7 @@ fn dns_encode_answer_message(c: &mut Criterion) {
         "ns3.google.com.",
         "ns4.google.com.",
     ] {
-        let answer = Answer::new(
+        let answer = ResourceRecord::new(
             "google.com.",
             DNSType::NS,
             DNSClass::IN,

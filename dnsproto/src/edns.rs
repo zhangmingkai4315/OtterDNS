@@ -2,7 +2,7 @@
 use crate::dnsname::DNSName;
 use crate::errors::DNSProtoErr;
 use crate::meta::DNSType;
-use crate::qtype::{DNSWireFrame, DNSTypeOpt};
+use crate::qtype::{DNSWireFrame};
 use byteorder::{BigEndian, WriteBytesExt};
 use nom::lib::std::collections::HashMap;
 use std::io::{Cursor, Write};
@@ -45,7 +45,7 @@ impl EDNS {
     }
 
     pub fn encode<'a>(
-        &mut self,
+        &self,
         cursor: &'a mut Cursor<Vec<u8>>,
         _compression: Option<&mut HashMap<String, usize>>,
     ) -> Result<&'a mut Cursor<Vec<u8>>, DNSProtoErr> {

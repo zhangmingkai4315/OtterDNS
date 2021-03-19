@@ -1,8 +1,13 @@
 use crate::errors::*;
-use crate::meta::{DNSClass, DNSType};
+use crate::meta::{DNSClass, DNSType, ResourceRecord};
 use crate::utils::{is_fqdn, valid_domain};
+use crate::message::Message;
+use crate::dnsname::DNSName;
+use crate::qtype::{decode_dns_data_from_string, DnsTypeA};
+use nom::lib::std::convert::TryFrom;
+
 #[derive(Debug, PartialEq, Default)]
-pub struct ResourceRecord {
+pub struct RawResource {
     pub name: String,
     pub ttl: u32,
     pub r_class: DNSClass,
@@ -10,7 +15,7 @@ pub struct ResourceRecord {
     pub r_data: String,
 }
 
-impl ResourceRecord {
+impl RawResource {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         rr_str: &str,
@@ -18,7 +23,7 @@ impl ResourceRecord {
         default_class: Option<DNSClass>,
         default_domain: Option<&str>,
         default_origin: Option<&str>,
-    ) -> Result<ResourceRecord, ParseZoneDataErr> {
+    ) -> Result<RawResource, ParseZoneDataErr> {
         let mut is_ttl_set;
         let is_domain_set;
         let is_class_set;
@@ -211,7 +216,7 @@ impl ResourceRecord {
             }
         }
 
-        Ok(ResourceRecord {
+        Ok(RawResource {
             name: domain_fqdn,
             ttl,
             r_class,
@@ -220,15 +225,28 @@ impl ResourceRecord {
         })
     }
 }
+impl TryFrom<RawResource> for ResourceRecord {
+    type Error = DNSProtoErr;
+    fn try_from(rr: RawResource) -> Result<Self, Self::Error> {
+        let name = DNSName::new(rr.name.as_str())?;
+        Ok(ResourceRecord {
+            name,
+            qtype: rr.r_type,
+            qclass: rr.r_class,
+            ttl: rr.ttl,
+            data: Some(decode_dns_data_from_string(rr.r_data.as_str(),rr.r_type)?),
+        })
+    }
+}
 
 #[test]
 fn test_parse_rr_from_str() {
     let s = "mail.    86400   IN  A     192.0.2.3 ; this is a comment";
-    let rr: Result<ResourceRecord, ParseZoneDataErr> =
-        ResourceRecord::new(s, None, None, None, None);
+    let rr: Result<RawResource, ParseZoneDataErr> =
+        RawResource::new(s, None, None, None, None);
     assert_eq!(
         rr.unwrap(),
-        ResourceRecord {
+        RawResource {
             name: "mail.".to_owned(),
             ttl: 86400,
             r_class: DNSClass::IN,
@@ -237,11 +255,11 @@ fn test_parse_rr_from_str() {
         }
     );
     let s = "mail    86400   IN  A     192.0.2.3 ; this is a comment";
-    let rr: Result<ResourceRecord, ParseZoneDataErr> =
-        ResourceRecord::new(s, None, None, None, Some("cnnic.cn"));
+    let rr: Result<RawResource, ParseZoneDataErr> =
+        RawResource::new(s, None, None, None, Some("cnnic.cn"));
     assert_eq!(
         rr.unwrap(),
-        ResourceRecord {
+        RawResource {
             name: "mail.cnnic.cn".to_owned(),
             ttl: 86400,
             r_class: DNSClass::IN,
@@ -251,11 +269,11 @@ fn test_parse_rr_from_str() {
     );
 
     let s = "mail.    86400   IN  A     192.0.2.3 ; this is a comment";
-    let rr: Result<ResourceRecord, ParseZoneDataErr> =
-        ResourceRecord::new(s, None, None, None, Some("cnnic.cn"));
+    let rr: Result<RawResource, ParseZoneDataErr> =
+        RawResource::new(s, None, None, None, Some("cnnic.cn"));
     assert_eq!(
         rr.unwrap(),
-        ResourceRecord {
+        RawResource {
             name: "mail.".to_owned(),
             ttl: 86400,
             r_class: DNSClass::IN,
@@ -265,11 +283,11 @@ fn test_parse_rr_from_str() {
     );
 
     let s = " 86400 IN  A     192.0.2.3";
-    let rr: Result<ResourceRecord, ParseZoneDataErr> =
-        ResourceRecord::new(s, Some(1000), None, Some("mail."), None);
+    let rr: Result<RawResource, ParseZoneDataErr> =
+        RawResource::new(s, Some(1000), None, Some("mail."), None);
     assert_eq!(
         rr.unwrap(),
-        ResourceRecord {
+        RawResource {
             name: "mail.".to_owned(),
             ttl: 86400,
             r_class: DNSClass::IN,
@@ -279,11 +297,11 @@ fn test_parse_rr_from_str() {
     );
 
     let s = "  IN  A     192.0.2.3";
-    let rr: Result<ResourceRecord, ParseZoneDataErr> =
-        ResourceRecord::new(s, Some(1000), None, Some("mail."), None);
+    let rr: Result<RawResource, ParseZoneDataErr> =
+        RawResource::new(s, Some(1000), None, Some("mail."), None);
     assert_eq!(
         rr.unwrap(),
-        ResourceRecord {
+        RawResource {
             name: "mail.".to_owned(),
             ttl: 1000,
             r_class: DNSClass::IN,
@@ -293,11 +311,11 @@ fn test_parse_rr_from_str() {
     );
 
     let s = "  IN  NS     a.dns.cn";
-    let rr: Result<ResourceRecord, ParseZoneDataErr> =
-        ResourceRecord::new(s, Some(1000), None, Some("mail."), None);
+    let rr: Result<RawResource, ParseZoneDataErr> =
+        RawResource::new(s, Some(1000), None, Some("mail."), None);
     assert_eq!(
         rr.unwrap(),
-        ResourceRecord {
+        RawResource {
             name: "mail.".to_owned(),
             ttl: 1000,
             r_class: DNSClass::IN,
@@ -307,11 +325,11 @@ fn test_parse_rr_from_str() {
     );
     //
     let s = "  IN  SOA    localhost. root.localhost.  1999010100 ( 10800 900 604800 86400 ) ";
-    let rr: Result<ResourceRecord, ParseZoneDataErr> =
-        ResourceRecord::new(s, Some(1000), None, Some("mail"), Some("google.com."));
+    let rr: Result<RawResource, ParseZoneDataErr> =
+        RawResource::new(s, Some(1000), None, Some("mail"), Some("google.com."));
     assert_eq!(
         rr.unwrap(),
-        ResourceRecord {
+        RawResource {
             name: "mail.google.com.".to_owned(),
             ttl: 1000,
             r_class: DNSClass::IN,
@@ -321,11 +339,11 @@ fn test_parse_rr_from_str() {
     );
 
     let s = "in.    86400   IN  A     192.0.2.3 ; this is a comment";
-    let rr: Result<ResourceRecord, ParseZoneDataErr> =
-        ResourceRecord::new(s, None, None, None, None);
+    let rr: Result<RawResource, ParseZoneDataErr> =
+        RawResource::new(s, None, None, None, None);
     assert_eq!(
         rr.unwrap(),
-        ResourceRecord {
+        RawResource {
             name: "in.".to_owned(),
             ttl: 86400,
             r_class: DNSClass::IN,
@@ -334,11 +352,11 @@ fn test_parse_rr_from_str() {
         }
     );
     let s = "in    86400   IN  A     192.0.2.3 ; this is a comment";
-    let rr: Result<ResourceRecord, ParseZoneDataErr> =
-        ResourceRecord::new(s, None, None, Some("default"), Some("google.com."));
+    let rr: Result<RawResource, ParseZoneDataErr> =
+        RawResource::new(s, None, None, Some("default"), Some("google.com."));
     assert_eq!(
         rr.unwrap(),
-        ResourceRecord {
+        RawResource {
             name: "in.google.com.".to_owned(),
             ttl: 86400,
             r_class: DNSClass::IN,
@@ -348,11 +366,11 @@ fn test_parse_rr_from_str() {
     );
 
     let s = "in    86400   CH  A     192.0.2.3 ; this is a comment";
-    let rr: Result<ResourceRecord, ParseZoneDataErr> =
-        ResourceRecord::new(s, None, None, Some("default"), Some("google.com."));
+    let rr: Result<RawResource, ParseZoneDataErr> =
+        RawResource::new(s, None, None, Some("default"), Some("google.com."));
     assert_eq!(
         rr.unwrap(),
-        ResourceRecord {
+        RawResource {
             name: "in.google.com.".to_owned(),
             ttl: 86400,
             r_class: DNSClass::CH,
@@ -362,11 +380,11 @@ fn test_parse_rr_from_str() {
     );
 
     let s = "  86400   IN  A     192.0.2.3 ; this is a comment";
-    let rr: Result<ResourceRecord, ParseZoneDataErr> =
-        ResourceRecord::new(s, None, None, Some("default"), Some("google.com."));
+    let rr: Result<RawResource, ParseZoneDataErr> =
+        RawResource::new(s, None, None, Some("default"), Some("google.com."));
     assert_eq!(
         rr.unwrap(),
-        ResourceRecord {
+        RawResource {
             name: "default.google.com.".to_owned(),
             ttl: 86400,
             r_class: DNSClass::IN,
@@ -376,11 +394,11 @@ fn test_parse_rr_from_str() {
     );
     //
     let s = "@  86400  IN  NS    @";
-    let rr: Result<ResourceRecord, ParseZoneDataErr> =
-        ResourceRecord::new(s, Some(1000), None, Some("mail."), None);
+    let rr: Result<RawResource, ParseZoneDataErr> =
+        RawResource::new(s, Some(1000), None, Some("mail."), None);
     assert_eq!(
         rr.unwrap(),
-        ResourceRecord {
+        RawResource {
             name: "mail.".to_owned(),
             ttl: 86400,
             r_class: DNSClass::IN,
@@ -390,11 +408,11 @@ fn test_parse_rr_from_str() {
     );
 
     let s = "@  86400  IN  NS    @";
-    let rr: Result<ResourceRecord, ParseZoneDataErr> =
-        ResourceRecord::new(s, Some(1000), None, Some("mail."), Some("google.com."));
+    let rr: Result<RawResource, ParseZoneDataErr> =
+        RawResource::new(s, Some(1000), None, Some("mail."), Some("google.com."));
     assert_eq!(
         rr.unwrap(),
-        ResourceRecord {
+        RawResource {
             name: "mail.".to_owned(),
             ttl: 86400,
             r_class: DNSClass::IN,
@@ -404,11 +422,11 @@ fn test_parse_rr_from_str() {
     );
 
     let s = "@  86400  IN  NS    @";
-    let rr: Result<ResourceRecord, ParseZoneDataErr> =
-        ResourceRecord::new(s, Some(1000), None, Some("mail"), Some("google.com."));
+    let rr: Result<RawResource, ParseZoneDataErr> =
+        RawResource::new(s, Some(1000), None, Some("mail"), Some("google.com."));
     assert_eq!(
         rr.unwrap(),
-        ResourceRecord {
+        RawResource {
             name: "mail.google.com.".to_owned(),
             ttl: 86400,
             r_class: DNSClass::IN,
@@ -421,27 +439,51 @@ fn test_parse_rr_from_str() {
 #[test]
 fn test_parse_rr_from_str_err() {
     let s = "@  IN  NS  @";
-    let rr: Result<ResourceRecord, ParseZoneDataErr> =
-        ResourceRecord::new(s, Some(1000), None, None, None);
+    let rr: Result<RawResource, ParseZoneDataErr> =
+        RawResource::new(s, Some(1000), None, None, None);
     assert_eq!(rr.unwrap_err(), ParseZoneDataErr::NoDefaultDomain);
 
-    let rr: Result<ResourceRecord, ParseZoneDataErr> =
-        ResourceRecord::new(s, Some(1000), None, Some("mail"), None);
+    let rr: Result<RawResource, ParseZoneDataErr> =
+        RawResource::new(s, Some(1000), None, Some("mail"), None);
     assert_eq!(rr.unwrap_err(), ParseZoneDataErr::NoOriginDomain);
 
-    let rr: Result<ResourceRecord, ParseZoneDataErr> =
-        ResourceRecord::new(s, None, None, Some("mail"), Some("google.com."));
+    let rr: Result<RawResource, ParseZoneDataErr> =
+        RawResource::new(s, None, None, Some("mail"), Some("google.com."));
     assert_eq!(rr.unwrap_err(), ParseZoneDataErr::NoDefaultTTL);
 
-    let rr: Result<ResourceRecord, ParseZoneDataErr> =
-        ResourceRecord::new(s, None, None, Some("-."), None);
+    let rr: Result<RawResource, ParseZoneDataErr> =
+        RawResource::new(s, None, None, Some("-."), None);
     assert_eq!(
         rr.unwrap_err(),
         ParseZoneDataErr::ValidDomainErr("-.".to_owned())
     );
 
     let s = "mail. NS  ns1.google.com.";
-    let rr: Result<ResourceRecord, ParseZoneDataErr> =
-        ResourceRecord::new(s, None, None, None, None);
+    let rr: Result<RawResource, ParseZoneDataErr> =
+        RawResource::new(s, None, None, None, None);
     assert_eq!(rr.unwrap_err(), ParseZoneDataErr::NoDefaultTTL);
+}
+
+
+#[test]
+fn test_from_rr_into_answer(){
+    let s = "mail.  86400   IN  A     192.0.2.3 ; this is a comment";
+    let raw_rr =
+        RawResource::new(s, None, None, None, None).unwrap();
+    let resourc = ResourceRecord{
+        name: DNSName::new("mail.").unwrap(),
+        qtype: DNSType::A,
+        qclass: DNSClass::IN,
+        ttl: 86400,
+        data: Some(Box::new(DnsTypeA::new("192.0.2.3").unwrap()))
+    };
+    match ResourceRecord::try_from(raw_rr){
+        Ok(rr) => {
+            assert_eq!(resourc, rr);
+            assert!(true );
+        },
+        Err(err) => {assert!(false);}
+    }
+
+
 }
