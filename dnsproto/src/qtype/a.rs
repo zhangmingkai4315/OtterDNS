@@ -4,26 +4,28 @@ use std::collections::HashMap;
 use std::net::Ipv4Addr;
 use std::str::FromStr;
 use std::{fmt, fmt::Formatter};
+use nom::lib::std::collections::hash_map::RandomState;
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct DnsTypeA(Ipv4Addr);
 
-impl DNSWireFrame for DnsTypeA {
-    fn encode(
-        &self,
-        _: Option<(&mut HashMap<String, usize>, usize)>,
-    ) -> Result<Vec<u8>, DNSProtoErr> {
-        Ok(self.0.octets().to_vec())
-    }
+impl DnsTypeA{
+    // fn new(ip: &str)->Result<Self, std::error::Error>{
+    //     DnsTypeA(Ipv4Addr::from_str(ip)?)
+    // }
 }
 
-impl DnsTypeA {
-    fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
+impl DNSWireFrame for DnsTypeA {
+    fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr> where Self:Sized{
         if data.len() < 4 {
             return Err(DNSProtoErr::PacketParseError);
         }
         let data = unsafe { &*(data as *const [u8] as *const [u8; 4]) };
         Ok(DnsTypeA(Ipv4Addr::from(*data)))
+    }
+
+    fn encode(&self, compression: Option<(&mut HashMap<String, usize, RandomState>, usize)>) -> Result<Vec<u8>, DNSProtoErr> {
+        Ok(self.0.octets().to_vec())
     }
 }
 

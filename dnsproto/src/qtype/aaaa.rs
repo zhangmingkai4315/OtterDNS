@@ -9,21 +9,18 @@ use std::{fmt, fmt::Formatter};
 pub struct DnsTypeAAAA(Ipv6Addr);
 
 impl DNSWireFrame for DnsTypeAAAA {
-    fn encode(
-        &self,
-        _: Option<(&mut HashMap<String, usize>, usize)>,
-    ) -> Result<Vec<u8>, DNSProtoErr> {
-        Ok(self.0.octets().to_vec())
-    }
-}
-
-impl DnsTypeAAAA {
-    fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
+    fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr>  where Self:Sized{
         if data.len() < 16 {
             return Err(DNSProtoErr::PacketParseError);
         }
         let data = unsafe { &*(data as *const [u8] as *const [u8; 16]) };
         Ok(DnsTypeAAAA(Ipv6Addr::from(*data)))
+    }
+    fn encode(
+        &self,
+        _: Option<(&mut HashMap<String, usize>, usize)>,
+    ) -> Result<Vec<u8>, DNSProtoErr> {
+        Ok(self.0.octets().to_vec())
     }
 }
 

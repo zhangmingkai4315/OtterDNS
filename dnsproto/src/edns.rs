@@ -2,7 +2,7 @@
 use crate::dnsname::DNSName;
 use crate::errors::DNSProtoErr;
 use crate::meta::DNSType;
-use crate::qtype::DNSWireFrame;
+use crate::qtype::{DNSWireFrame, DNSTypeOpt};
 use byteorder::{BigEndian, WriteBytesExt};
 use nom::lib::std::collections::HashMap;
 use std::io::{Cursor, Write};
@@ -27,7 +27,7 @@ impl Default for EDNS {
 impl EDNS {
     pub fn new() -> Self {
         EDNS {
-            name: DNSName::new("").unwrap(),
+            name: DNSName::new(".").unwrap(),
             qtype: DNSType::OPT,
             payload_size: 1243,
             extension: 0,

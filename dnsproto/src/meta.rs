@@ -189,7 +189,7 @@ pub struct Answer {
     pub(crate) qclass: DNSClass,
     pub(crate) ttl: u32,
     pub(crate) raw_data: Option<Vec<u8>>,
-    pub(crate) data: Option<Box<dyn DNSWireFrame>>,
+    pub(crate) data: Option<Box<dyn DNSWireFrame>>
 }
 
 impl PartialEq for Answer {
@@ -208,7 +208,7 @@ impl Answer {
         qtype: DNSType,
         qclass: DNSClass,
         ttl: u32,
-        data: Option<Box<dyn DNSWireFrame>>,
+        data: Option<Box<dyn DNSWireFrame>>
     ) -> Result<Answer, DNSProtoErr> {
         Ok(Answer {
             name: DNSName::new(domain)?,

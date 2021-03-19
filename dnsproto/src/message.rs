@@ -5,12 +5,13 @@ use crate::errors::DNSProtoErr;
 use crate::meta::DNSType::OPT;
 use crate::meta::{Answer, Header, OpCode, Question, RCode};
 use crate::meta::{DNSClass, DNSType};
-use crate::qtype::DnsTypeNS;
+use crate::qtype::{DnsTypeNS, decode_message_data, DnsTypeA};
 use nom::number::complete::{be_u16, be_u32};
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::io::Cursor;
 use std::thread::current;
+use std::str::FromStr;
 
 #[derive(Debug, PartialEq)]
 pub struct Message {
@@ -156,26 +157,32 @@ named_args!(parse_answer<'a>(original: &[u8])<&'a [u8], Record>,
                 extension: (ttl & 0xff000000 >> 24 )as u8,
                 version: (ttl & 0x00ff0000 >> 16 )as u8,
                 do_bit: (ttl & 0x0000ff00 >> 15) == 1,
-                raw_data: {if data_length != 0 {
-                        Some(data.to_vec())
+                raw_data: None,
+                data: {
+                    if data_length != 0 {
+                        match decode_message_data(data, original, DNSType::OPT){
+                            Ok(v) => Some(v),
+                            _ => { None }
+                        }
                     }else{
                         None
-                    }},
-                data: None,
+                    }
+                },
             }),
             false => {
                 let qtype = DNSType::try_from(qtype).unwrap();
                 Record::AnswerRecord(Answer{
-                    data:None,
+                    data:   {
+                        match decode_message_data(data, original, qtype){
+                            Ok(v) => Some(v),
+                            _ => { None }
+                        }
+                    },
                     name,
                     qtype,
                     qclass: DNSClass::try_from(qclass).unwrap(),
                     ttl,
-                    raw_data: {if data_length != 0{
-                        Some(data.to_vec())
-                    }else{
-                        None
-                    }},
+                    raw_data: None,
                 })
             }
         }) >>
@@ -391,8 +398,8 @@ fn test_parse_answer() {
         qtype: DNSType::NS,
         qclass: DNSClass::IN,
         ttl: 156585,
-        raw_data: Some(vec![0x03, 0x6e, 0x73, 0x33, 0xc0, 0x10]),
-        data: None,
+        raw_data: None,
+        data: Some(Box::new(DnsTypeA::from_str("69.171.228.20").unwrap())),
     });
     assert_eq!(result, a.unwrap().1);
 
@@ -612,34 +619,21 @@ fn test_encode_edns_message() {
     }
 }
 
-#[test]
-fn test_encode_message() -> Result<(), Box<dyn std::error::Error>> {
+fn get_message() -> Message{
     let mut header = Header::new();
     header.set_id(0xcab1);
     header.rd = true;
     // serialize a question
-    let question = Question::new("google.com", DNSType::NS, DNSClass::IN).unwrap();
+    let question = Question::new("google.com.", DNSType::NS, DNSClass::IN).unwrap();
     let edns = EDNS::new();
     let mut message = Message::new_with_header(header);
     message.set_question(question);
     message.append_edns(edns);
-    match message.encode() {
-        Ok(data) => {
-            assert_eq!(
-                data,
-                vec![
-                    202, 177, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 6, 103, 111, 111, 103, 108, 101, 3, 99,
-                    111, 109, 0, 0, 2, 0, 1, 0, 0, 41, 4, 219, 0, 0, 0, 0, 0, 0
-                ],
-            );
-        }
-        _ => assert!(false),
-    }
     for ns in vec![
-        "ns1.google.com",
-        "ns2.google.com",
-        "ns3.google.com",
-        "ns4.google.com",
+        "ns1.google.com.",
+        "ns2.google.com.",
+        "ns3.google.com.",
+        "ns4.google.com.",
     ] {
         let answer = Answer::new(
             "google.com.",
@@ -647,11 +641,17 @@ fn test_encode_message() -> Result<(), Box<dyn std::error::Error>> {
             DNSClass::IN,
             10000,
             Some(Box::new(DnsTypeNS::new(ns).unwrap())),
-        )?;
+        ).unwrap();
         message.append_answer(answer);
     }
     message.header.set_qr(true);
     message.header.set_rd(true);
+    message
+}
+
+#[test]
+fn test_encode_message() -> Result<(), Box<dyn std::error::Error>> {
+    let mut message = get_message();
     match message.encode() {
         Ok(data) => {
             assert_eq!(
@@ -669,4 +669,26 @@ fn test_encode_message() -> Result<(), Box<dyn std::error::Error>> {
         _ => assert!(false),
     }
     Ok(())
+}
+
+#[test]
+fn test_decode_dns_message(){
+    let message = [
+        202u8, 177, 129, 0, 0, 1, 0, 4, 0, 0, 0, 1, 6, 103, 111, 111, 103, 108, 101, 3,
+        99, 111, 109, 0, 0, 2, 0, 1, 192, 12, 0, 2, 0, 1, 0, 0, 39, 16, 0, 6, 3, 110,
+        115, 49, 192, 12, 192, 12, 0, 2, 0, 1, 0, 0, 39, 16, 0, 6, 3, 110, 115, 50,
+        192, 12, 192, 12, 0, 2, 0, 1, 0, 0, 39, 16, 0, 6, 3, 110, 115, 51, 192, 12,
+        192, 12, 0, 2, 0, 1, 0, 0, 39, 16, 0, 6, 3, 110, 115, 52, 192, 12, 0, 0, 41, 4,
+        219, 0, 0, 0, 0, 0, 0
+    ];
+    let mut message_s = get_message();
+    match parse_dns_message(&message){
+        Ok(decoded_message) => {
+            assert_eq!(decoded_message.header, message_s.header);
+            assert_eq!(decoded_message.questions, message_s.questions);
+            assert_eq!(decoded_message.answers, message_s.answers);
+            assert_eq!(decoded_message.additional, message_s.additional);
+        },
+        _ => {assert!(false);}
+    }
 }

@@ -120,6 +120,15 @@ pub struct DNSTypeOpt {
 }
 
 impl DNSWireFrame for DNSTypeOpt {
+    fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr>  where Self:Sized{
+        match parse_opt(data) {
+            Ok((_, mut opt)) => match opt.decode_with_type() {
+                Ok(_) => Ok(opt),
+                Err(_) => Err(DNSProtoErr::PacketParseError),
+            },
+            Err(_err) => Err(DNSProtoErr::PacketParseError),
+        }
+    }
     fn encode(
         &self,
         _: Option<(&mut HashMap<String, usize>, usize)>,
@@ -171,16 +180,6 @@ impl Default for DNSTypeOpt {
 }
 
 impl DNSTypeOpt {
-    fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
-        match parse_opt(data) {
-            Ok((_, mut opt)) => match opt.decode_with_type() {
-                Ok(_) => Ok(opt),
-                Err(_) => Err(DNSProtoErr::PacketParseError),
-            },
-            Err(_err) => Err(DNSProtoErr::PacketParseError),
-        }
-    }
-
     fn decode_with_type(&mut self) -> Result<(), DNSProtoErr> {
         match self.code {
             EDNSOptionCode::Reserved => Ok(()),
