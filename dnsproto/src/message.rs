@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::io::Cursor;
 use std::str::FromStr;
+// use std::str::FromStr;
 
 #[derive(Debug, PartialEq)]
 pub struct Message {
@@ -55,8 +56,8 @@ impl Message {
         };
         // self.cursor = Some(&mut Cursor::new(buffer));
         // let cursor = self.cursor.unwrap();
-        let ref mut cursor = Cursor::new(buffer);
-        let ref mut compression = HashMap::new();
+        let cursor = &mut Cursor::new(buffer);
+        let compression = &mut HashMap::new();
         let mut cursor = self.header.encode(cursor)?;
         for question in self.questions.as_slice() {
             cursor = question.encode(cursor, Some(compression))?
@@ -78,7 +79,7 @@ impl Message {
         self.header = header;
     }
     pub fn set_question(&mut self, question: Question) {
-        if self.questions.len() == 0 {
+        if self.questions.is_empty() {
             self.questions.push(question)
         } else {
             self.questions[0] = question
@@ -641,7 +642,7 @@ fn get_message() -> Message {
     let mut message = Message::new_with_header(header);
     message.set_question(question);
     message.append_edns(edns);
-    for ns in vec![
+    for ns in &[
         "ns1.google.com.",
         "ns2.google.com.",
         "ns3.google.com.",
@@ -652,7 +653,7 @@ fn get_message() -> Message {
             DNSType::NS,
             DNSClass::IN,
             10000,
-            Some(Box::new(DnsTypeNS::new(ns).unwrap())),
+            Some(Box::new(DnsTypeNS::new(*ns).unwrap())),
         )
         .unwrap();
         message.append_answer(answer);

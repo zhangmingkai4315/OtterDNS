@@ -57,6 +57,10 @@ pub enum ParseZoneDataErr {
     NoDomainTypeErr,
     #[error("default origin domain is not set")]
     NoOriginDomainErr,
+
+    #[error("domain is not a valid fqdn: `{0}`")]
+    ValidFQDNError(String),
+
     #[error("general fail: `{0}`")]
     GeneralErr(String),
 

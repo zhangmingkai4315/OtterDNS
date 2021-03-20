@@ -1,6 +1,6 @@
 // http://www.networksorcery.com/enp/protocol/dns.htm
 use crate::dnsname::DNSName;
-use crate::errors::DNSProtoErr;
+use crate::errors::{DNSProtoErr, ParseZoneDataErr};
 use crate::qtype::DNSWireFrame;
 use byteorder::{BigEndian, WriteBytesExt};
 use nom::lib::std::collections::HashMap;
@@ -147,12 +147,18 @@ impl Question {
         compression: Option<&mut HashMap<String, usize>>,
     ) -> Result<&'a mut Cursor<Vec<u8>>, DNSProtoErr> {
         let frame = {
-            if compression.is_none() {
-                self.q_name.to_binary(None)
-            } else {
-                self.q_name
-                    .to_binary(Some((compression.unwrap(), cursor.position() as usize)))
+            match compression {
+                None => self.q_name.to_binary(None),
+                Some(compression) => self
+                    .q_name
+                    .to_binary(Some((compression, cursor.position() as usize))),
             }
+            // if compression.is_none() {
+            //     self.q_name.to_binary(None)
+            // } else {
+            //     self.q_name
+            //         .to_binary(Some((compression.unwrap(), cursor.position() as usize)))
+            // }
         };
         cursor.write_all(frame.as_slice())?;
         cursor.write_u16::<BigEndian>(self.q_type as u16)?;
@@ -183,11 +189,11 @@ impl Question {
 // +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
 #[derive(Debug)]
 pub struct ResourceRecord {
-    pub(crate) name: DNSName,
-    pub(crate) qtype: DNSType,
-    pub(crate) qclass: DNSClass,
-    pub(crate) ttl: u32,
-    pub(crate) data: Option<Box<dyn DNSWireFrame>>,
+    pub name: DNSName,
+    pub qtype: DNSType,
+    pub qclass: DNSClass,
+    pub ttl: u32,
+    pub data: Option<Box<dyn DNSWireFrame>>,
 }
 
 impl PartialEq for ResourceRecord {
@@ -215,6 +221,14 @@ impl ResourceRecord {
             ttl,
             data,
         })
+    }
+
+    pub fn get_labels(&self) -> Result<usize, ParseZoneDataErr> {
+        if self.name.is_fqdn == false {
+            /// must be fqdn domain
+            return Err(ParseZoneDataErr::ValidFQDNError(self.name.to_string()));
+        }
+        Ok(self.name.labels.len())
     }
 
     pub fn encode<'a>(

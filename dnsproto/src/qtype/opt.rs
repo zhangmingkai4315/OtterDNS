@@ -3,7 +3,7 @@ use crate::qtype::DNSWireFrame;
 use byteorder::{BigEndian, WriteBytesExt};
 use nom::number::complete::{be_u16, be_u8};
 use std::collections::HashMap;
-use std::fmt::{self, format, Formatter};
+use std::fmt::{self, Formatter};
 use std::io::{Cursor, Write};
 use std::net::{Ipv4Addr, Ipv6Addr};
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -45,7 +45,7 @@ impl EdnsECS {
         let client_subnet = ipaddr.octets();
         let mut size = source_mask / 8;
         if source_mask % 8 != 0 {
-            size = size + 1;
+            size += 1;
         }
         let (client_subnet, _) = client_subnet.split_at(size as usize);
         Ok(EdnsECS {
@@ -62,7 +62,7 @@ impl EdnsECS {
         let client_subnet = ipaddr.octets();
         let mut size = source_mask / 8;
         if source_mask % 8 != 0 {
-            size = size + 1;
+            size += 1;
         }
         let (client_subnet, _) = client_subnet.split_at(size as usize);
         Ok(EdnsECS {
@@ -120,7 +120,7 @@ pub struct DNSTypeOpt {
 }
 
 impl fmt::Display for DNSTypeOpt {
-    fn fmt(&self, format: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, _format: &mut Formatter<'_>) -> fmt::Result {
         unimplemented!()
     }
 }

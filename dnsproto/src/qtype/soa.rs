@@ -20,7 +20,7 @@ pub struct DnsTypeSOA {
 
 impl FromStr for DnsTypeSOA {
     type Err = ParseZoneDataErr;
-    fn from_str(a_str: &str) -> Result<Self, Self::Err> {
+    fn from_str(_str: &str) -> Result<Self, Self::Err> {
         // a.dns.cn. root.cnnic.cn. ( 2027954656 7200 3600 2419200 21600 )
         unimplemented!()
     }
@@ -46,7 +46,7 @@ named_args!(parse_soa<'a>(original: &[u8])<DnsTypeSOA>,
         }
     )
 ));
-
+#[allow(clippy::too_many_arguments)]
 impl DnsTypeSOA {
     pub fn new(
         primary_server: &str,
