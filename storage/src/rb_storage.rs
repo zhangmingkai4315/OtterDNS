@@ -8,14 +8,18 @@ use dnsproto::dnsname::DNSName;
 use dnsproto::errors::DNSProtoErr;
 use dnsproto::meta::{DNSClass, DNSType, ResourceRecord};
 use dnsproto::qtype::{DNSWireFrame, DnsTypeSOA};
+use std::borrow::BorrowMut;
+use std::cell::RefCell;
+use std::ops::Deref;
+use std::thread::current;
 
+#[derive(Debug)]
 struct RBTreeNode {
     label: String,
-    // TODO: How to save different type for quick search and retirve.
     data: Vec<ResourceRecord>,
     subtree: Option<RBTree<String, RBTreeNode>>,
 }
-
+#[derive(Debug)]
 struct RBTreeStorage {
     root: RBTreeNode,
 }
@@ -42,22 +46,21 @@ impl Storage for RBTreeStorage {
     }
 
     fn insert(&mut self, rr: &ResourceRecord) -> Result<(), StorageError> {
-        // let mut labels = rr.get_labels()?;
-        // let ref mut current = self.root;
-        // let mut found = false;
-        // for i in rr.name.labels.iter().rev(){
-        //    if current.subtree.is_none(){
-        //        break
-        //    }
-        //    let result = current.subtree.unwrap().get(i.as_ref()).as_mut();
-        //     current = result.unwrap();
-        //     if result.is_some(){
-        //
-        //    }else{
-        //        break
-        //    };
-        //
-        // }
+        let mut labels = rr.get_labels()?;
+        let ref mut subtree = self.root.subtree;
+        let mut found = false;
+        for i in rr.name.labels.iter().rev() {
+            if subtree.is_none() {
+                break;
+            }
+            let mut result = subtree.unwrap();
+            let mut result = result.get(i);
+            if result.is_none() {
+                break;
+            }
+            let next_subtree = result.take();
+            subtree = next_subtree.unwrap().subtree;
+        }
         Ok(())
     }
 
@@ -69,41 +72,3 @@ impl Storage for RBTreeStorage {
         unimplemented!()
     }
 }
-
-// #[derive(Clone)]
-// struct DNSRBNode<'a> {
-//     link: RBTreeLink,
-//     key: &'a str,
-//     value: Box<ResourceRecord>,
-// }
-//
-// // intrusive_adapter!(DNSAdapter<'a> = &'a DNSRBNode: DNSRBNode { link: RBTreeLink });
-// intrusive_adapter!(ElementAdapter = Box<DNSRBNode<'a>>: DNSRBNode<'a> { link: RBTreeLink });
-//
-// impl<'a, 'b> KeyAdapter<'a, 'b> for ElementAdapter {
-//     type Key = String;
-//     fn get_key(&self, x: &'a DNSRBNode<'b>) -> &str { x.key }
-// }
-//
-//
-// fn get_rb_node(domain: &str, qtype: DNSType, qclass: DNSClass)->DNSRBNode{
-//     DNSRBNode{
-//         link: Default::default(),
-//         key: domain,
-//         value: Box::new(ResourceRecord::new(domain, qtype,qclass, 1,None).unwrap())
-//     }
-// }
-//
-// #[test]
-// fn test_rb_tree(){
-//
-//     let mut l = RBTree::new(ObjAdapter::new());
-//     let dnsnode = get_rb_node("baidu1.com", DNSType::A, DNSClass::IN);
-//     l.insert(&dnsnode);
-//     let dnsnode = get_rb_node("baidu2.com", DNSType::A, DNSClass::IN);
-//     l.insert(&dnsnode);
-//     let dnsnode = get_rb_node("baidu3.com", DNSType::A, DNSClass::IN);
-//     l.insert(&dnsnode);
-//
-//     println!("{:?}",l.find("baidu1.com").get().unwrap())
-// }

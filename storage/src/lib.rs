@@ -2,6 +2,7 @@ mod rb_storage;
 #[macro_use]
 mod errors;
 mod rbtree;
+// mod example;
 
 use dnsproto::dnsname::DNSName;
 use dnsproto::meta::{DNSType, ResourceRecord};

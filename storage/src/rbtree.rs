@@ -78,6 +78,7 @@ impl Debug for Color {
     }
 }
 
+#[derive(Debug)]
 pub struct RBTree<K, V>
 where
     K: Ord,
