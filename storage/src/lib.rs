@@ -16,9 +16,9 @@ trait Storage {
         domain: DNSName,
     ) -> Result<Box<dyn DNSWireFrame>, StorageError>;
     // insert will update when the resource record exist already.
-    fn insert(&mut self, rr: &ResourceRecord) -> Result<(), StorageError>;
+    fn insert(&mut self, rr: ResourceRecord) -> Result<(), StorageError>;
     fn delete(&mut self, qtype: DNSType, domain: &DNSName) -> Result<(), StorageError>;
-    fn get_soa(&mut self, domain: &DNSName) -> Result<DnsTypeSOA, StorageError>;
+    fn get_soa(&mut self, domain: DNSName) -> Result<DnsTypeSOA, StorageError>;
 }
 
 #[cfg(test)]

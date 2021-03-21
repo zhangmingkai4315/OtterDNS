@@ -8,4 +8,5 @@ edition = "2018"
 
 [dependencies]
 thiserror = "1.0.24"
+sys-info = "0.8"
 dnsproto = {path = "../dnsproto"}
