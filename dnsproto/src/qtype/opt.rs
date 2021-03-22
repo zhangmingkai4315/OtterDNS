@@ -40,7 +40,7 @@ impl EdnsECS {
         cursor.write_all(self.client_subnet.as_slice())?;
         Ok((cursor, 4 + self.client_subnet.len()))
     }
-
+    #[allow(dead_code)]
     fn new_ipv6(ipaddr: Ipv6Addr, source_mask: u8, scope_mask: u8) -> Result<Self, DNSProtoErr> {
         let client_subnet = ipaddr.octets();
         let mut size = source_mask / 8;
@@ -108,6 +108,7 @@ pub enum Opt {
     //
     ECS(EdnsECS),
     // https://tools.ietf.org/html/rfc7873
+    #[allow(dead_code)]
     Cookie(EdnsCookie),
 }
 

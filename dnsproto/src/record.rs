@@ -1,8 +1,7 @@
 use crate::dnsname::DNSName;
 use crate::errors::*;
-use crate::message::Message;
 use crate::meta::{DNSClass, DNSType, ResourceRecord};
-use crate::qtype::decode_dns_data_from_string;
+use crate::qtype::{decode_dns_data_from_string, DnsTypeA, DnsTypeNS};
 use crate::utils::{is_fqdn, valid_domain};
 use nom::lib::std::convert::TryFrom;
 

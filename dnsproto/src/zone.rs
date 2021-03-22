@@ -1,6 +1,7 @@
 #![allow(dead_code)]
+use crate::dnsname::DNSName;
 use crate::errors::*;
-use crate::meta::{DNSClass, ResourceRecord};
+use crate::meta::{DNSClass, DNSType, ResourceRecord};
 use crate::utils::{is_fqdn, valid_domain};
 use regex::Regex;
 use std::fs::File;

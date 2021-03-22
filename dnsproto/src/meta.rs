@@ -225,7 +225,6 @@ impl ResourceRecord {
 
     pub fn get_labels(&self) -> Result<usize, ParseZoneDataErr> {
         if self.name.is_fqdn == false {
-            /// must be fqdn domain
             return Err(ParseZoneDataErr::ValidFQDNError(self.name.to_string()));
         }
         Ok(self.name.labels.len())

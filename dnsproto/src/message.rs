@@ -22,6 +22,7 @@ pub struct Message {
 }
 
 impl Message {
+    #[allow(dead_code)]
     fn new() -> Message {
         Message {
             header: Default::default(),
@@ -568,7 +569,7 @@ fn test_encode_answer() {
         ns: DNSName::new("b.gtld-servers.net").unwrap(),
     };
 
-    let mut answer = ResourceRecord {
+    let answer = ResourceRecord {
         ttl: 256,
         name: DNSName::new("com").unwrap(),
         qtype: DNSType::NS,
@@ -606,7 +607,7 @@ fn test_encode_answer() {
 
 #[test]
 fn test_encode_edns_message() {
-    let mut edns = EDNS {
+    let edns = EDNS {
         name: Default::default(),
         qtype: DNSType::OPT,
         payload_size: 4096,

@@ -34,6 +34,42 @@ impl DNSName {
             labels: Vec::new(),
         }
     }
+    pub fn is_empty(&self) -> bool {
+        self.labels.is_empty()
+    }
+    pub fn pop_back(&mut self) -> Option<String> {
+        self.labels.pop()
+    }
+    pub fn push_back(&mut self, label: &str) {
+        self.labels.push(label.into())
+    }
+    pub fn push_front(&mut self, label: &str) {
+        self.labels.insert(0, label.into())
+    }
+    pub fn pop_front(&mut self) -> Option<String> {
+        if self.labels.is_empty() {
+            return None;
+        }
+        Some(self.labels.remove(0))
+    }
+    pub fn size(&self) -> usize {
+        self.labels.len()
+    }
+    pub fn is_part_of(&self, dname: &DNSName) -> bool {
+        if self.size() < dname.size() {
+            return false;
+        }
+        for (current_label, dname_label) in self.labels.iter().rev().zip(dname.labels.iter().rev())
+        {
+            if current_label.eq(dname_label) {
+                continue;
+            } else {
+                return false;
+            }
+        }
+        return true;
+    }
+
     pub fn new(domain: &str) -> Result<DNSName, ParseZoneDataErr> {
         if domain.is_empty() {
             return Ok(DNSName {
@@ -198,7 +234,34 @@ pub fn parse_name<'a>(input: &'a [u8], original: &'_ [u8]) -> IResult<&'a [u8], 
 }
 
 #[test]
-fn test_dns_name() {
+fn test_dns_name_method() {
+    let mut dname = DNSName::new("www.google.com.").unwrap();
+    let other = DNSName::new("google.com.").unwrap();
+    assert_eq!(dname.size(), 3);
+    assert_eq!(other.size(), 2);
+    assert_eq!(dname.is_part_of(&other), true);
+    dname.push_front("test");
+    assert_eq!(dname.size(), 4);
+    assert_eq!(dname.is_part_of(&other), true);
+    dname.push_back("app");
+    assert_eq!(dname.size(), 5);
+    assert_eq!(dname.is_part_of(&other), false);
+
+    assert_eq!(dname.pop_back(), Some(String::from("app")));
+    assert_eq!(dname.size(), 4);
+    assert_eq!(dname.is_part_of(&other), true);
+
+    assert_eq!(dname.pop_front(), Some(String::from("test")));
+    assert_eq!(dname.size(), 3);
+    assert_eq!(dname.is_part_of(&other), true);
+
+    assert_eq!(dname.is_empty(), false);
+    let dname = DNSName::new(".").unwrap();
+    assert_eq!(dname.is_empty(), true);
+}
+
+#[test]
+fn test_dns_name_parse() {
     let raw = [
         0x06, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x03, 0x63, 0x6f, 0x6d, 0x00,
     ];

@@ -10,8 +10,8 @@ use dnsproto::meta::{DNSClass, DNSType, ResourceRecord};
 use dnsproto::qtype::{DNSWireFrame, DnsTypeSOA};
 use std::cell::RefCell;
 use std::ops::Deref;
-use std::thread::current;
 use std::rc::Rc;
+use std::thread::current;
 // use sys_info::MemInfo;
 
 #[derive(Debug)]
@@ -29,7 +29,8 @@ impl RBTreeStorage {
         RBTreeStorage {
             root: Some(Rc::new(RefCell::new(RBTreeNode {
                 data: vec![],
-                subtree: Default::default()})))
+                subtree: Default::default(),
+            }))),
         }
     }
 }
@@ -50,26 +51,28 @@ impl Storage for RBTreeStorage {
             labels_count -= 1;
             let temp = current.as_ref().unwrap();
             let result = temp.borrow_mut().subtree.get(&i.clone()).cloned();
-            if result.is_none(){
+            if result.is_none() {
                 if labels_count == 0 {
-                    temp.borrow_mut().subtree.insert(i.clone(), Rc::new(RefCell::new(RBTreeNode{
-                        data: vec![rr],
-                        subtree: Default::default()
-                    })));
-                    return Ok(())
-                }else{
-                    let create= Rc::new(RefCell::new(RBTreeNode{
+                    temp.borrow_mut().subtree.insert(
+                        i.clone(),
+                        Rc::new(RefCell::new(RBTreeNode {
+                            data: vec![rr],
+                            subtree: Default::default(),
+                        })),
+                    );
+                    return Ok(());
+                } else {
+                    let create = Rc::new(RefCell::new(RBTreeNode {
                         data: vec![],
-                        subtree: Default::default()
+                        subtree: Default::default(),
                     }));
                     temp.borrow_mut().subtree.insert(i.clone(), create.clone());
                     current = Some(create.clone());
                 }
-
-            }else{
-                if !labels_count {
+            } else {
+                if labels_count == 0 {
                     result.unwrap().borrow_mut().data.push(rr);
-                    return Ok(())
+                    return Ok(());
                 }
                 current = result;
             }
@@ -86,9 +89,8 @@ impl Storage for RBTreeStorage {
     }
 }
 
-
 #[test]
-fn test_rb_storage_insert(){
+fn test_rb_storage_insert() {
     let mut storage = RBTreeStorage::new();
     // let meminfo = sys_info::mem_info().unwrap();
     // print!("{:?}\n", meminfo);
