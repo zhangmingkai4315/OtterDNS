@@ -319,7 +319,6 @@ fn test_parse_question() {
     let result = parse_question(&a);
     let question = Question {
         q_name: DNSName {
-            is_fqdn: true,
             labels: vec![
                 String::from("storage"),
                 String::from("live"),
@@ -367,7 +366,6 @@ fn test_parse_answer() {
     assert_eq!(a.as_ref().is_ok(), true);
     let result = Record::AnswerRecord(ResourceRecord {
         name: DNSName {
-            is_fqdn: true,
             labels: vec![
                 String::from("www"),
                 String::from("google"),
@@ -389,7 +387,6 @@ fn test_parse_answer() {
     let a = parse_answer(&answer, &original);
     let result = Record::AnswerRecord(ResourceRecord {
         name: DNSName {
-            is_fqdn: true,
             labels: vec![String::from("google"), String::from("com")],
         },
         qtype: DNSType::NS,
@@ -405,7 +402,6 @@ fn test_parse_answer() {
     let a = parse_answer(&edns, &original);
     let result = Record::EDNSRecord(EDNS {
         name: DNSName {
-            is_fqdn: true,
             labels: vec![],
         },
         qtype: DNSType::OPT,

@@ -6,17 +6,16 @@ use nom::{Err::Incomplete, IResult, Needed};
 use crate::errors::ParseZoneDataErr;
 use nom::lib::std::collections::HashMap;
 use nom::lib::std::fmt::Formatter;
+use std::ops::Add;
 
 #[derive(Debug, PartialEq)]
 pub struct DNSName {
-    pub is_fqdn: bool,
     pub labels: Vec<String>,
 }
 
 impl Clone for DNSName {
     fn clone(&self) -> Self {
         DNSName {
-            is_fqdn: self.is_fqdn,
             labels: self
                 .labels
                 .iter()
@@ -27,10 +26,37 @@ impl Clone for DNSName {
 }
 
 impl DNSName {
+    pub fn new(domain: &str) -> Result<DNSName, ParseZoneDataErr> {
+        if domain.is_empty() {
+            return Ok(DNSName {
+                labels: vec![],
+            });
+        }
+        if domain.eq(".") {
+            return Ok(DNSName {
+                labels: vec![],
+            });
+        }
+        let mut inner_vec = vec![];
+        for i in domain.split('.') {
+            if i.is_empty() {
+                continue;
+            }
+            if !valid_label(i) {
+                return Err(ParseZoneDataErr::ValidDomainErr(domain.to_owned()));
+            } else {
+                inner_vec.push(i.to_owned());
+            }
+        }
+        Ok(DNSName {
+            labels: inner_vec,
+        })
+    }
+
+
     #[allow(dead_code)]
     fn root() -> Self {
         DNSName {
-            is_fqdn: true,
             labels: Vec::new(),
         }
     }
@@ -52,11 +78,11 @@ impl DNSName {
         }
         Some(self.labels.remove(0))
     }
-    pub fn size(&self) -> usize {
+    pub fn label_count(&self) -> usize {
         self.labels.len()
     }
     pub fn is_part_of(&self, dname: &DNSName) -> bool {
-        if self.size() < dname.size() {
+        if self.label_count() < dname.label_count() {
             return false;
         }
         for (current_label, dname_label) in self.labels.iter().rev().zip(dname.labels.iter().rev())
@@ -70,35 +96,7 @@ impl DNSName {
         return true;
     }
 
-    pub fn new(domain: &str) -> Result<DNSName, ParseZoneDataErr> {
-        if domain.is_empty() {
-            return Ok(DNSName {
-                is_fqdn: false,
-                labels: vec![],
-            });
-        }
-        if domain.eq(".") {
-            return Ok(DNSName {
-                is_fqdn: true,
-                labels: vec![],
-            });
-        }
-        let mut inner_vec = vec![];
-        for i in domain.split('.') {
-            if i.is_empty() {
-                continue;
-            }
-            if !valid_label(i) {
-                return Err(ParseZoneDataErr::ValidDomainErr(domain.to_owned()));
-            } else {
-                inner_vec.push(i.to_owned());
-            }
-        }
-        Ok(DNSName {
-            labels: inner_vec,
-            is_fqdn: is_fqdn(domain),
-        })
-    }
+
     pub fn to_binary(&self, compression: Option<(&mut HashMap<String, usize>, usize)>) -> Vec<u8> {
         let mut binary_store: Vec<u8> = vec![];
         let mut index = 0;
@@ -139,6 +137,10 @@ impl DNSName {
         }
         binary_store
     }
+
+    pub fn append(&mut self, domain: &DNSName){
+        self.labels.extend_from_slice(domain.labels.as_slice());
+    }
 }
 
 impl std::fmt::Display for DNSName {
@@ -155,7 +157,6 @@ impl std::fmt::Display for DNSName {
 impl Default for DNSName {
     fn default() -> Self {
         DNSName {
-            is_fqdn: false,
             labels: Vec::new(),
         }
     }
@@ -216,7 +217,6 @@ pub fn parse_name<'a>(input: &'a [u8], original: &'_ [u8]) -> IResult<&'a [u8], 
                 return Ok((
                     &input[shift..],
                     DNSName {
-                        is_fqdn: true,
                         labels,
                     },
                 ));
@@ -227,7 +227,6 @@ pub fn parse_name<'a>(input: &'a [u8], original: &'_ [u8]) -> IResult<&'a [u8], 
     Ok((
         &input[shift..],
         DNSName {
-            is_fqdn: true,
             labels,
         },
     ))
@@ -237,27 +236,34 @@ pub fn parse_name<'a>(input: &'a [u8], original: &'_ [u8]) -> IResult<&'a [u8], 
 fn test_dns_name_method() {
     let mut dname = DNSName::new("www.google.com.").unwrap();
     let other = DNSName::new("google.com.").unwrap();
-    assert_eq!(dname.size(), 3);
-    assert_eq!(other.size(), 2);
+    assert_eq!(dname.label_count(), 3);
+    assert_eq!(other.label_count(), 2);
     assert_eq!(dname.is_part_of(&other), true);
     dname.push_front("test");
-    assert_eq!(dname.size(), 4);
+    assert_eq!(dname.label_count(), 4);
     assert_eq!(dname.is_part_of(&other), true);
     dname.push_back("app");
-    assert_eq!(dname.size(), 5);
+    assert_eq!(dname.label_count(), 5);
     assert_eq!(dname.is_part_of(&other), false);
 
     assert_eq!(dname.pop_back(), Some(String::from("app")));
-    assert_eq!(dname.size(), 4);
+    assert_eq!(dname.label_count(), 4);
     assert_eq!(dname.is_part_of(&other), true);
 
     assert_eq!(dname.pop_front(), Some(String::from("test")));
-    assert_eq!(dname.size(), 3);
+    assert_eq!(dname.label_count(), 3);
     assert_eq!(dname.is_part_of(&other), true);
 
     assert_eq!(dname.is_empty(), false);
     let dname = DNSName::new(".").unwrap();
     assert_eq!(dname.is_empty(), true);
+
+    let mut google = DNSName::new("google.").unwrap();
+    let com = DNSName::new("com.").unwrap();
+    google.append(&com);
+    assert_eq!(google.is_empty(), false);
+    assert_eq!(google.label_count(), 2);
+    assert_eq!(format!("{}", google), "google.com.")
 }
 
 #[test]

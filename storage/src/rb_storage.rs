@@ -45,7 +45,7 @@ impl Storage for RBTreeStorage {
     }
 
     fn insert(&mut self, rr: ResourceRecord) -> Result<(), StorageError> {
-        let mut labels_count = rr.get_labels()?;
+        let mut labels_count = rr.name.label_count();
         let mut current = self.root.clone();
         for i in rr.name.labels.iter().rev() {
             labels_count -= 1;
