@@ -1,7 +1,5 @@
-#![allow(dead_code)]
-use crate::dnsname::DNSName;
 use crate::errors::*;
-use crate::meta::{DNSClass, DNSType, ResourceRecord};
+use crate::meta::{DNSClass, ResourceRecord};
 use crate::utils::{is_fqdn, valid_domain};
 use regex::Regex;
 use std::fs::File;
@@ -18,6 +16,7 @@ struct ZoneStr<'a> {
 }
 
 impl<'a> ZoneStr<'a> {
+    #[allow(dead_code)]
     fn new(data: &'a str) -> ZoneStr {
         ZoneStr {
             data: Some(data),
@@ -101,6 +100,7 @@ impl<T> Zone<T>
 where
     T: Iterator<Item = String>,
 {
+    #[allow(dead_code)]
     fn new(line_iterator: T, default_origin: Option<String>) -> Zone<T> {
         if let Some(ref origin) = default_origin {
             // must be fqdn
@@ -122,9 +122,9 @@ where
         self.current_ttl = Some(ttl);
     }
 
-    fn update_class(&mut self, qclass: DNSClass) {
-        self.current_class = Some(qclass)
-    }
+    // fn update_class(&mut self, qclass: DNSClass) {
+    //     self.current_class = Some(qclass)
+    // }
 
     fn update_meta(&mut self, line: String) -> Result<(), DNSProtoErr> {
         // line is start with $ then split it take second token.
@@ -201,6 +201,7 @@ struct ZoneFileParser {
 }
 
 impl ZoneFileParser {
+    #[allow(dead_code)]
     fn new(path: &str) -> Result<ZoneFileParser, DNSProtoErr> {
         // check file exist
         match std::fs::metadata(path) {
@@ -276,204 +277,211 @@ where
     Ok(io::BufReader::new(file).lines())
 }
 
-#[test]
-fn test_zone_str_iterator() {
-    let zone_str = ZoneStr::new(
-        "ns            IN  A     192.0.2.2             ; IPv4 address for ns.example.com
+#[cfg(test)]
+mod zone {
+    use crate::meta::{DNSType, DNSClass};
+    use crate::dnsname::DNSName;
+    use crate::zone::{Zone, ZoneStr};
+    use crate::errors::DNSProtoErr;
+
+    #[test]
+    fn test_zone_str_iterator() {
+        let zone_str = ZoneStr::new(
+            "ns            IN  A     192.0.2.2             ; IPv4 address for ns.example.com
               IN  AAAA  2001:db8:10::2        ; IPv6 address for ns.example.com",
-    );
-    let mut iter = zone_str.into_iter();
-    assert_eq!(
-        iter.next(),
-        Some("ns            IN  A     192.0.2.2             ".to_owned())
-    );
-    assert_eq!(
-        iter.next(),
-        Some("              IN  AAAA  2001:db8:10::2        ".to_owned())
-    );
-    assert_eq!(iter.next(), None);
+        );
+        let mut iter = zone_str.into_iter();
+        assert_eq!(
+            iter.next(),
+            Some("ns            IN  A     192.0.2.2             ".to_owned())
+        );
+        assert_eq!(
+            iter.next(),
+            Some("              IN  AAAA  2001:db8:10::2        ".to_owned())
+        );
+        assert_eq!(iter.next(), None);
 
-    let  zone_str = ZoneStr::new("$ORIGIN example.com.     ; designates the start of this zone file in the namespace
+        let zone_str = ZoneStr::new("$ORIGIN example.com.     ; designates the start of this zone file in the namespace
 $TTL 3600                ; default expiration time (in seconds) of all RRs without their own TTL value");
-    let mut iter = zone_str.into_iter();
-    assert_eq!(iter.next(), Some("$ORIGIN example.com.     ".to_owned()));
-    assert_eq!(iter.next(), Some("$TTL 3600                ".to_owned()));
-    assert_eq!(iter.next(), None);
+        let mut iter = zone_str.into_iter();
+        assert_eq!(iter.next(), Some("$ORIGIN example.com.     ".to_owned()));
+        assert_eq!(iter.next(), Some("$TTL 3600                ".to_owned()));
+        assert_eq!(iter.next(), None);
 
-    let  zone_str = ZoneStr::new("$ORIGIN example.com.     ; designates the start of this zone file in the namespace
+        let zone_str = ZoneStr::new("$ORIGIN example.com.     ; designates the start of this zone file in the namespace
 
 
 $TTL 3600                ; default expiration time (in seconds) of all RRs without their own TTL value");
-    let mut iter = zone_str.into_iter();
-    assert_eq!(iter.next(), Some("$ORIGIN example.com.     ".to_owned()));
-    assert_eq!(iter.next(), Some("$TTL 3600                ".to_owned()));
-    assert_eq!(iter.next(), None);
+        let mut iter = zone_str.into_iter();
+        assert_eq!(iter.next(), Some("$ORIGIN example.com.     ".to_owned()));
+        assert_eq!(iter.next(), Some("$TTL 3600                ".to_owned()));
+        assert_eq!(iter.next(), None);
 
-    let zone_str = ZoneStr::new(
-        "
+        let zone_str = ZoneStr::new(
+            "
 
 
 ns            IN  A     192.0.2.2             ; IPv4 address for ns.example.com
               IN  AAAA  2001:db8:10::2        ; IPv6 address for ns.example.com",
-    );
-    let mut iter = zone_str.into_iter();
-    assert_eq!(
-        iter.next(),
-        Some("ns            IN  A     192.0.2.2             ".to_owned())
-    );
-    assert_eq!(
-        iter.next(),
-        Some("              IN  AAAA  2001:db8:10::2        ".to_owned())
-    );
-    assert_eq!(iter.next(), None);
+        );
+        let mut iter = zone_str.into_iter();
+        assert_eq!(
+            iter.next(),
+            Some("ns            IN  A     192.0.2.2             ".to_owned())
+        );
+        assert_eq!(
+            iter.next(),
+            Some("              IN  AAAA  2001:db8:10::2        ".to_owned())
+        );
+        assert_eq!(iter.next(), None);
 
-    let zone_str = ZoneStr::new(
-        "
+        let zone_str = ZoneStr::new(
+            "
 
 
 ns            IN  A     192.0.2.2             ; IPv4 address for ns.example.com
 
 ",
-    );
-    let mut iter = zone_str.into_iter();
-    assert_eq!(
-        iter.next(),
-        Some("ns            IN  A     192.0.2.2             ".to_owned())
-    );
-    assert_eq!(iter.next(), None);
+        );
+        let mut iter = zone_str.into_iter();
+        assert_eq!(
+            iter.next(),
+            Some("ns            IN  A     192.0.2.2             ".to_owned())
+        );
+        assert_eq!(iter.next(), None);
 
-    let zone_str = ZoneStr::new(
-        ".			86391 IN SOA a.root-servers.net. nstld.verisign-grs.com. (
+        let zone_str = ZoneStr::new(
+            ".			86391 IN SOA a.root-servers.net. nstld.verisign-grs.com. (
 				2020091101 ; serial
 				1800       ; refresh (30 minutes)
 				900        ; retry (15 minutes)
 				604800     ; expire (1 week)
 				86400      ; minimum (1 day)
 				)",
-    );
-    let mut iter = zone_str.into_iter();
-    assert_eq!(iter.next(), Some(".\t\t\t86391 IN SOA a.root-servers.net. nstld.verisign-grs.com. (\t\t\t\t2020091101 \t\t\t\t1800       \t\t\t\t900        \t\t\t\t604800     \t\t\t\t86400      \t\t\t\t)".to_owned()));
-    assert_eq!(iter.next(), None);
+        );
+        let mut iter = zone_str.into_iter();
+        assert_eq!(iter.next(), Some(".\t\t\t86391 IN SOA a.root-servers.net. nstld.verisign-grs.com. (\t\t\t\t2020091101 \t\t\t\t1800       \t\t\t\t900        \t\t\t\t604800     \t\t\t\t86400      \t\t\t\t)".to_owned()));
+        assert_eq!(iter.next(), None);
 
-    let zone_str = ZoneStr::new(
-        ".			180017	IN	NS	e.root-servers.net.
+        let zone_str = ZoneStr::new(
+            ".			180017	IN	NS	e.root-servers.net.
 .			180017	IN	NS	d.root-servers.net.
 .			180017	IN	NS	l.root-servers.net.",
-    );
-    let mut iter = zone_str.into_iter();
-    assert_eq!(
-        iter.next(),
-        Some(".			180017	IN	NS	e.root-servers.net.".to_owned())
-    );
-    assert_eq!(
-        iter.next(),
-        Some(".			180017	IN	NS	d.root-servers.net.".to_owned())
-    );
-    assert_eq!(
-        iter.next(),
-        Some(".			180017	IN	NS	l.root-servers.net.".to_owned())
-    );
-    assert_eq!(iter.next(), None);
+        );
+        let mut iter = zone_str.into_iter();
+        assert_eq!(
+            iter.next(),
+            Some(".			180017	IN	NS	e.root-servers.net.".to_owned())
+        );
+        assert_eq!(
+            iter.next(),
+            Some(".			180017	IN	NS	d.root-servers.net.".to_owned())
+        );
+        assert_eq!(
+            iter.next(),
+            Some(".			180017	IN	NS	l.root-servers.net.".to_owned())
+        );
+        assert_eq!(iter.next(), None);
 
-    let zone_str = ZoneStr::new(
-        "www.baidu.com.		176	IN	CNAME	www.a.shifen.com.
+        let zone_str = ZoneStr::new(
+            "www.baidu.com.		176	IN	CNAME	www.a.shifen.com.
 www.a.shifen.com.	300	IN	A	61.135.185.32
 www.a.shifen.com.	300	IN	A	61.135.169.121
 
 ",
-    );
-    let mut iter = zone_str.into_iter();
-    assert_eq!(
-        iter.next(),
-        Some("www.baidu.com.		176	IN	CNAME	www.a.shifen.com.".to_owned())
-    );
-    assert_eq!(
-        iter.next(),
-        Some("www.a.shifen.com.	300	IN	A	61.135.185.32".to_owned())
-    );
-    assert_eq!(
-        iter.next(),
-        Some("www.a.shifen.com.	300	IN	A	61.135.169.121".to_owned())
-    );
-    assert_eq!(iter.next(), None);
+        );
+        let mut iter = zone_str.into_iter();
+        assert_eq!(
+            iter.next(),
+            Some("www.baidu.com.		176	IN	CNAME	www.a.shifen.com.".to_owned())
+        );
+        assert_eq!(
+            iter.next(),
+            Some("www.a.shifen.com.	300	IN	A	61.135.185.32".to_owned())
+        );
+        assert_eq!(
+            iter.next(),
+            Some("www.a.shifen.com.	300	IN	A	61.135.169.121".to_owned())
+        );
+        assert_eq!(iter.next(), None);
 
-    let zone_str = ZoneStr::new("");
-    let mut iter = zone_str.into_iter();
-    assert_eq!(iter.next(), None);
+        let zone_str = ZoneStr::new("");
+        let mut iter = zone_str.into_iter();
+        assert_eq!(iter.next(), None);
 
-    let zone_str = ZoneStr::new("; comment");
-    let mut iter = zone_str.into_iter();
-    assert_eq!(iter.next(), None);
+        let zone_str = ZoneStr::new("; comment");
+        let mut iter = zone_str.into_iter();
+        assert_eq!(iter.next(), None);
 
-    let zone_str = ZoneStr::new("\r   \r\r\r and this a new line;with comment \r end!");
-    let mut iter = zone_str.into_iter();
-    assert_eq!(iter.next(), Some(" and this a new line".to_owned()));
-    assert_eq!(iter.next(), Some(" end!".to_owned()));
+        let zone_str = ZoneStr::new("\r   \r\r\r and this a new line;with comment \r end!");
+        let mut iter = zone_str.into_iter();
+        assert_eq!(iter.next(), Some(" and this a new line".to_owned()));
+        assert_eq!(iter.next(), Some(" end!".to_owned()));
 
-    let zone_str = ZoneStr::new("\r;comment   \r\r\r ;comment\r ;comment");
-    let mut iter = zone_str.into_iter();
-    assert_eq!(iter.next(), None);
-}
-
-#[test]
-fn test_zone_iterator() {
-    let zone_str = ZoneStr::new(
-        "ns      86400      IN  A     192.0.2.2             ; IPv4 address for ns.example.com
-              IN  AAAA  2001:db8:10::2        ; IPv6 address for ns.example.com",
-    );
-    let mut zone = Zone::new(zone_str, Some("google.com.".to_owned()));
-    match zone.next() {
-        Some(Ok(v)) => {
-            assert_eq!(v.name, DNSName::new("ns.google.com.").unwrap());
-            assert_eq!(v.qclass, DNSClass::IN);
-            assert_eq!(v.qtype, DNSType::A);
-            assert_eq!(
-                (v.data.unwrap().as_ref()).to_string(),
-                "192.0.2.2".to_owned()
-            );
-        }
-        Some(Err(_e)) => {
-            assert!(false);
-        }
-        None => {
-            assert!(false);
-        }
+        let zone_str = ZoneStr::new("\r;comment   \r\r\r ;comment\r ;comment");
+        let mut iter = zone_str.into_iter();
+        assert_eq!(iter.next(), None);
     }
 
-    let zone_str = ZoneStr::new(
-        "ns          IN  A     192.0.2.2             ; IPv4 address for ns.example.com
+    #[test]
+    fn test_zone_iterator() {
+        let zone_str = ZoneStr::new(
+            "ns      86400      IN  A     192.0.2.2             ; IPv4 address for ns.example.com
               IN  AAAA  2001:db8:10::2        ; IPv6 address for ns.example.com",
-    );
-    let mut zone = Zone::new(zone_str, Some("google.com.".to_owned()));
-    match zone.next() {
-        Some(Err(DNSProtoErr::ParseZoneDataErr(_))) => assert!(true),
-        _ => {
-            assert!(false);
+        );
+        let mut zone = Zone::new(zone_str, Some("google.com.".to_owned()));
+        match zone.next() {
+            Some(Ok(v)) => {
+                assert_eq!(v.name, DNSName::new("ns.google.com.").unwrap());
+                assert_eq!(v.qclass, DNSClass::IN);
+                assert_eq!(v.qtype, DNSType::A);
+                assert_eq!(
+                    (v.data.unwrap().as_ref()).to_string(),
+                    "192.0.2.2".to_owned()
+                );
+            }
+            Some(Err(_e)) => {
+                assert!(false);
+            }
+            None => {
+                assert!(false);
+            }
         }
-    }
 
-    let zone_str = ZoneStr::new(
-        "ns.    86400      IN  A     192.0.2.2             ; IPv4 address for ns.example.com
+        let zone_str = ZoneStr::new(
+            "ns          IN  A     192.0.2.2             ; IPv4 address for ns.example.com
               IN  AAAA  2001:db8:10::2        ; IPv6 address for ns.example.com",
-    );
-    let mut zone = Zone::new(zone_str, None);
-    match zone.next() {
-        Some(Ok(v)) => {
-            assert_eq!(v.name, DNSName::new("ns.").unwrap());
-            assert_eq!(v.qclass, DNSClass::IN);
-            assert_eq!(v.qtype, DNSType::A);
-            assert_eq!(
-                (v.data.unwrap().as_ref()).to_string(),
-                "192.0.2.2".to_owned()
-            );
+        );
+        let mut zone = Zone::new(zone_str, Some("google.com.".to_owned()));
+        match zone.next() {
+            Some(Err(DNSProtoErr::ParseZoneDataErr(_))) => assert!(true),
+            _ => {
+                assert!(false);
+            }
         }
-        _ => {
-            assert!(false);
-        }
-    }
 
-    let zone_str = ZoneStr::new(
-        "\
+        let zone_str = ZoneStr::new(
+            "ns.    86400      IN  A     192.0.2.2             ; IPv4 address for ns.example.com
+              IN  AAAA  2001:db8:10::2        ; IPv6 address for ns.example.com",
+        );
+        let mut zone = Zone::new(zone_str, None);
+        match zone.next() {
+            Some(Ok(v)) => {
+                assert_eq!(v.name, DNSName::new("ns.").unwrap());
+                assert_eq!(v.qclass, DNSClass::IN);
+                assert_eq!(v.qtype, DNSType::A);
+                assert_eq!(
+                    (v.data.unwrap().as_ref()).to_string(),
+                    "192.0.2.2".to_owned()
+                );
+            }
+            _ => {
+                assert!(false);
+            }
+        }
+
+        let zone_str = ZoneStr::new(
+            "\
 ; otter.fun DNS zonefile
 $TTL 14400
 otter.fun. 86400 IN  SOA  ns1.domain.com.  user.mail.com. (
@@ -493,102 +501,103 @@ ftp	    14400   IN	A       1.1.1.2
 otter.fun.   14400   IN  TXT	\"v=spf1 +a +mx +ip4:1.1.1.1 ~all\"
 default._domainkey  14400  IN   TXT   \"v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ;\"
 otter.fun.   14400   IN	TXT	google-site-verification=zxIkMo9ruPbMyGMy4KWbc0QkOoN9aF2iFPvDHc0o8Pg",
-    );
-    let mut zone = Zone::new(zone_str, Some("otter.fun.".to_owned()));
-    if let Some(Ok(v)) = zone.next() {
-        assert_eq!(v.name, DNSName::new("otter.fun.").unwrap());
-        assert_eq!(v.qtype, DNSType::SOA);
-        assert_eq!(v.qclass, DNSClass::IN);
-        assert_eq!(v.ttl, 86400);
-        assert_eq!(
-            (v.data.unwrap().as_ref()).to_string(),
-            "ns1.domain.com. user.mail.com. ( 2020081601 3600 7200 1209600 86400 )"
         );
-    }
-    if let Some(Ok(v)) = zone.next() {
-        assert_eq!(v.name, DNSName::new("otter.fun.").unwrap());
-        assert_eq!(v.qtype, DNSType::NS);
-        assert_eq!(v.qclass, DNSClass::IN);
-        assert_eq!(v.ttl, 86400);
-        assert_eq!((v.data.unwrap().as_ref()).to_string(), "ns1.domain.com.");
-    }
-    if let Some(Ok(v)) = zone.next() {
-        assert_eq!(v.name, DNSName::new("otter.fun.").unwrap());
-        assert_eq!(v.qtype, DNSType::NS);
-        assert_eq!(v.qclass, DNSClass::IN);
-        assert_eq!(v.ttl, 86400);
-        assert_eq!((v.data.unwrap().as_ref()).to_string(), "ns2.domain.com.");
-    }
-    if let Some(Ok(v)) = zone.next() {
-        assert_eq!(v.name, DNSName::new("otter.fun.").unwrap());
-        assert_eq!(v.qtype, DNSType::A);
-        assert_eq!(v.ttl, 14400);
-        assert_eq!(v.qclass, DNSClass::IN);
-        assert_eq!((v.data.unwrap().as_ref()).to_string(), "1.1.1.1");
-    }
-    if let Some(Ok(v)) = zone.next() {
-        assert_eq!(v.name, DNSName::new("otter.fun.").unwrap());
-        assert_eq!(v.qtype, DNSType::MX);
-        assert_eq!(v.qclass, DNSClass::IN);
-        assert_eq!(v.ttl, 14400);
-        // TODO: impl
-        // assert_eq!((v.data.unwrap().as_ref()).to_string(),"0 g33k.fun.");
-    }
-    assert_eq!(zone.current_class, Some(DNSClass::IN));
-    assert_eq!(zone.current_ttl, Some(14400));
-    assert_eq!(zone.current_origin, Some("otter.fun.".to_owned()));
-    if let Some(Ok(v)) = zone.next() {
-        assert_eq!(v.name, DNSName::new("mail.otter.fun.").unwrap());
-        assert_eq!(v.qtype, DNSType::CNAME);
-        assert_eq!(v.ttl, 14400);
-        assert_eq!(v.qclass, DNSClass::IN);
-        // TODO: impl
-        // assert_eq!((v.data.unwrap().as_ref()).to_string(),"0 g33k.fun.");
-    }
-    if let Some(Ok(v)) = zone.next() {
-        assert_eq!(v.name, DNSName::new("www.otter.fun.").unwrap());
-        assert_eq!(v.qtype, DNSType::CNAME);
-        assert_eq!(v.ttl, 14400);
-        assert_eq!(v.qclass, DNSClass::IN);
-        // TODO: impl
-        // assert_eq!((v.data.unwrap().as_ref()).to_string(),"0 g33k.fun.");
-    }
-    if let Some(Ok(v)) = zone.next() {
-        assert_eq!(v.name, DNSName::new("ftp.otter.fun.").unwrap());
-        assert_eq!(v.qtype, DNSType::A);
-        assert_eq!(v.ttl, 14400);
-        assert_eq!(v.qclass, DNSClass::IN);
-        assert_eq!((v.data.unwrap().as_ref()).to_string(), "1.1.1.2");
-    }
+        let mut zone = Zone::new(zone_str, Some("otter.fun.".to_owned()));
+        if let Some(Ok(v)) = zone.next() {
+            assert_eq!(v.name, DNSName::new("otter.fun.").unwrap());
+            assert_eq!(v.qtype, DNSType::SOA);
+            assert_eq!(v.qclass, DNSClass::IN);
+            assert_eq!(v.ttl, 86400);
+            assert_eq!(
+                (v.data.unwrap().as_ref()).to_string(),
+                "ns1.domain.com. user.mail.com. ( 2020081601 3600 7200 1209600 86400 )"
+            );
+        }
+        if let Some(Ok(v)) = zone.next() {
+            assert_eq!(v.name, DNSName::new("otter.fun.").unwrap());
+            assert_eq!(v.qtype, DNSType::NS);
+            assert_eq!(v.qclass, DNSClass::IN);
+            assert_eq!(v.ttl, 86400);
+            assert_eq!((v.data.unwrap().as_ref()).to_string(), "ns1.domain.com.");
+        }
+        if let Some(Ok(v)) = zone.next() {
+            assert_eq!(v.name, DNSName::new("otter.fun.").unwrap());
+            assert_eq!(v.qtype, DNSType::NS);
+            assert_eq!(v.qclass, DNSClass::IN);
+            assert_eq!(v.ttl, 86400);
+            assert_eq!((v.data.unwrap().as_ref()).to_string(), "ns2.domain.com.");
+        }
+        if let Some(Ok(v)) = zone.next() {
+            assert_eq!(v.name, DNSName::new("otter.fun.").unwrap());
+            assert_eq!(v.qtype, DNSType::A);
+            assert_eq!(v.ttl, 14400);
+            assert_eq!(v.qclass, DNSClass::IN);
+            assert_eq!((v.data.unwrap().as_ref()).to_string(), "1.1.1.1");
+        }
+        if let Some(Ok(v)) = zone.next() {
+            assert_eq!(v.name, DNSName::new("otter.fun.").unwrap());
+            assert_eq!(v.qtype, DNSType::MX);
+            assert_eq!(v.qclass, DNSClass::IN);
+            assert_eq!(v.ttl, 14400);
+            // TODO: impl
+            // assert_eq!((v.data.unwrap().as_ref()).to_string(),"0 g33k.fun.");
+        }
+        assert_eq!(zone.current_class, Some(DNSClass::IN));
+        assert_eq!(zone.current_ttl, Some(14400));
+        assert_eq!(zone.current_origin, Some("otter.fun.".to_owned()));
+        if let Some(Ok(v)) = zone.next() {
+            assert_eq!(v.name, DNSName::new("mail.otter.fun.").unwrap());
+            assert_eq!(v.qtype, DNSType::CNAME);
+            assert_eq!(v.ttl, 14400);
+            assert_eq!(v.qclass, DNSClass::IN);
+            // TODO: impl
+            // assert_eq!((v.data.unwrap().as_ref()).to_string(),"0 g33k.fun.");
+        }
+        if let Some(Ok(v)) = zone.next() {
+            assert_eq!(v.name, DNSName::new("www.otter.fun.").unwrap());
+            assert_eq!(v.qtype, DNSType::CNAME);
+            assert_eq!(v.ttl, 14400);
+            assert_eq!(v.qclass, DNSClass::IN);
+            // TODO: impl
+            // assert_eq!((v.data.unwrap().as_ref()).to_string(),"0 g33k.fun.");
+        }
+        if let Some(Ok(v)) = zone.next() {
+            assert_eq!(v.name, DNSName::new("ftp.otter.fun.").unwrap());
+            assert_eq!(v.qtype, DNSType::A);
+            assert_eq!(v.ttl, 14400);
+            assert_eq!(v.qclass, DNSClass::IN);
+            assert_eq!((v.data.unwrap().as_ref()).to_string(), "1.1.1.2");
+        }
 
-    if let Some(Ok(v)) = zone.next() {
-        assert_eq!(v.name, DNSName::new("otter.fun.").unwrap());
-        assert_eq!(v.qtype, DNSType::TXT);
-        assert_eq!(v.qclass, DNSClass::IN);
-        assert_eq!(v.ttl, 14400);
-        // assert_eq!((v.data.unwrap().as_ref()).to_string(), "\"v=spf1 +a +mx +ip4:1.1.1.1 ~all\"");
-    }
-    if let Some(Ok(v)) = zone.next() {
-        assert_eq!(
-            v.name,
-            DNSName::new("default._domainkey.otter.fun.").unwrap()
-        );
-        assert_eq!(v.qtype, DNSType::TXT);
-        assert_eq!(v.qclass, DNSClass::IN);
-        assert_eq!(v.ttl, 14400);
-        // assert_eq!(
-        //     v.data,
-        //     "\"v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ;\""
-        // );
-    }
-    if let Some(Ok(v)) = zone.next() {
-        assert_eq!(v.name, DNSName::new("otter.fun.").unwrap());
-        assert_eq!(v.qtype, DNSType::TXT);
-        assert_eq!(v.qclass, DNSClass::IN);
-        assert_eq!(v.ttl, 14400);
-        // assert_eq!(
-        //     v.data,
-        //     "google-site-verification=zxIkMo9ruPbMyGMy4KWbc0QkOoN9aF2iFPvDHc0o8Pg"
-        // );
+        if let Some(Ok(v)) = zone.next() {
+            assert_eq!(v.name, DNSName::new("otter.fun.").unwrap());
+            assert_eq!(v.qtype, DNSType::TXT);
+            assert_eq!(v.qclass, DNSClass::IN);
+            assert_eq!(v.ttl, 14400);
+            // assert_eq!((v.data.unwrap().as_ref()).to_string(), "\"v=spf1 +a +mx +ip4:1.1.1.1 ~all\"");
+        }
+        if let Some(Ok(v)) = zone.next() {
+            assert_eq!(
+                v.name,
+                DNSName::new("default._domainkey.otter.fun.").unwrap()
+            );
+            assert_eq!(v.qtype, DNSType::TXT);
+            assert_eq!(v.qclass, DNSClass::IN);
+            assert_eq!(v.ttl, 14400);
+            // assert_eq!(
+            //     v.data,
+            //     "\"v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ;\""
+            // );
+        }
+        if let Some(Ok(v)) = zone.next() {
+            assert_eq!(v.name, DNSName::new("otter.fun.").unwrap());
+            assert_eq!(v.qtype, DNSType::TXT);
+            assert_eq!(v.qclass, DNSClass::IN);
+            assert_eq!(v.ttl, 14400);
+            // assert_eq!(
+            //     v.data,
+            //     "google-site-verification=zxIkMo9ruPbMyGMy4KWbc0QkOoN9aF2iFPvDHc0o8Pg"
+            // );
+        }
     }
 }

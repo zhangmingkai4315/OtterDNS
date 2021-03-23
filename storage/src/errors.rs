@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use dnsproto::errors::ParseZoneDataErr;
 use thiserror::Error;
 

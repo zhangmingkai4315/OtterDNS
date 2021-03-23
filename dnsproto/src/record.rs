@@ -1,18 +1,8 @@
 use crate::dnsname::DNSName;
 use crate::errors::*;
 use crate::meta::{DNSClass, DNSType, ResourceRecord};
-use crate::qtype::{decode_dns_data_from_string, DnsTypeA, DnsTypeNS};
+use crate::qtype::{decode_dns_data_from_string};
 use crate::utils::{is_fqdn, valid_domain};
-use nom::lib::std::convert::TryFrom;
-
-// #[derive(Debug, PartialEq, Default)]
-// pub struct RawResource {
-//     pub name: String,
-//     pub ttl: u32,
-//     pub r_class: DNSClass,
-//     pub r_type: DNSType,
-//     pub r_data: String,
-// }
 
 impl ResourceRecord {
     #[allow(clippy::too_many_arguments)]
@@ -256,135 +246,144 @@ impl ResourceRecord {
 //     assert_eq!(rr.unwrap_err(), ParseZoneDataErr::NoDefaultTTL);
 // }
 
-#[test]
-fn test_from_rr_into_answer() {
-    let s = "mail.  86400   IN  A     192.0.2.3 ; this is a comment";
-    let raw_rr = ResourceRecord::from_zone_data(s, None, None, None, None).unwrap();
-    let resourc = ResourceRecord {
-        name: DNSName::new("mail.").unwrap(),
-        qtype: DNSType::A,
-        qclass: DNSClass::IN,
-        ttl: 86400,
-        data: Some(Box::new(DnsTypeA::new("192.0.2.3").unwrap())),
-    };
-    match ResourceRecord::try_from(raw_rr) {
-        Ok(rr) => {
-            assert_eq!(resourc, rr);
-            assert!(true);
-        }
-        Err(_) => {
-            assert!(false);
-        }
-    }
+#[cfg(test)]
+mod record {
+    use crate::meta::{DNSClass, DNSType, ResourceRecord};
+    use crate::qtype::{DnsTypeNS, DnsTypeA};
+    use crate::dnsname::DNSName;
+    use crate::errors::ParseZoneDataErr;
+    use std::convert::TryFrom;
 
-    let s = "mail  86400   IN  A     192.0.2.3 ; this is a comment";
-    let raw_rr = ResourceRecord::from_zone_data(s, None, None, None, Some("cnnic.cn.")).unwrap();
-    let resourc = ResourceRecord {
-        name: DNSName::new("mail.cnnic.cn.").unwrap(),
-        qtype: DNSType::A,
-        qclass: DNSClass::IN,
-        ttl: 86400,
-        data: Some(Box::new(DnsTypeA::new("192.0.2.3").unwrap())),
-    };
-    match ResourceRecord::try_from(raw_rr) {
-        Ok(rr) => {
-            assert_eq!(resourc, rr);
-            assert!(true);
-        }
-        Err(_) => {
-            assert!(false);
-        }
-    }
-
-    let s = "mail.    86400   IN  A     192.0.2.3 ; this is a comment";
-    let raw_rr =
-        ResourceRecord::from_zone_data(s, Some(1000), None, None, Some("cnnic.cn.")).unwrap();
-    let resourc = ResourceRecord {
-        name: DNSName::new("mail.").unwrap(),
-        qtype: DNSType::A,
-        qclass: DNSClass::IN,
-        ttl: 86400,
-        data: Some(Box::new(DnsTypeA::new("192.0.2.3").unwrap())),
-    };
-    match ResourceRecord::try_from(raw_rr) {
-        Ok(rr) => {
-            assert_eq!(resourc, rr);
-            assert!(true);
-        }
-        Err(_) => {
-            assert!(false);
-        }
-    }
-
-    let s = " 86400 IN  A     192.0.2.3";
-    let rr: Result<ResourceRecord, ParseZoneDataErr> =
-        ResourceRecord::from_zone_data(s, Some(1000), None, Some("mail."), None);
-    assert_eq!(
-        rr.unwrap(),
-        ResourceRecord {
+    #[test]
+    fn test_from_rr_into_answer() {
+        let s = "mail.  86400   IN  A     192.0.2.3 ; this is a comment";
+        let raw_rr = ResourceRecord::from_zone_data(s, None, None, None, None).unwrap();
+        let resourc = ResourceRecord {
             name: DNSName::new("mail.").unwrap(),
             qtype: DNSType::A,
             qclass: DNSClass::IN,
             ttl: 86400,
-            data: Some(Box::new(DnsTypeA::new("192.0.2.3").unwrap()))
+            data: Some(Box::new(DnsTypeA::new("192.0.2.3").unwrap())),
+        };
+        match ResourceRecord::try_from(raw_rr) {
+            Ok(rr) => {
+                assert_eq!(resourc, rr);
+                assert!(true);
+            }
+            Err(_) => {
+                assert!(false);
+            }
         }
-    );
 
-    let s = " IN  A     192.0.2.3";
-    let rr: Result<ResourceRecord, ParseZoneDataErr> =
-        ResourceRecord::from_zone_data(s, Some(1000), None, Some("mail."), None);
-    assert_eq!(
-        rr.unwrap(),
-        ResourceRecord {
+        let s = "mail  86400   IN  A     192.0.2.3 ; this is a comment";
+        let raw_rr = ResourceRecord::from_zone_data(s, None, None, None, Some("cnnic.cn.")).unwrap();
+        let resourc = ResourceRecord {
+            name: DNSName::new("mail.cnnic.cn.").unwrap(),
+            qtype: DNSType::A,
+            qclass: DNSClass::IN,
+            ttl: 86400,
+            data: Some(Box::new(DnsTypeA::new("192.0.2.3").unwrap())),
+        };
+        match ResourceRecord::try_from(raw_rr) {
+            Ok(rr) => {
+                assert_eq!(resourc, rr);
+                assert!(true);
+            }
+            Err(_) => {
+                assert!(false);
+            }
+        }
+
+        let s = "mail.    86400   IN  A     192.0.2.3 ; this is a comment";
+        let raw_rr =
+            ResourceRecord::from_zone_data(s, Some(1000), None, None, Some("cnnic.cn.")).unwrap();
+        let resourc = ResourceRecord {
             name: DNSName::new("mail.").unwrap(),
             qtype: DNSType::A,
             qclass: DNSClass::IN,
-            ttl: 1000,
-            data: Some(Box::new(DnsTypeA::new("192.0.2.3").unwrap()))
-        }
-    );
-    // TODO:
-    // let s = "  IN  SOA    localhost. root.localhost.  1999010100 ( 10800 900 604800 86400 ) ";
-    // let rr: Result<ResourceRecord, ParseZoneDataErr> =
-    //     ResourceRecord::from_zone_data(s, Some(1000), None, Some("mail"), Some("google.com."));
-    // assert_eq!(
-    //     rr.unwrap(),
-    //     ResourceRecord {
-    //         name: DNSName::new("mail.google.com.").unwrap(),
-    //         qtype: DNSType::A,
-    //         qclass: DNSClass::IN,
-    //         ttl: 1000,
-    //         data: Some(Box::new(DnsTypeSOA::new(
-    //             "localhost.",
-    //             "root.localhost.",
-    //             1999010100, 10800, 900, 604800, 86400).unwrap())),
-    //     }
-    // );
-    let s = "IN.  A     192.0.2.3";
-    let rr: Result<ResourceRecord, ParseZoneDataErr> =
-        ResourceRecord::from_zone_data(s, Some(1000), None, None, None);
-    assert_eq!(
-        rr.unwrap(),
-        ResourceRecord {
-            name: DNSName::new("IN.").unwrap(),
-            qtype: DNSType::A,
-            qclass: DNSClass::IN,
-            ttl: 1000,
-            data: Some(Box::new(DnsTypeA::new("192.0.2.3").unwrap()))
-        }
-    );
-
-    let s = "@  86400  IN  NS    @";
-    let rr: Result<ResourceRecord, ParseZoneDataErr> =
-        ResourceRecord::from_zone_data(s, Some(1000), None, Some("mail"), Some("google.com."));
-    assert_eq!(
-        rr.unwrap(),
-        ResourceRecord {
-            name: DNSName::new("mail.google.com.").unwrap(),
-            qtype: DNSType::NS,
-            qclass: DNSClass::IN,
             ttl: 86400,
-            data: Some(Box::new(DnsTypeNS::new("mail.google.com.").unwrap()))
+            data: Some(Box::new(DnsTypeA::new("192.0.2.3").unwrap())),
+        };
+        match ResourceRecord::try_from(raw_rr) {
+            Ok(rr) => {
+                assert_eq!(resourc, rr);
+                assert!(true);
+            }
+            Err(_) => {
+                assert!(false);
+            }
         }
-    );
+
+        let s = " 86400 IN  A     192.0.2.3";
+        let rr: Result<ResourceRecord, ParseZoneDataErr> =
+            ResourceRecord::from_zone_data(s, Some(1000), None, Some("mail."), None);
+        assert_eq!(
+            rr.unwrap(),
+            ResourceRecord {
+                name: DNSName::new("mail.").unwrap(),
+                qtype: DNSType::A,
+                qclass: DNSClass::IN,
+                ttl: 86400,
+                data: Some(Box::new(DnsTypeA::new("192.0.2.3").unwrap()))
+            }
+        );
+
+        let s = " IN  A     192.0.2.3";
+        let rr: Result<ResourceRecord, ParseZoneDataErr> =
+            ResourceRecord::from_zone_data(s, Some(1000), None, Some("mail."), None);
+        assert_eq!(
+            rr.unwrap(),
+            ResourceRecord {
+                name: DNSName::new("mail.").unwrap(),
+                qtype: DNSType::A,
+                qclass: DNSClass::IN,
+                ttl: 1000,
+                data: Some(Box::new(DnsTypeA::new("192.0.2.3").unwrap()))
+            }
+        );
+        // TODO:
+        // let s = "  IN  SOA    localhost. root.localhost.  1999010100 ( 10800 900 604800 86400 ) ";
+        // let rr: Result<ResourceRecord, ParseZoneDataErr> =
+        //     ResourceRecord::from_zone_data(s, Some(1000), None, Some("mail"), Some("google.com."));
+        // assert_eq!(
+        //     rr.unwrap(),
+        //     ResourceRecord {
+        //         name: DNSName::new("mail.google.com.").unwrap(),
+        //         qtype: DNSType::A,
+        //         qclass: DNSClass::IN,
+        //         ttl: 1000,
+        //         data: Some(Box::new(DnsTypeSOA::new(
+        //             "localhost.",
+        //             "root.localhost.",
+        //             1999010100, 10800, 900, 604800, 86400).unwrap())),
+        //     }
+        // );
+        let s = "IN.  A     192.0.2.3";
+        let rr: Result<ResourceRecord, ParseZoneDataErr> =
+            ResourceRecord::from_zone_data(s, Some(1000), None, None, None);
+        assert_eq!(
+            rr.unwrap(),
+            ResourceRecord {
+                name: DNSName::new("IN.").unwrap(),
+                qtype: DNSType::A,
+                qclass: DNSClass::IN,
+                ttl: 1000,
+                data: Some(Box::new(DnsTypeA::new("192.0.2.3").unwrap()))
+            }
+        );
+
+        let s = "@  86400  IN  NS    @";
+        let rr: Result<ResourceRecord, ParseZoneDataErr> =
+            ResourceRecord::from_zone_data(s, Some(1000), None, Some("mail"), Some("google.com."));
+        assert_eq!(
+            rr.unwrap(),
+            ResourceRecord {
+                name: DNSName::new("mail.google.com.").unwrap(),
+                qtype: DNSType::NS,
+                qclass: DNSClass::IN,
+                ttl: 86400,
+                data: Some(Box::new(DnsTypeNS::new("mail.google.com.").unwrap()))
+            }
+        );
+    }
 }

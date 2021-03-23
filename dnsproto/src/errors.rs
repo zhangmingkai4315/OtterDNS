@@ -1,8 +1,6 @@
-use nom;
 use std::net::AddrParseError;
 use std::num::ParseIntError;
 use thiserror::Error;
-// use std::str::FromStr;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum DNSProtoErr {
@@ -84,16 +82,16 @@ pub enum ParseZoneDataErr {
 }
 
 impl<I: std::fmt::Debug> From<nom::Err<(I, nom::error::ErrorKind)>> for ParseZoneDataErr {
-    fn from(i: nom::Err<(I, nom::error::ErrorKind)>) -> Self {
-        match i {
+    fn from(err_nom: nom::Err<(I, nom::error::ErrorKind)>) -> Self {
+        match err_nom {
             nom::Err::Error(err) | nom::Err::Failure(err) => {
                 ParseZoneDataErr::ParseDNSFromStrWithTypeError(
                     format!("{:?}", err.0),
                     format!("{:?}", err.1),
                 )
             }
-            nom::Err::Incomplete(i) => {
-                ParseZoneDataErr::ParseDNSFromStrIncompleteError(format!("{:?}", i))
+            nom::Err::Incomplete(needed) => {
+                ParseZoneDataErr::ParseDNSFromStrIncompleteError(format!("{:?}", needed))
             }
         }
     }

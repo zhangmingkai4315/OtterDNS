@@ -19,7 +19,7 @@ pub use soa::DnsTypeSOA;
 use std::str::FromStr;
 
 // for wireframe convert
-pub trait DNSWireFrame: Debug + Display {
+pub trait DNSWireFrame: Debug + Display{
     fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr>
     where
         Self: Sized;

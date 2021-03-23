@@ -21,38 +21,8 @@ pub struct DnsTypeSOA {
     minimum: u32,
 }
 
-// fn parser_soa_from_str(input: &str) -> IResult<&str, (&str, _, &str, _, &str, _, &str, _, &str, _, &str, _, &str, _, &str, _, &str, _), Error<I>> {
-//     let parser = tuple((
-//         multispace0,
-//         take_while(is_space),
-//         multispace0,
-//         take_while(is_space),
-//         multispace0,
-//         tag("("),
-//         multispace0,
-//         take_while(is_digit),
-//         take_until(is_space),
-//         multispace0,
-//         take_while(is_digit),
-//         take_until(is_space),
-//         multispace0,
-//         take_while(is_digit),
-//         take_until(is_digit),
-//         multispace0,
-//         take_while(is_digit),
-//         take_until(is_digit),
-//         multispace0,
-//         take_while(is_digit),
-//         take_until(is_digit),
-//         multispace0,
-//         tag(")"),
-//     ));
-//     let result = parser(input)?;
-//
-// }
-
 pub fn is_not_space(chr: char) -> bool {
-    return !chr.is_whitespace();
+    !chr.is_whitespace()
 }
 
 impl FromStr for DnsTypeSOA {

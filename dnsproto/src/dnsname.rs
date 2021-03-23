@@ -83,7 +83,7 @@ impl DNSName {
                 return false;
             }
         }
-        return true;
+        true
     }
 
     pub fn to_binary(&self, compression: Option<(&mut HashMap<String, usize>, usize)>) -> Vec<u8> {

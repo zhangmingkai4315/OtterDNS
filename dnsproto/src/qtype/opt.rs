@@ -55,6 +55,7 @@ impl EdnsECS {
             client_subnet: client_subnet.to_vec(),
         })
     }
+    #[allow(dead_code)]
     fn new_ipv4(ipaddr: Ipv4Addr, source_mask: u8, scope_mask: u8) -> Result<Self, DNSProtoErr> {
         if source_mask > 32 {
             return Err(DNSProtoErr::PacketSerializeError);
