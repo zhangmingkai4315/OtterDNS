@@ -40,7 +40,7 @@ impl DNSName {
             if !valid_label(i) {
                 return Err(ParseZoneDataErr::ValidDomainErr(domain.to_owned()));
             } else {
-                inner_vec.push(i.to_owned());
+                inner_vec.push(i.to_owned().to_lowercase());
             }
         }
         Ok(DNSName { labels: inner_vec })

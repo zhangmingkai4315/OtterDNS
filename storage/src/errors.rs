@@ -10,6 +10,11 @@ pub enum StorageError {
     #[error("storage not ready")]
     StorageNotReadyError,
 
+    #[error("can't add CNAME RR to a node that already has RRs present")]
+    AddCNAMEConflictError,
+
+    #[error("can't add non-NSEC RR to a node that already has a CNAME")]
+    AddOtherRRConflictCNAME,
     #[error("{0}")]
     ValidFQDNError(String),
 }

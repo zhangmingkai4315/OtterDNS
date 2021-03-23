@@ -1,3 +1,4 @@
+#![allow(unused_doc_comments)]
 mod rb_storage;
 #[macro_use]
 mod errors;

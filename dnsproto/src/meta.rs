@@ -189,12 +189,13 @@ impl Question {
 // +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
 #[derive(Debug)]
 pub struct ResourceRecord {
-    pub name: DNSName,
-    pub qtype: DNSType,
-    pub qclass: DNSClass,
-    pub ttl: u32,
-    pub data: Option<Box<dyn DNSWireFrame>>,
+    pub(crate) name: DNSName,
+    pub(crate) qtype: DNSType,
+    pub(crate) qclass: DNSClass,
+    pub(crate) ttl: u32,
+    pub(crate) data: Option<Box<dyn DNSWireFrame>>,
 }
+
 
 impl PartialEq for ResourceRecord {
     fn eq(&self, other: &Self) -> bool {
@@ -222,7 +223,18 @@ impl ResourceRecord {
             data,
         })
     }
+    #[inline]
+    pub fn get_type(&self)->DNSType{
+        self.qtype
+    }
 
+    pub fn get_label_count(&self) -> usize{
+        self.name.label_count()
+    }
+
+    pub fn get_label_iter(&self) -> Iter<'_, String> {
+        self.name.labels.iter()
+    }
     pub fn encode<'a>(
         &self,
         cursor: &'a mut Cursor<Vec<u8>>,
@@ -258,7 +270,35 @@ impl ResourceRecord {
         cursor.write_all(data.as_slice())?;
         Ok(cursor)
     }
+
 }
+
+
+#[derive(Debug, Default)]
+pub struct RRSet{
+    content: Vec<ResourceRecord>,
+    signatures: Vec<ResourceRecord>,
+    ttl: u32,
+}
+
+impl RRSet{
+    pub fn set_ttl(&mut self, ttl: u32){
+        self.ttl = ttl;
+    }
+    pub fn clear(&mut self){
+        self.signatures.clear();
+        self.signatures.clear();
+    }
+    pub fn add(&mut self, rr: ResourceRecord){
+        self.ttl = rr.ttl;
+        if rr.qtype == DNSType::RRSIG{
+            self.signatures.push(rr);
+            return
+        }
+        self.content.push(rr);
+    }
+}
+
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OpCode {
@@ -351,6 +391,7 @@ impl Into<u8> for RCode {
 }
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+use nom::lib::std::slice::Iter;
 
 /// https://tools.ietf.org/html/rfc1035#section-3.2.4
 /// specify the class of the dns record data
@@ -373,7 +414,7 @@ impl Default for DNSClass {
     }
 }
 
-#[derive(Debug, PartialEq, Copy, Clone, IntoPrimitive, FromPrimitive)]
+#[derive(Debug, PartialEq, Copy, Clone, IntoPrimitive, FromPrimitive, Eq, Hash)]
 #[repr(u16)]
 #[derive(EnumString)]
 pub enum DNSType {
