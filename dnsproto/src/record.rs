@@ -1,7 +1,7 @@
 use crate::dnsname::DNSName;
 use crate::errors::*;
 use crate::meta::{DNSClass, DNSType, ResourceRecord};
-use crate::qtype::{decode_dns_data_from_string};
+use crate::qtype::decode_dns_data_from_string;
 use crate::utils::{is_fqdn, valid_domain};
 
 impl ResourceRecord {
@@ -248,10 +248,10 @@ impl ResourceRecord {
 
 #[cfg(test)]
 mod record {
-    use crate::meta::{DNSClass, DNSType, ResourceRecord};
-    use crate::qtype::{DnsTypeNS, DnsTypeA};
     use crate::dnsname::DNSName;
     use crate::errors::ParseZoneDataErr;
+    use crate::meta::{DNSClass, DNSType, ResourceRecord};
+    use crate::qtype::{DnsTypeA, DnsTypeNS};
     use std::convert::TryFrom;
 
     #[test]
@@ -276,7 +276,8 @@ mod record {
         }
 
         let s = "mail  86400   IN  A     192.0.2.3 ; this is a comment";
-        let raw_rr = ResourceRecord::from_zone_data(s, None, None, None, Some("cnnic.cn.")).unwrap();
+        let raw_rr =
+            ResourceRecord::from_zone_data(s, None, None, None, Some("cnnic.cn.")).unwrap();
         let resourc = ResourceRecord {
             name: DNSName::new("mail.cnnic.cn.").unwrap(),
             qtype: DNSType::A,

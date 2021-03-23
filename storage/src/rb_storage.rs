@@ -5,36 +5,36 @@ use crate::errors::StorageError;
 use crate::rbtree::RBTree;
 use crate::Storage;
 use dnsproto::dnsname::DNSName;
-use dnsproto::meta::{DNSClass, DNSType, ResourceRecord};
+use dnsproto::meta::{DNSType, ResourceRecord};
 use dnsproto::qtype::{DNSWireFrame, DnsTypeSOA};
 use std::cell::RefCell;
 use std::rc::Rc;
 
 #[derive(Debug)]
 struct RBTreeNode {
-    label: String, 
+    label: String,
     data: Vec<ResourceRecord>,
     parent: Option<Rc<RefCell<RBTreeNode>>>,
     subtree: Option<RBTree<String, Rc<RefCell<RBTreeNode>>>>,
 }
 
-impl RBTreeNode{
-    fn get_name(&self) -> String{
-        let mut name = self.label.clone();
-        let mut current = self.parent.clone();
-        loop{
-            match current.clone(){
-                Some(value) => {
-                    name = ".".to_string() + &*value.borrow().label;
-                    current = value.borrow().parent.clone();
-                },
-                _ => {
-                    break;
-                }
-            }
+impl RBTreeNode {
+    fn get_name(&self) -> DNSName {
+        if self.label.is_empty() {
+            return DNSName { labels: vec![] };
         }
-        name
-
+        let mut labels = vec![];
+        labels.push(self.label.clone());
+        let mut current = self.parent.clone();
+        while let Some(value) = current.clone() {
+            let label = (*value.borrow()).label.to_owned();
+            if label.is_empty() {
+                break;
+            }
+            labels.push(label);
+            current = value.borrow().parent.clone();
+        }
+        DNSName { labels }
     }
 }
 
@@ -83,33 +83,30 @@ impl Storage for RBTreeStorage {
                 drop(temp);
                 parent_node = Some(node.clone());
                 current = Some(node);
-            }else{
-                if labels_count == 0 {
-                    subtree.insert(
-                        i.clone(),
-                        Rc::new(RefCell::new(RBTreeNode {
-                            label: i.to_string(),
-                            data: vec![rr],
-                            parent: parent_node.clone(),
-                            subtree: None,
-                        })),
-                    );
-                    return Ok(());
-                } else {
-                    let create = Rc::new(RefCell::new(RBTreeNode {
+                continue;
+            }
+            if labels_count == 0 {
+                subtree.insert(
+                    i.clone(),
+                    Rc::new(RefCell::new(RBTreeNode {
                         label: i.to_string(),
-                        data: vec![],
-                        parent: parent_node.clone(),
+                        data: vec![rr],
+                        parent: parent_node,
                         subtree: None,
-                    }));
-                    subtree.insert(
-                        i.clone(),
-                        create.clone(),
-                    );
-                    drop(temp);
-                    current = Some(create.clone());
-                    parent_node = Some(create.clone());
-                }
+                    })),
+                );
+                return Ok(());
+            } else {
+                let create = Rc::new(RefCell::new(RBTreeNode {
+                    label: i.to_string(),
+                    data: vec![],
+                    parent: parent_node,
+                    subtree: None,
+                }));
+                subtree.insert(i.clone(), create.clone());
+                drop(temp);
+                current = Some(create.clone());
+                parent_node = Some(create.clone());
             }
         }
         Ok(())
@@ -124,41 +121,48 @@ impl Storage for RBTreeStorage {
     }
 }
 #[cfg(test)]
-mod storage{
+mod storage {
     use super::*;
+    use dnsproto::meta::DNSClass;
     #[test]
-    fn test_rb_node(){
-        let node = RBTreeNode{
+    fn test_rb_node() {
+        let node = RBTreeNode {
             label: "baidu".to_string(),
             data: vec![],
-            parent: Some(Rc::new(RefCell::new(RBTreeNode{
+            parent: Some(Rc::new(RefCell::new(RBTreeNode {
                 label: "com".to_string(),
                 data: vec![],
-                parent:  Some(Rc::new(RefCell::new(RBTreeNode{
+                parent: Some(Rc::new(RefCell::new(RBTreeNode {
                     label: "".to_string(),
                     data: vec![],
-                    parent:  None,
-                    subtree: None
+                    parent: None,
+                    subtree: None,
                 }))),
-                subtree: None
+                subtree: None,
             }))),
-            subtree: None
+            subtree: None,
         };
-        assert_eq!(node.get_name(), "baidu.com".to_owned());
+        assert_eq!(node.get_name().to_string(), "baidu.com.".to_owned());
+        let node = RBTreeNode {
+            label: "".to_string(),
+            data: vec![],
+            parent: None,
+            subtree: None,
+        };
+        assert_eq!(node.get_name().to_string(), ".".to_owned());
     }
     #[test]
     fn test_rb_storage_insert() {
         let mut storage = RBTreeStorage::new();
-        // let meminfo = sys_info::mem_info().unwrap();
-        // print!("{:?}\n", meminfo);
         let rr = ResourceRecord::new("baidu.com.", DNSType::A, DNSClass::IN, 1000, None).unwrap();
         storage.insert(rr).unwrap();
-        let rr = ResourceRecord::new("www.google.com.", DNSType::A, DNSClass::IN, 1000, None).unwrap();
+        let rr =
+            ResourceRecord::new("www.google.com.", DNSType::A, DNSClass::IN, 1000, None).unwrap();
         storage.insert(rr).unwrap();
         let rr = ResourceRecord::new("google.com.", DNSType::NS, DNSClass::IN, 1000, None).unwrap();
         storage.insert(rr).unwrap();
-        let rr = ResourceRecord::new("www.google.com.", DNSType::NS, DNSClass::IN, 1000, None).unwrap();
+        let rr =
+            ResourceRecord::new("www.google.com.", DNSType::NS, DNSClass::IN, 1000, None).unwrap();
         storage.insert(rr).unwrap();
     }
-
 }

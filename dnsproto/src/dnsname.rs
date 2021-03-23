@@ -135,6 +135,9 @@ impl DNSName {
 impl std::fmt::Display for DNSName {
     fn fmt(&self, format: &mut Formatter<'_>) -> std::fmt::Result {
         let mut name = String::new();
+        if self.labels.is_empty() {
+            return write!(format, ".");
+        }
         for label in &self.labels {
             name.push_str(label);
             name.push('.');

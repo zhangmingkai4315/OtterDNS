@@ -279,10 +279,10 @@ where
 
 #[cfg(test)]
 mod zone {
-    use crate::meta::{DNSType, DNSClass};
     use crate::dnsname::DNSName;
-    use crate::zone::{Zone, ZoneStr};
     use crate::errors::DNSProtoErr;
+    use crate::meta::{DNSClass, DNSType};
+    use crate::zone::{Zone, ZoneStr};
 
     #[test]
     fn test_zone_str_iterator() {
