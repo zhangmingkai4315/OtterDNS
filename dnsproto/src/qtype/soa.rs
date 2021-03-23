@@ -1,7 +1,12 @@
 use crate::dnsname::{parse_name, DNSName};
 use crate::errors::{DNSProtoErr, ParseZoneDataErr};
 use crate::qtype::DNSWireFrame;
+use nom::bytes::complete::{tag, take_until, take_while};
+use nom::character::complete::multispace0;
+use nom::character::{complete::anychar, complete::digit1, is_digit};
 use nom::number::complete::be_u32;
+use nom::sequence::tuple;
+use nom::IResult;
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
@@ -18,11 +23,78 @@ pub struct DnsTypeSOA {
     minimum: u32,
 }
 
+// fn parser_soa_from_str(input: &str) -> IResult<&str, (&str, _, &str, _, &str, _, &str, _, &str, _, &str, _, &str, _, &str, _, &str, _), Error<I>> {
+//     let parser = tuple((
+//         multispace0,
+//         take_while(is_space),
+//         multispace0,
+//         take_while(is_space),
+//         multispace0,
+//         tag("("),
+//         multispace0,
+//         take_while(is_digit),
+//         take_until(is_space),
+//         multispace0,
+//         take_while(is_digit),
+//         take_until(is_space),
+//         multispace0,
+//         take_while(is_digit),
+//         take_until(is_digit),
+//         multispace0,
+//         take_while(is_digit),
+//         take_until(is_digit),
+//         multispace0,
+//         take_while(is_digit),
+//         take_until(is_digit),
+//         multispace0,
+//         tag(")"),
+//     ));
+//     let result = parser(input)?;
+//
+// }
+
+pub fn is_not_space(chr: char) -> bool {
+    return !chr.is_whitespace();
+}
+pub fn is_char_digit(chr: char) -> bool {
+    return chr.is_ascii() && is_digit(chr as u8);
+}
+
 impl FromStr for DnsTypeSOA {
     type Err = ParseZoneDataErr;
-    fn from_str(_str: &str) -> Result<Self, Self::Err> {
-        // a.dns.cn. root.cnnic.cn. ( 2027954656 7200 3600 2419200 21600 )
-        unimplemented!()
+    fn from_str(str: &str) -> Result<Self, Self::Err> {
+        let (rest, _) = multispace0(str)?;
+        let (rest, primary) = take_while(is_not_space)(rest)?;
+        let (rest, _) = multispace0(rest)?;
+        let (rest, response) = take_while(is_not_space)(rest)?;
+        let (rest, _) = multispace0(rest)?;
+        let (rest, _) = tag("(")(rest)?;
+        let (rest, _) = multispace0(rest)?;
+        let (rest, serial) = digit1(rest)?;
+        let serial = u32::from_str(serial)?;
+        let (rest, _) = multispace0(rest)?;
+        let (rest, refresh) = digit1(rest)?;
+        let refresh = u32::from_str(refresh)?;
+        let (rest, _) = multispace0(rest)?;
+        let (rest, retry) = digit1(rest)?;
+        let retry = u32::from_str(retry)?;
+        let (rest, _) = multispace0(rest)?;
+        let (rest, expire) = digit1(rest)?;
+        let expire = u32::from_str(expire)?;
+        let (rest, _) = multispace0(rest)?;
+        let (rest, minimum) = digit1(rest)?;
+        let minimum = u32::from_str(minimum)?;
+        let (rest, _) = multispace0(rest)?;
+        let (rest, _) = tag(")")(rest)?;
+        Ok(DnsTypeSOA {
+            primary_name: DNSName::new(primary)?,
+            response_email: DNSName::new(response)?,
+            serial,
+            refresh,
+            retry,
+            expire,
+            minimum,
+        })
     }
 }
 
@@ -130,7 +202,39 @@ impl DNSWireFrame for DnsTypeSOA {
         Ok(data)
     }
 }
+#[test]
+fn test_parse_soa_from_str() {
+    let soa = "a.dns.cn. root.cnnic.cn. ( 2027954656 7200 3600 2419200 21600 )";
+    let dns_soa = DnsTypeSOA::from_str(soa);
+    assert!(dns_soa.is_ok(), format!("{:?}", dns_soa.unwrap_err()));
+    assert_eq!(
+        dns_soa.unwrap(),
+        DnsTypeSOA::new(
+            "a.dns.cn.",
+            "root.cnnic.cn.",
+            2027954656,
+            7200,
+            3600,
+            2419200,
+            21600
+        )
+        .unwrap()
+    );
 
+    let err_soa = "a.dns.cn. root.cnnic.cn. ( 7200 3600 2419200 21600 )";
+    let dns_soa = DnsTypeSOA::from_str(err_soa);
+    assert!(dns_soa.is_err());
+
+    let err_soa = "root.cnnic.cn. (2027954656 7200 3600 2419200 21600 )";
+    let dns_soa = DnsTypeSOA::from_str(err_soa);
+    assert!(dns_soa.is_err());
+    let err_soa = "a.dns.cn. root.cnnic.cn. 2027954656 7200 3600 2419200 21600 )";
+    let dns_soa = DnsTypeSOA::from_str(err_soa);
+    assert!(dns_soa.is_err());
+    let err_soa = "a.dns.cn. root.cnnic.cn. (2027954656 7200 3600 2419200 21600";
+    let dns_soa = DnsTypeSOA::from_str(err_soa);
+    assert!(dns_soa.is_err());
+}
 #[test]
 fn test_soa_encode() {
     let non_compression_vec: Vec<u8> = vec![

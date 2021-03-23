@@ -1,4 +1,5 @@
 use std::net::AddrParseError;
+use std::num::ParseIntError;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq)]
@@ -69,6 +70,35 @@ pub enum ParseZoneDataErr {
     #[error("empty zone data error")]
     EmptyStrErr,
 
+    #[error("parse dns from str error: `{0}`")]
+    ParseDNSFromStrError(String),
+    #[error("parse dns from str error: `{0}` / `{1}`")]
+    ParseDNSFromStrWithTypeError(String, String),
+    #[error("parse dns from str incomplete error: `{0}`")]
+    ParseDNSFromStrIncompleteError(String),
+
     #[error("unimplemented")]
     UnimplementedErr,
+}
+
+impl<I: std::fmt::Debug> From<nom::Err<(I, nom::error::ErrorKind)>> for ParseZoneDataErr {
+    fn from(i: nom::Err<(I, nom::error::ErrorKind)>) -> Self {
+        match i {
+            nom::Err::Error(err) | nom::Err::Failure(err) => {
+                ParseZoneDataErr::ParseDNSFromStrWithTypeError(
+                    format!("{:?}", err.0),
+                    format!("{:?}", err.1),
+                )
+            }
+            nom::Err::Incomplete(i) => {
+                ParseZoneDataErr::ParseDNSFromStrIncompleteError(format!("{:?}", i))
+            }
+        }
+    }
+}
+
+impl From<ParseIntError> for ParseZoneDataErr {
+    fn from(error: ParseIntError) -> Self {
+        ParseZoneDataErr::ParseDNSFromStrError(error.to_string())
+    }
 }

@@ -401,9 +401,7 @@ fn test_parse_answer() {
     ];
     let a = parse_answer(&edns, &original);
     let result = Record::EDNSRecord(EDNS {
-        name: DNSName {
-            labels: vec![],
-        },
+        name: DNSName { labels: vec![] },
         qtype: DNSType::OPT,
         payload_size: 4096,
         extension: 0,

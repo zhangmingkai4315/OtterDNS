@@ -352,7 +352,7 @@ ns            IN  A     192.0.2.2             ; IPv4 address for ns.example.com
 				)",
     );
     let mut iter = zone_str.into_iter();
-    assert_eq!(iter.next(), Some(".	86391 IN SOA a.root-servers.net. nstld.verisign-grs.com. ( 2020091101 1800 900 604800 86400 )".to_owned()));
+    assert_eq!(iter.next(), Some(".\t\t\t86391 IN SOA a.root-servers.net. nstld.verisign-grs.com. (\t\t\t\t2020091101 \t\t\t\t1800       \t\t\t\t900        \t\t\t\t604800     \t\t\t\t86400      \t\t\t\t)".to_owned()));
     assert_eq!(iter.next(), None);
 
     let zone_str = ZoneStr::new(

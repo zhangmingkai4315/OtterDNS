@@ -28,14 +28,10 @@ impl Clone for DNSName {
 impl DNSName {
     pub fn new(domain: &str) -> Result<DNSName, ParseZoneDataErr> {
         if domain.is_empty() {
-            return Ok(DNSName {
-                labels: vec![],
-            });
+            return Ok(DNSName { labels: vec![] });
         }
         if domain.eq(".") {
-            return Ok(DNSName {
-                labels: vec![],
-            });
+            return Ok(DNSName { labels: vec![] });
         }
         let mut inner_vec = vec![];
         for i in domain.split('.') {
@@ -48,17 +44,12 @@ impl DNSName {
                 inner_vec.push(i.to_owned());
             }
         }
-        Ok(DNSName {
-            labels: inner_vec,
-        })
+        Ok(DNSName { labels: inner_vec })
     }
-
 
     #[allow(dead_code)]
     fn root() -> Self {
-        DNSName {
-            labels: Vec::new(),
-        }
+        DNSName { labels: Vec::new() }
     }
     pub fn is_empty(&self) -> bool {
         self.labels.is_empty()
@@ -95,7 +86,6 @@ impl DNSName {
         }
         return true;
     }
-
 
     pub fn to_binary(&self, compression: Option<(&mut HashMap<String, usize>, usize)>) -> Vec<u8> {
         let mut binary_store: Vec<u8> = vec![];
@@ -138,7 +128,7 @@ impl DNSName {
         binary_store
     }
 
-    pub fn append(&mut self, domain: &DNSName){
+    pub fn append(&mut self, domain: &DNSName) {
         self.labels.extend_from_slice(domain.labels.as_slice());
     }
 }
@@ -156,9 +146,7 @@ impl std::fmt::Display for DNSName {
 
 impl Default for DNSName {
     fn default() -> Self {
-        DNSName {
-            labels: Vec::new(),
-        }
+        DNSName { labels: Vec::new() }
     }
 }
 
@@ -214,22 +202,12 @@ pub fn parse_name<'a>(input: &'a [u8], original: &'_ [u8]) -> IResult<&'a [u8], 
                     Err(_) => return Err(Incomplete(Needed::Unknown)),
                 };
                 shift += 2;
-                return Ok((
-                    &input[shift..],
-                    DNSName {
-                        labels,
-                    },
-                ));
+                return Ok((&input[shift..], DNSName { labels }));
             }
             _ => return Err(Incomplete(Needed::Unknown)),
         }
     }
-    Ok((
-        &input[shift..],
-        DNSName {
-            labels,
-        },
-    ))
+    Ok((&input[shift..], DNSName { labels }))
 }
 
 #[test]
