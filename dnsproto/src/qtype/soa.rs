@@ -1,12 +1,10 @@
 use crate::dnsname::{parse_name, DNSName};
 use crate::errors::{DNSProtoErr, ParseZoneDataErr};
 use crate::qtype::DNSWireFrame;
-use nom::bytes::complete::{tag, take_until, take_while};
+use nom::bytes::complete::{tag, take_while};
+use nom::character::complete::digit1;
 use nom::character::complete::multispace0;
-use nom::character::{complete::anychar, complete::digit1, is_digit};
 use nom::number::complete::be_u32;
-use nom::sequence::tuple;
-use nom::IResult;
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
@@ -56,9 +54,6 @@ pub struct DnsTypeSOA {
 pub fn is_not_space(chr: char) -> bool {
     return !chr.is_whitespace();
 }
-pub fn is_char_digit(chr: char) -> bool {
-    return chr.is_ascii() && is_digit(chr as u8);
-}
 
 impl FromStr for DnsTypeSOA {
     type Err = ParseZoneDataErr;
@@ -85,7 +80,7 @@ impl FromStr for DnsTypeSOA {
         let (rest, minimum) = digit1(rest)?;
         let minimum = u32::from_str(minimum)?;
         let (rest, _) = multispace0(rest)?;
-        let (rest, _) = tag(")")(rest)?;
+        let (_, _) = tag(")")(rest)?;
         Ok(DnsTypeSOA {
             primary_name: DNSName::new(primary)?,
             response_email: DNSName::new(response)?,
@@ -97,6 +92,37 @@ impl FromStr for DnsTypeSOA {
         })
     }
 }
+
+// named!(parse_soa_from_str<&str, DnsTypeSOA>,
+//     add_return_error!(ErrorKind::Fix(DNSProtoErr),
+//     do_parse!(
+//         multispace0 >>
+//         primary_name: take_while!(is_not_space)>>
+//         multispace0 >>
+//         response_email: take_while!(is_not_space) >>
+//         multispace0 >>
+//         tag!("(") >>
+//         multispace0 >>
+//         serial: digit1>>
+//         multispace0 >>
+//         refresh: digit1>>
+//         multispace0 >>
+//         retry: digit1>>
+//         multispace0 >>
+//         expire: digit1>>
+//         multispace0 >>
+//         minimum: digit1>>
+//         multispace0 >>
+//         tag!(")") >>
+//         (DnsTypeSOA{
+//             primary_name: DNSName::new(primary_name)?,
+//             response_email: DNSName::new(response_email)?,
+//             serial: nom_parse_u32(serial)?,
+//             refresh: nom_parse_u32(refresh)?,
+//             retry: nom_parse_u32(retry)?
+//             expire: nom_parse_u32(expire)?,
+//             minimum: nom_parse_u32(minimum)?,
+//         }))));
 
 named_args!(parse_soa<'a>(original: &[u8])<DnsTypeSOA>,
     do_parse!(
@@ -152,8 +178,8 @@ impl fmt::Display for DnsTypeSOA {
         write!(
             format,
             "{} {} ( {} {} {} {} {} )",
+            self.primary_name.to_string(),
             self.response_email.to_string(),
-            self.primary_name,
             self.serial,
             &self.refresh,
             self.retry,

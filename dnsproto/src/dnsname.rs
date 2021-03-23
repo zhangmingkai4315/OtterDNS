@@ -1,12 +1,11 @@
 // http://www.networksorcery.com/enp/protocol/dns.htm
-use crate::utils::{is_fqdn, valid_label};
+use crate::utils::valid_label;
 use nom::{Err::Incomplete, IResult, Needed};
 
 // use crate::types::{DNSFrameEncoder, get_dns_struct_from_raw};
 use crate::errors::ParseZoneDataErr;
 use nom::lib::std::collections::HashMap;
 use nom::lib::std::fmt::Formatter;
-use std::ops::Add;
 
 #[derive(Debug, PartialEq)]
 pub struct DNSName {

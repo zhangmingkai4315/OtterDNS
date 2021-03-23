@@ -1,6 +1,8 @@
+use nom;
 use std::net::AddrParseError;
 use std::num::ParseIntError;
 use thiserror::Error;
+// use std::str::FromStr;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum DNSProtoErr {
