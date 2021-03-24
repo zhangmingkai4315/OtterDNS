@@ -4,9 +4,10 @@ use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum StorageError {
-    #[error("domain not exist in storage: {0}")]
-    DomainNotFoundError(String),
-
+    #[error("domain not exist in storage")]
+    DomainNotFoundError,
+    #[error("domain exist but query type not exist")]
+    DNSTypeNotFoundError,
     #[error("storage not ready")]
     StorageNotReadyError,
 
@@ -17,6 +18,8 @@ pub enum StorageError {
     AddOtherRRConflictCNAME,
     #[error("{0}")]
     ValidFQDNError(String),
+    #[error("unimplemented feature")]
+    Unimplemented,
 }
 
 impl From<ParseZoneDataErr> for StorageError {

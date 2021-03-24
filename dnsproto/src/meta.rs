@@ -196,7 +196,6 @@ pub struct ResourceRecord {
     pub(crate) data: Option<Box<dyn DNSWireFrame>>,
 }
 
-
 impl PartialEq for ResourceRecord {
     fn eq(&self, other: &Self) -> bool {
         (self.name == other.name)
@@ -224,14 +223,16 @@ impl ResourceRecord {
         })
     }
     #[inline]
-    pub fn get_type(&self)->DNSType{
+    pub fn get_type(&self) -> DNSType {
         self.qtype
     }
 
-    pub fn get_label_count(&self) -> usize{
+    pub fn get_label_count(&self) -> usize {
         self.name.label_count()
     }
-
+    pub fn get_dname(&self) -> &DNSName {
+        &self.name
+    }
     pub fn get_label_iter(&self) -> Iter<'_, String> {
         self.name.labels.iter()
     }
@@ -270,35 +271,32 @@ impl ResourceRecord {
         cursor.write_all(data.as_slice())?;
         Ok(cursor)
     }
-
 }
 
-
 #[derive(Debug, Default)]
-pub struct RRSet{
+pub struct RRSet {
     content: Vec<ResourceRecord>,
     signatures: Vec<ResourceRecord>,
     ttl: u32,
 }
 
-impl RRSet{
-    pub fn set_ttl(&mut self, ttl: u32){
+impl RRSet {
+    pub fn set_ttl(&mut self, ttl: u32) {
         self.ttl = ttl;
     }
-    pub fn clear(&mut self){
+    pub fn clear(&mut self) {
         self.signatures.clear();
         self.signatures.clear();
     }
-    pub fn add(&mut self, rr: ResourceRecord){
+    pub fn add(&mut self, rr: ResourceRecord) {
         self.ttl = rr.ttl;
-        if rr.qtype == DNSType::RRSIG{
+        if rr.qtype == DNSType::RRSIG {
             self.signatures.push(rr);
-            return
+            return;
         }
         self.content.push(rr);
     }
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OpCode {
@@ -390,8 +388,8 @@ impl Into<u8> for RCode {
     }
 }
 
-use num_enum::{IntoPrimitive, TryFromPrimitive};
 use nom::lib::std::slice::Iter;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 /// https://tools.ietf.org/html/rfc1035#section-3.2.4
 /// specify the class of the dns record data
