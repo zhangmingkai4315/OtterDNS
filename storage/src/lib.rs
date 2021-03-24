@@ -1,8 +1,8 @@
 #![allow(unused_doc_comments)]
-mod rb_storage;
-#[macro_use]
-mod errors;
+pub mod rb_storage;
 mod rbtree;
+#[macro_use]
+pub mod errors;
 // mod example;
 
 use dnsproto::dnsname::DNSName;

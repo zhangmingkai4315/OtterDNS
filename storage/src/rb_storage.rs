@@ -13,22 +13,22 @@ use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
 #[derive(Debug)]
-struct RBTreeNode {
+pub struct RBTreeNode {
     label: String,
     rr_sets: HashMap<DNSType, RRSet>,
     parent: RefCell<Weak<RefCell<RBTreeNode>>>,
     subtree: Option<RefCell<RBTree<String, Rc<RefCell<RBTreeNode>>>>>,
 }
 #[derive(Debug)]
-struct RBZone(Rc<RefCell<RBTreeNode>>);
+pub struct RBZone(Rc<RefCell<RBTreeNode>>);
 
 impl RBZone {
-    fn from_node(node: RBTreeNode) -> RBZone {
+    pub fn from_node(node: RBTreeNode) -> RBZone {
         RBZone {
             0: Rc::new(RefCell::new(node)),
         }
     }
-    fn new_root() -> RBZone {
+    pub fn new_root() -> RBZone {
         let root = RBTreeNode {
             label: "".to_string(),
             rr_sets: Default::default(),
@@ -40,7 +40,7 @@ impl RBZone {
     /// locate the dns name node from top zone root node. if the dns name is not found in this zone
     /// create a sub node based the label.
     /// should valid if the name is below to the zone data.
-    fn find_or_insert(&self, name: &DNSName) -> Rc<RefCell<RBTreeNode>> {
+    pub fn find_or_insert(&self, name: &DNSName) -> Rc<RefCell<RBTreeNode>> {
         let mut labels_count = name.label_count();
         if labels_count == 0 {
             return self.0.clone();
@@ -70,12 +70,14 @@ impl RBZone {
                 let node = RBTreeNode::from_label(label.clone());
                 *(*node).borrow_mut().parent.borrow_mut() = Rc::downgrade(&parent_node);
                 // (*node).parent.borrow_mut() = Rc::downgrade(&parent_node);
+                subtree.get_mut().insert(label.clone(), node.clone());
                 return node;
             } else {
                 /// create a path to next label, but if each label has a new rbtree will consume
                 /// too much memory , so should build with a compressed way
                 let create = RBTreeNode::from_label(label.clone());
                 *(*create).borrow_mut().parent.borrow_mut() = Rc::downgrade(&parent_node);
+                subtree.get_mut().insert(label.clone(), create.clone());
                 current = create.clone();
                 parent_node = create;
             }
@@ -84,7 +86,7 @@ impl RBZone {
     }
     /// find the dns name node from top zone root node. if the dns name is not found return Err
     /// otherwise return Node, do not create any new node
-    fn find(&self, name: &DNSName) -> Result<Rc<RefCell<RBTreeNode>>, StorageError> {
+    pub fn find(&self, name: &DNSName) -> Result<Rc<RefCell<RBTreeNode>>, StorageError> {
         let mut labels_count = name.label_count();
         if labels_count == 0 {
             return Ok(self.0.clone());
@@ -120,7 +122,7 @@ impl RBZone {
         Ok(current)
     }
 
-    fn insert(&mut self, rr: ResourceRecord) -> Result<(), StorageError> {
+    pub fn insert(&mut self, rr: ResourceRecord) -> Result<(), StorageError> {
         /// TODO: DO i need to check if the rr is below to this zone?
         let node = self.find_or_insert(rr.get_dname());
         return node.borrow_mut().add_rr(rr);
@@ -240,10 +242,7 @@ mod storage {
         ];
         for (name, rr) in dnsnames {
             let node = zone.find_or_insert(&name);
-            // println!("{:?}", node);
-            // println!("{:?}", node.borrow_mut().get_name());
             node.borrow_mut().add_rr(rr);
-            // println!("{:?}", zone);
         }
         zone
     }
@@ -279,18 +278,28 @@ mod storage {
         assert_eq!(node.get_name().to_string(), ".".to_owned());
     }
     #[test]
+    fn test_find_or_insert() {
+        let zone = RBZone::new_root();
+        let node = zone.find_or_insert(&DNSName::new("www.baidu.com").unwrap());
+        assert_eq!(node.borrow_mut().label, "www");
+        assert_eq!(
+            node.borrow_mut().get_name(),
+            DNSName::new("www.baidu.com").unwrap()
+        );
+    }
+
+    #[test]
     fn test_rb_storage_insert() {
-        // let zone = example_zone();
-        // println!("{:?}", zone);
-        // let dname = DNSName::new("baidu.com").unwrap();
-        // match zone.find(&dname){
-        //     Ok(node) => {
-        //         assert_eq!(node.borrow_mut().rr_sets.len(), 1)
-        //     }
-        //     _ => {
-        //         assert!(false)
-        //     }
-        // }
+        let zone = example_zone();
+        let dname = DNSName::new("baidu.com").unwrap();
+        match zone.find(&dname) {
+            Ok(node) => {
+                assert_eq!(node.borrow_mut().rr_sets.len(), 1)
+            }
+            _ => {
+                assert!(false)
+            }
+        }
     }
 
     #[test]

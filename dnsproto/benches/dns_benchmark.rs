@@ -97,9 +97,9 @@ fn dns_encode_question_message(c: &mut Criterion) {
 }
 
 criterion_group!(
-    benches,
+    codec_benches,
     dns_parse_message,
     dns_encode_question_message,
     dns_encode_answer_message
 );
-criterion_main!(benches);
+criterion_main!(codec_benches);
