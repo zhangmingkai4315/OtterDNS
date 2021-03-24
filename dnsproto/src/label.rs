@@ -1,142 +1,83 @@
+#![allow(unused_doc_comments)]
 use crate::errors::ParseZoneDataErr;
-use crate::utils::*;
-use std::prelude::v1::Vec;
-use std::rc::Rc;
+use crate::utils::valid_label;
+use itertools::EitherOrBoth::{Both, Left, Right};
+use itertools::Itertools;
+use nom::lib::std::fmt::Formatter;
+use nom::AsChar;
+use std::cmp::Ordering;
+use std::fmt::Display;
 use std::str::FromStr;
 
-pub type DNSTypeResult<T> = std::result::Result<T, String>;
-
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub struct Label(Rc<[u8]>);
-impl Label {
-    pub fn from_bytes(bytes: &[u8]) -> DNSTypeResult<Self> {
-        if bytes.len() > 63 {
-            return Err(format!("exceeds max length {} >63 ", bytes.len()));
-        }
-        Ok(Label(Rc::from(bytes)))
-    }
-}
+#[derive(Eq, PartialEq, Hash)]
+struct Label(Vec<u8>);
 
 impl FromStr for Label {
-    type Err = String;
-    fn from_str(label_str: &str) -> DNSTypeResult<Self> {
-        if valid_label(label_str) {
-            Ok(Label(Rc::from(label_str.as_bytes())))
-        } else {
-            Err(label_str.to_string())
-        }
-    }
-}
-
-// DomainName
-#[derive(Debug, PartialOrd, PartialEq)]
-pub struct DomainName {
-    is_fqdn: bool,
-    inner: Vec<Label>,
-}
-
-impl DomainName {
-    fn new(domain: &str) -> Result<DomainName, ParseZoneDataErr> {
-        if domain.is_empty() {
-            return Ok(DomainName {
-                is_fqdn: false,
-                inner: vec![],
-            });
-        }
-        if domain.eq(".") {
-            return Ok(DomainName {
-                is_fqdn: true,
-                inner: vec![],
-            });
-        }
-        let mut inner_vec = vec![];
-        for i in domain.split('.') {
-            if i.is_empty() {
-                continue;
-            }
-            match Label::from_str(i) {
-                Ok(val) => inner_vec.push(val),
-                Err(_) => {
-                    return Err(ParseZoneDataErr::ValidDomainErr(domain.to_owned()));
-                }
-            }
-        }
-        Ok(DomainName {
-            inner: inner_vec,
-            is_fqdn: is_fqdn(domain),
-        })
-    }
-}
-
-impl Default for DomainName {
-    fn default() -> Self {
-        DomainName {
-            is_fqdn: false,
-            inner: vec![],
-        }
-    }
-}
-
-impl FromStr for DomainName {
     type Err = ParseZoneDataErr;
-    fn from_str(domain: &str) -> Result<Self, Self::Err> {
-        DomainName::new(domain)
+
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        if !valid_label(input) {
+            return Err(ParseZoneDataErr::ParseDNSFromStrError(input.to_owned()));
+        }
+        Ok(Label(input.as_bytes().to_vec()))
+    }
+}
+impl PartialOrd for Label {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        for it in self.0.iter().zip_longest(other.0.iter()) {
+            match it {
+                Both(left, right) => match Label::compare_label(*left, *right) {
+                    Ordering::Equal => continue,
+                    result => return Some(result),
+                },
+                Left(_) => return Some(Ordering::Greater),
+                Right(_) => return Some(Ordering::Less),
+            }
+        }
+        Some(Ordering::Equal)
     }
 }
 
-#[test]
-fn test_domain_name() {
-    assert_eq!(
-        "hello.google.com".parse::<DomainName>().unwrap(),
-        DomainName {
-            is_fqdn: false,
-            inner: vec![
-                Label::from_str("hello").unwrap(),
-                Label::from_str("google").unwrap(),
-                Label::from_str("com").unwrap()
-            ]
+impl Display for Label {
+    fn fmt(&self, format: &mut Formatter) -> std::fmt::Result {
+        let mut output = String::new();
+        for &i_u8 in self.0.iter() {
+            if i_u8 <= 0x20 || i_u8 >= 0x7f {
+                output.push('\\');
+                output += format!("{:03}", i_u8).as_str();
+            } else {
+                /// 46 = '.'  92 == '\'
+                if i_u8 == 46 || i_u8 == 92 {
+                    output.push('\\');
+                }
+                output.push(i_u8.as_char());
+            }
         }
-    );
-    assert_eq!(
-        "*.google.com".parse::<DomainName>().unwrap(),
-        DomainName {
-            is_fqdn: false,
-            inner: vec![
-                Label::from_str("*").unwrap(),
-                Label::from_str("google").unwrap(),
-                Label::from_str("com").unwrap()
-            ]
-        }
-    );
-    assert_eq!(
-        "_srv.google.com".parse::<DomainName>().unwrap(),
-        DomainName {
-            is_fqdn: false,
-            inner: vec![
-                Label::from_str("_srv").unwrap(),
-                Label::from_str("google").unwrap(),
-                Label::from_str("com").unwrap()
-            ]
-        }
-    );
-    assert_eq!(
-        "google.xn--abc.".parse::<DomainName>().unwrap(),
-        DomainName {
-            is_fqdn: true,
-            inner: vec![
-                Label::from_str("google").unwrap(),
-                Label::from_str("xn--abc").unwrap()
-            ]
-        }
-    );
+        write!(format, "{}", output)
+    }
+}
 
-    assert_eq!(
-        "+hello.google.com".parse::<DomainName>().unwrap_err(),
-        ParseZoneDataErr::ValidDomainErr("+hello.google.com".to_owned())
-    );
-    assert_eq!(
-        "hello.&google.com".parse::<DomainName>().unwrap_err(),
-        ParseZoneDataErr::ValidDomainErr("hello.&google.com".to_owned())
-    );
-    assert_eq!("".parse::<DomainName>().unwrap(), DomainName::default());
+impl Label {
+    fn size(&self) -> usize {
+        self.0.len()
+    }
+    fn empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    fn compare_label(mut left: u8, mut right: u8) -> Ordering {
+        if left >= 0x61 && left <= 0x7A {
+            left -= 0x20;
+        }
+        if right >= 0x61 && right <= 0x7A {
+            right -= 0x20;
+        }
+        if left < right {
+            return Ordering::Less;
+        }
+        if left > right {
+            return Ordering::Greater;
+        }
+        Ordering::Equal
+    }
 }

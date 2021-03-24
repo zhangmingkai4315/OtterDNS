@@ -293,12 +293,8 @@ mod storage {
         let zone = example_zone();
         let dname = DNSName::new("baidu.com").unwrap();
         match zone.find(&dname) {
-            Ok(node) => {
-                assert_eq!(node.borrow_mut().rr_sets.len(), 1)
-            }
-            _ => {
-                assert!(false)
-            }
+            Ok(node) => assert_eq!(node.borrow_mut().rr_sets.len(), 1),
+            _ => assert!(false),
         }
     }
 
