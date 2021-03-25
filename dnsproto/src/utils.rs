@@ -1,3 +1,6 @@
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
 // fqdn return a fully qualified domain name.
 pub fn fqdn(domain: &str) -> String {
     if is_fqdn(domain) {
@@ -62,6 +65,12 @@ pub fn is_safe_ascii(c_char: char, is_first: bool) -> bool {
         '*' if is_first => true,  // wildcard
         _ => false,
     }
+}
+
+pub fn calculate_hash<T: Hash>(val: &T) -> u64 {
+    let mut default_hash = DefaultHasher::new();
+    val.hash(&mut default_hash);
+    default_hash.finish()
 }
 
 #[cfg(test)]

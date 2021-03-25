@@ -7,11 +7,22 @@ use nom::lib::std::fmt::Formatter;
 use nom::AsChar;
 use std::cmp::Ordering;
 use std::fmt::Display;
-use std::hash::Hasher;
+use std::hash::{Hash, Hasher};
 use std::str::FromStr;
-
-#[derive(Hash)]
+#[derive(Debug)]
 struct Label(Vec<u8>);
+
+impl Hash for Label {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        for i in self.0.iter() {
+            if *i >= 0x61 && *i <= 0x7A {
+                ((*i - 0x20) as u8).hash(state);
+            } else {
+                (*i).hash(state);
+            }
+        }
+    }
+}
 
 impl FromStr for Label {
     type Err = ParseZoneDataErr;
@@ -51,7 +62,7 @@ impl PartialEq for Label {
             match it {
                 Both(left, right) => match Label::compare_label(*left, *right) {
                     Ordering::Equal => continue,
-                    result => return false,
+                    _ => return false,
                 },
                 Left(_) => return false,
                 Right(_) => return false,
@@ -86,10 +97,10 @@ impl Label {
     }
 
     fn compare_label(mut left: u8, mut right: u8) -> Ordering {
-        if left >= 0x61 && left <= 0x7A {
+        if (0x61..=0x7A).contains(&left) {
             left -= 0x20;
         }
-        if right >= 0x61 && right <= 0x7A {
+        if (0x61..=0x7A).contains(&right) {
             right -= 0x20;
         }
         if left < right {
@@ -111,12 +122,12 @@ pub fn format_rfc4343_label(label: &str) -> Option<Vec<u8>> {
     let mut number = [0u8, 0u8, 0u8];
     let mut result = vec![];
     for i in label.as_bytes() {
-        if *i == 92 && token == false {
+        if *i == 92 && !token {
             // i == "\"
             token = true;
             continue;
         }
-        if token == true {
+        if token {
             if *i >= 48 && *i <= 57 {
                 // i = [0, 9] is number
                 if number_bucket > 0 {
@@ -135,7 +146,7 @@ pub fn format_rfc4343_label(label: &str) -> Option<Vec<u8>> {
                 continue;
             } else if *i == 46 || *i == 92 {
                 // i == "." || i == "\"
-                if token == false {
+                if !token {
                     return None;
                 } else {
                     token = false;
@@ -146,60 +157,10 @@ pub fn format_rfc4343_label(label: &str) -> Option<Vec<u8>> {
         }
         result.push(*i);
     }
-    if token == true {
+    if token {
         return None;
     }
     Some(result)
-}
-
-#[test]
-fn test_format_rfc4343_label() {
-    // \. \\ and  \[000-032] and \[127-255]
-    assert_eq!(
-        format_rfc4343_label("hello\\.world").is_some(),
-        true,
-        "hello\\.world"
-    );
-    assert_eq!(
-        format_rfc4343_label("hello\\000").is_some(),
-        true,
-        "hello\\000"
-    );
-    assert_eq!(
-        format_rfc4343_label("hello\\023").is_some(),
-        true,
-        "hello\\023"
-    );
-    assert_eq!(
-        format_rfc4343_label("hello\\097").is_some(),
-        false,
-        "hello\\097"
-    );
-    assert_eq!(
-        format_rfc4343_label("hello\\\\").is_some(),
-        true,
-        "hello\\\\"
-    );
-    assert_eq!(
-        format_rfc4343_label("hello\\020").is_some(),
-        true,
-        "hello\\020"
-    );
-    assert_eq!(
-        format_rfc4343_label("hello\\ world").is_none(),
-        true,
-        "hello\\ world"
-    );
-    assert_eq!(
-        format_rfc4343_label("hello\\.0"),
-        Some("hello.0".as_bytes().to_vec()),
-        "hello\\.0"
-    );
-    assert_eq!(
-        format_rfc4343_label("hello\\0ab").is_none(),
-        true,
-        "hello\\0ab"
-    );
 }
 
 pub fn valid_label(label: &str) -> bool {
@@ -213,6 +174,7 @@ pub fn valid_label(label: &str) -> bool {
 #[cfg(test)]
 mod label {
     use super::*;
+    use crate::utils::calculate_hash;
     #[test]
     fn test_label_fn() {
         let label = Label::from_str("hello");
@@ -236,6 +198,68 @@ mod label {
         assert_eq!(label == label2, true);
     }
 
+    #[test]
+    fn test_format_rfc4343_label() {
+        // \. \\ and  \[000-032] and \[127-255]
+        assert_eq!(
+            format_rfc4343_label("hello\\.world").is_some(),
+            true,
+            "hello\\.world"
+        );
+        assert_eq!(
+            format_rfc4343_label("hello\\000").is_some(),
+            true,
+            "hello\\000"
+        );
+        assert_eq!(
+            format_rfc4343_label("hello\\023").is_some(),
+            true,
+            "hello\\023"
+        );
+        assert_eq!(
+            format_rfc4343_label("hello\\097").is_some(),
+            false,
+            "hello\\097"
+        );
+        assert_eq!(
+            format_rfc4343_label("hello\\\\").is_some(),
+            true,
+            "hello\\\\"
+        );
+        assert_eq!(
+            format_rfc4343_label("hello\\020").is_some(),
+            true,
+            "hello\\020"
+        );
+        assert_eq!(
+            format_rfc4343_label("hello\\ world").is_none(),
+            true,
+            "hello\\ world"
+        );
+        assert_eq!(
+            format_rfc4343_label("hello\\.0"),
+            Some("hello.0".as_bytes().to_vec()),
+            "hello\\.0"
+        );
+        assert_eq!(
+            format_rfc4343_label("hello\\0ab").is_none(),
+            true,
+            "hello\\0ab"
+        );
+    }
+
+    #[test]
+    fn test_label_hash() {
+        let tests = vec![
+            ("hello", "hEllo", true),
+            ("hello\\.world", "heLLO\\.world", true),
+        ];
+        for (l1, l2, status) in tests {
+            let h1 = calculate_hash(&Label::from_str(l1).unwrap());
+            let h2 = calculate_hash(&Label::from_str(l2).unwrap());
+            assert_eq!(h1 == h2, status)
+        }
+    }
     #[test]
     fn test_valid_label() {
         assert_eq!(valid_label("hello"), true);
