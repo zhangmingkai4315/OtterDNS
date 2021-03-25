@@ -257,6 +257,7 @@ mod message {
     use std::collections::HashMap;
     use std::io::Cursor;
     use std::str::FromStr;
+    use crate::label::Label;
 
     #[test]
     fn test_parse_header() {
@@ -332,9 +333,9 @@ mod message {
         let question = Question {
             q_name: DNSName {
                 labels: vec![
-                    String::from("storage"),
-                    String::from("live"),
-                    String::from("com"),
+                    Label::from_str("storage").unwrap(),
+                    Label::from_str("live").unwrap(),
+                    Label::from_str("com").unwrap(),
                 ],
             },
             q_type: DNSType::A,
@@ -381,9 +382,9 @@ mod message {
         let result = Record::AnswerRecord(ResourceRecord {
             name: DNSName {
                 labels: vec![
-                    String::from("www"),
-                    String::from("google"),
-                    String::from("com"),
+                    Label::from_str("www").unwrap(),
+                    Label::from_str("google").unwrap(),
+                    Label::from_str("com").unwrap(),
                 ],
             },
             qtype: DNSType::A,
@@ -401,7 +402,7 @@ mod message {
         let a = parse_answer(&answer, &original);
         let result = Record::AnswerRecord(ResourceRecord {
             name: DNSName {
-                labels: vec![String::from("google"), String::from("com")],
+                labels: vec![Label::from_str("google").unwrap(), Label::from_str("com").unwrap()],
             },
             qtype: DNSType::NS,
             qclass: DNSClass::IN,

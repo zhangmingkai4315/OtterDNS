@@ -9,8 +9,8 @@ use std::cmp::Ordering;
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 use std::str::FromStr;
-#[derive(Debug)]
-struct Label(Vec<u8>);
+#[derive(Debug, Clone)]
+pub struct Label(Vec<u8>);
 
 impl Hash for Label {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -89,10 +89,18 @@ impl PartialOrd for Label {
 }
 
 impl Label {
-    fn size(&self) -> usize {
+
+    pub fn from_vec(input: Vec<u8>)->Label{
+        Label(input)
+    }
+
+    pub fn len(&self) -> usize {
         self.0.len()
     }
-    fn empty(&self) -> bool {
+    pub fn as_bytes(&self) -> &[u8]{
+        self.0.as_slice()
+    }
+    pub fn empty(&self) -> bool {
         self.0.is_empty()
     }
 
@@ -180,7 +188,7 @@ mod label {
         let label = Label::from_str("hello");
         assert_eq!(label.is_ok(), true);
         let label = label.unwrap();
-        assert_eq!(label.size(), 5);
+        assert_eq!(label.len(), 5);
         assert_eq!(label.empty(), false);
         assert_eq!(label.to_string(), "hello");
         let label2 = Label::from_str("heLLo").unwrap();
@@ -191,7 +199,7 @@ mod label {
         let label = Label::from_str("hello\\.bai");
         assert_eq!(label.is_ok(), true);
         let label = label.unwrap();
-        assert_eq!(label.size(), 9);
+        assert_eq!(label.len(), 9);
         assert_eq!(label.empty(), false);
         assert_eq!(label.to_string(), "hello\\.bai");
         let label2 = Label::from_str("heLLo\\.bai").unwrap();

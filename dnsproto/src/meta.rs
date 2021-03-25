@@ -233,7 +233,7 @@ impl ResourceRecord {
     pub fn get_dname(&self) -> &DNSName {
         &self.name
     }
-    pub fn get_label_iter(&self) -> Iter<'_, String> {
+    pub fn get_label_iter(&self) -> Iter<'_, Label> {
         self.name.labels.iter()
     }
     pub fn encode<'a>(
@@ -390,6 +390,7 @@ impl Into<u8> for RCode {
 
 use nom::lib::std::slice::Iter;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+use crate::label::Label;
 
 /// https://tools.ietf.org/html/rfc1035#section-3.2.4
 /// specify the class of the dns record data
