@@ -1,5 +1,5 @@
 // http://www.networksorcery.com/enp/protocol/dns.htm
-use crate::utils::valid_label;
+use crate::label::valid_label;
 use nom::{Err::Incomplete, IResult, Needed};
 
 // use crate::types::{DNSFrameEncoder, get_dns_struct_from_raw};
