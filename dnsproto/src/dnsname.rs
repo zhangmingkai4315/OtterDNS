@@ -37,7 +37,7 @@ impl DNSName {
                 inner_vec.push(Label::from_str(need_join.as_str())?);
                 need_join = String::new();
             }else{
-                inner_vec.push(Label::from_str(need_join.as_str())?);
+                inner_vec.push(Label::from_str(label)?);
             }
         }
         Ok(DNSName { labels: inner_vec })
@@ -100,7 +100,7 @@ impl DNSName {
         true
     }
 
-    pub fn to_binary(&self, compression: Option<(&mut HashMap<String, usize>, usize)>) -> Vec<u8> {
+    pub fn to_binary(&self, compression: Option<(&mut HashMap<Vec<Label>, usize>, usize)>) -> Vec<u8> {
         let mut binary_store: Vec<u8> = vec![];
         let mut index = 0;
         let mut with_pointer = false;
@@ -108,9 +108,12 @@ impl DNSName {
         match compression {
             Some((store, offset)) => {
                 for label in self.labels.iter() {
-                    let current_key: String = (&self.labels[index..]).join(".");
+                    let current_key = self.labels[index..]
+                        .iter().map(|x|{
+                        x.clone()
+                    }).collect::<Vec<Label>>();
                     index += 1;
-                    match store.get(current_key.as_str()) {
+                    match store.get(&current_key) {
                         Some(location) => {
                             let pointer = (*location) | 0xc000;
                             binary_store.push((pointer >> 8) as u8);
@@ -385,8 +388,8 @@ mod dnsname {
                 Err(err) => assert!(false, format!("should return name success: {:?}", err)),
             }
         }
-        let mut compression: HashMap<String, usize> = HashMap::new();
-        compression.insert("com".to_owned(), 10);
+        let mut compression: HashMap<Vec<Label>, usize> = HashMap::new();
+        compression.insert(vec![Label::from_str("com").unwrap()], 10);
         let cases = vec![
             (
                 "www.baidu.com.",

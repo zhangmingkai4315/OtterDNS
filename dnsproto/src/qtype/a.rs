@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::net::Ipv4Addr;
 use std::str::FromStr;
 use std::{fmt, fmt::Formatter};
+use crate::label::Label;
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct DnsTypeA(Ipv4Addr);
@@ -31,7 +32,7 @@ impl DNSWireFrame for DnsTypeA {
 
     fn encode(
         &self,
-        _: Option<(&mut HashMap<String, usize, RandomState>, usize)>,
+        _: Option<(&mut HashMap<Vec<Label>, usize, RandomState>, usize)>,
     ) -> Result<Vec<u8>, DNSProtoErr> {
         Ok(self.0.octets().to_vec())
     }

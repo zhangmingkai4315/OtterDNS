@@ -6,6 +6,8 @@ use std::collections::HashMap;
 use std::fmt::{self, Formatter};
 use std::io::{Cursor, Write};
 use std::net::{Ipv4Addr, Ipv6Addr};
+use crate::label::Label;
+
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[repr(u16)]
 pub enum EDNSOptionCode {
@@ -142,7 +144,7 @@ impl DNSWireFrame for DNSTypeOpt {
     }
     fn encode(
         &self,
-        _: Option<(&mut HashMap<String, usize>, usize)>,
+        _: Option<(&mut HashMap<Vec<Label>, usize>, usize)>,
     ) -> Result<Vec<u8>, DNSProtoErr> {
         let frame = vec![];
         let mut cursor = Cursor::new(frame);

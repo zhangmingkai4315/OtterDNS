@@ -15,8 +15,8 @@ pub struct Label(Vec<u8>);
 impl Hash for Label {
     fn hash<H: Hasher>(&self, state: &mut H) {
         for i in self.0.iter() {
-            if *i >= 0x61 && *i <= 0x7A {
-                ((*i - 0x20) as u8).hash(state);
+            if *i >= 65 && *i <= 90 {
+                (*i + 32u8).hash(state);
             } else {
                 (*i).hash(state);
             }
@@ -55,6 +55,7 @@ impl Display for Label {
         write!(format, "{}", output)
     }
 }
+impl Eq for Label {}
 
 impl PartialEq for Label {
     fn eq(&self, other: &Self) -> bool {

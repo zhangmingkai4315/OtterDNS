@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
 use std::str::FromStr;
+use crate::label::Label;
 
 #[derive(Debug, PartialEq)]
 pub struct DnsTypeSOA {
@@ -168,7 +169,7 @@ impl DNSWireFrame for DnsTypeSOA {
     }
     fn encode(
         &self,
-        compression: Option<(&mut HashMap<String, usize>, usize)>,
+        compression: Option<(&mut HashMap<Vec<Label>, usize>, usize)>,
     ) -> Result<Vec<u8>, DNSProtoErr>
     where
         Self: Sized,
@@ -263,7 +264,7 @@ fn test_soa_encode() {
         }
     }
     let mut compression_map = HashMap::new();
-    compression_map.insert("com".to_owned(), 12);
+    compression_map.insert(vec![Label::from_str("com").unwrap()], 12);
     match soa.encode(Some((&mut compression_map, 0))) {
         Ok(v) => {
             // println!("{:x?}", v);

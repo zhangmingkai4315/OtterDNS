@@ -5,6 +5,7 @@ use nom::lib::std::collections::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
 use std::str::FromStr;
+use crate::label::Label;
 
 #[derive(Debug, PartialEq)]
 pub struct DnsTypeNS {
@@ -51,7 +52,7 @@ impl DNSWireFrame for DnsTypeNS {
     }
     fn encode(
         &self,
-        compression: Option<(&mut HashMap<String, usize>, usize)>,
+        compression: Option<(&mut HashMap<Vec<Label>, usize>, usize)>,
     ) -> Result<Vec<u8>, DNSProtoErr> {
         Ok(self.ns.to_binary(compression))
     }
@@ -72,7 +73,7 @@ fn test_ns_encode() {
         }
     }
     let mut compression_map = HashMap::new();
-    compression_map.insert("gtld-servers.net".to_owned(), 23);
+    compression_map.insert(vec![Label::from_str("gtld-servers").unwrap(),Label::from_str("net").unwrap()], 23);
     let compression_vec: Vec<u8> = vec![1, 102, 192, 23];
     match ns.encode(Some((&mut compression_map, 30))) {
         Ok(ns_data) => assert_eq!(ns_data, compression_vec),

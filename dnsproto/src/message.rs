@@ -9,6 +9,7 @@ use nom::number::complete::{be_u16, be_u32};
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::io::Cursor;
+use crate::label::Label;
 // use std::str::FromStr;
 
 #[derive(Debug, PartialEq)]
@@ -128,7 +129,7 @@ impl Record {
     fn encode<'a>(
         &self,
         cursor: &'a mut Cursor<Vec<u8>>,
-        compression: Option<&mut HashMap<String, usize>>,
+        compression: Option<&mut HashMap<Vec<Label>, usize>>,
     ) -> Result<&'a mut Cursor<Vec<u8>>, DNSProtoErr> {
         match self {
             Record::AnswerRecord(answer) => {
@@ -561,7 +562,7 @@ mod message {
         };
 
         let mut compression = HashMap::new();
-        compression.insert("com".to_owned(), 2usize);
+        compression.insert(vec![Label::from_str("com").unwrap()], 2usize);
         let compression = Some(&mut compression);
         let ref mut cursor = Cursor::new(vec![]);
         match question.encode(cursor, compression) {
@@ -605,7 +606,10 @@ mod message {
         }
 
         let ref mut compression = HashMap::new();
-        compression.insert("gtld-servers.net".to_owned(), 2usize);
+        compression.insert(vec![
+            Label::from_str("gtld-servers").unwrap(),
+            Label::from_str("net").unwrap()
+        ], 2usize);
         let ref mut cursor = Cursor::new(vec![]);
         match answer.encode(cursor, Some(compression)) {
             Ok(cursor) => {

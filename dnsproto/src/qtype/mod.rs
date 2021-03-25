@@ -17,6 +17,7 @@ pub use ns::DnsTypeNS;
 pub use opt::DNSTypeOpt;
 pub use soa::DnsTypeSOA;
 use std::str::FromStr;
+use crate::label::Label;
 
 // for wireframe convert
 pub trait DNSWireFrame: Debug + Display {
@@ -26,7 +27,7 @@ pub trait DNSWireFrame: Debug + Display {
     fn encode(
         &self,
         // frame: &mut Cursor<Vec<u8>>,
-        compression: Option<(&mut HashMap<String, usize>, usize)>,
+        compression: Option<(&mut HashMap<Vec<Label>, usize>, usize)>,
     ) -> Result<Vec<u8>, DNSProtoErr>;
 }
 

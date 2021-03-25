@@ -144,7 +144,7 @@ impl Question {
     pub fn encode<'a>(
         &self,
         cursor: &'a mut Cursor<Vec<u8>>,
-        compression: Option<&mut HashMap<String, usize>>,
+        compression: Option<&mut HashMap<Vec<Label>, usize>>,
     ) -> Result<&'a mut Cursor<Vec<u8>>, DNSProtoErr> {
         let frame = {
             match compression {
@@ -239,7 +239,7 @@ impl ResourceRecord {
     pub fn encode<'a>(
         &self,
         cursor: &'a mut Cursor<Vec<u8>>,
-        compression: Option<&mut HashMap<String, usize>>,
+        compression: Option<&mut HashMap<Vec<Label>, usize>>,
     ) -> Result<&'a mut Cursor<Vec<u8>>, DNSProtoErr> {
         let offset = cursor.position();
         if self.data.is_none() {

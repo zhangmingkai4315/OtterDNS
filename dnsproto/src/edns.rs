@@ -6,6 +6,7 @@ use crate::qtype::DNSWireFrame;
 use byteorder::{BigEndian, WriteBytesExt};
 use nom::lib::std::collections::HashMap;
 use std::io::{Cursor, Write};
+use crate::label::Label;
 
 #[derive(Debug)]
 pub struct EDNS {
@@ -47,7 +48,7 @@ impl EDNS {
     pub fn encode<'a>(
         &self,
         cursor: &'a mut Cursor<Vec<u8>>,
-        _compression: Option<&mut HashMap<String, usize>>,
+        _compression: Option<&mut HashMap<Vec<Label>, usize>>,
     ) -> Result<&'a mut Cursor<Vec<u8>>, DNSProtoErr> {
         cursor.write_u8(0)?; // root
         cursor.write_u16::<BigEndian>(self.qtype as u16)?;
