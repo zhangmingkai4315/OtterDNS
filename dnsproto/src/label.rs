@@ -10,7 +10,7 @@ use std::fmt::Display;
 use std::hash::Hasher;
 use std::str::FromStr;
 
-#[derive(Hash, PartialOrd, PartialEq)]
+#[derive(Hash)]
 struct Label(Vec<u8>);
 
 impl FromStr for Label {
@@ -19,8 +19,10 @@ impl FromStr for Label {
         if !valid_label(input) {
             return Err(ParseZoneDataErr::ParseDNSFromStrError(input.to_owned()));
         }
-
-        Ok(Label(input.as_bytes().to_vec()))
+        match format_rfc4343_label(input) {
+            Some(val) => Ok(Label(val)),
+            _ => Err(ParseZoneDataErr::ParseDNSFromStrError(input.to_string())),
+        }
     }
 }
 impl Display for Label {
@@ -40,6 +42,38 @@ impl Display for Label {
             }
         }
         write!(format, "{}", output)
+    }
+}
+
+impl PartialEq for Label {
+    fn eq(&self, other: &Self) -> bool {
+        for it in self.0.iter().zip_longest(other.0.iter()) {
+            match it {
+                Both(left, right) => match Label::compare_label(*left, *right) {
+                    Ordering::Equal => continue,
+                    result => return false,
+                },
+                Left(_) => return false,
+                Right(_) => return false,
+            }
+        }
+        true
+    }
+}
+
+impl PartialOrd for Label {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        for it in self.0.iter().zip_longest(other.0.iter()) {
+            match it {
+                Both(left, right) => match Label::compare_label(*left, *right) {
+                    Ordering::Equal => continue,
+                    result => return Some(result),
+                },
+                Left(_) => return Some(Ordering::Greater),
+                Right(_) => return Some(Ordering::Less),
+            }
+        }
+        Some(Ordering::Equal)
     }
 }
 
@@ -68,10 +102,14 @@ impl Label {
     }
 }
 
-pub fn is_rfc4343_allowed_label(label: &str) -> bool {
+/// format_rfc4343_label will check the label is valid label for rfc4343 and format
+/// the label, translate the text label to binary array
+/// for example : hello\.world will save as hello.world no more escape.
+pub fn format_rfc4343_label(label: &str) -> Option<Vec<u8>> {
     let mut token = false;
     let mut number_bucket = 2;
     let mut number = [0u8, 0u8, 0u8];
+    let mut result = vec![];
     for i in label.as_bytes() {
         if *i == 92 && token == false {
             // i == "\"
@@ -86,54 +124,82 @@ pub fn is_rfc4343_allowed_label(label: &str) -> bool {
                     number_bucket -= 1;
                 } else {
                     number[2] = *i - 48;
-                    println!("{:?}", number);
                     let number_value = number[0] * 100 + number[1] * 10 + number[2];
                     if number_value <= 0x20 || number_value >= 0x7f {
+                        result.push(number_value);
                         token = false;
                     } else {
-                        return false;
+                        return None;
                     }
                 }
                 continue;
             } else if *i == 46 || *i == 92 {
                 // i == "." || i == "\"
                 if token == false {
-                    return false;
+                    return None;
                 } else {
-                    token == false;
+                    token = false;
                 }
             } else {
-                return false;
+                return None;
             }
         }
-        token = false
+        result.push(*i);
     }
     if token == true {
-        return false;
+        return None;
     }
-    true
+    Some(result)
 }
 
 #[test]
-fn test_is_rfc4343_allowed_label() {
+fn test_format_rfc4343_label() {
     // \. \\ and  \[000-032] and \[127-255]
     assert_eq!(
-        is_rfc4343_allowed_label("hello\\.world"),
+        format_rfc4343_label("hello\\.world").is_some(),
         true,
         "hello\\.world"
     );
-    assert_eq!(is_rfc4343_allowed_label("hello\\000"), true, "hello\\000");
-    assert_eq!(is_rfc4343_allowed_label("hello\\023"), true, "hello\\023");
-    assert_eq!(is_rfc4343_allowed_label("hello\\097"), false, "hello\\097");
-    assert_eq!(is_rfc4343_allowed_label("hello\\\\"), true, "hello\\\\");
-    assert_eq!(is_rfc4343_allowed_label("hello\\020"), true, "hello\\020");
     assert_eq!(
-        is_rfc4343_allowed_label("hello\\ world"),
+        format_rfc4343_label("hello\\000").is_some(),
+        true,
+        "hello\\000"
+    );
+    assert_eq!(
+        format_rfc4343_label("hello\\023").is_some(),
+        true,
+        "hello\\023"
+    );
+    assert_eq!(
+        format_rfc4343_label("hello\\097").is_some(),
         false,
+        "hello\\097"
+    );
+    assert_eq!(
+        format_rfc4343_label("hello\\\\").is_some(),
+        true,
+        "hello\\\\"
+    );
+    assert_eq!(
+        format_rfc4343_label("hello\\020").is_some(),
+        true,
+        "hello\\020"
+    );
+    assert_eq!(
+        format_rfc4343_label("hello\\ world").is_none(),
+        true,
         "hello\\ world"
     );
-    assert_eq!(is_rfc4343_allowed_label("hello\\.0"), true, "hello\\.0");
-    assert_eq!(is_rfc4343_allowed_label("hello\\0ab"), false, "hello\\0ab");
+    assert_eq!(
+        format_rfc4343_label("hello\\.0"),
+        Some("hello.0".as_bytes().to_vec()),
+        "hello\\.0"
+    );
+    assert_eq!(
+        format_rfc4343_label("hello\\0ab").is_none(),
+        true,
+        "hello\\0ab"
+    );
 }
 
 pub fn valid_label(label: &str) -> bool {
@@ -163,9 +229,9 @@ mod label {
         let label = Label::from_str("hello\\.bai");
         assert_eq!(label.is_ok(), true);
         let label = label.unwrap();
-        assert_eq!(label.size(), 10);
+        assert_eq!(label.size(), 9);
         assert_eq!(label.empty(), false);
-        assert_eq!(label.to_string(), "hello");
+        assert_eq!(label.to_string(), "hello\\.bai");
         let label2 = Label::from_str("heLLo\\.bai").unwrap();
         assert_eq!(label == label2, true);
     }
