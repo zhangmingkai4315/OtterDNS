@@ -1,11 +1,11 @@
 use crate::dnsname::{parse_name, DNSName};
 use crate::errors::{DNSProtoErr, ParseZoneDataErr};
+use crate::label::Label;
 use crate::qtype::DNSWireFrame;
 use nom::lib::std::collections::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
 use std::str::FromStr;
-use crate::label::Label;
 
 #[derive(Debug, PartialEq)]
 pub struct DnsTypeNS {
@@ -73,7 +73,13 @@ fn test_ns_encode() {
         }
     }
     let mut compression_map = HashMap::new();
-    compression_map.insert(vec![Label::from_str("gtld-servers").unwrap(),Label::from_str("net").unwrap()], 23);
+    compression_map.insert(
+        vec![
+            Label::from_str("gtld-servers").unwrap(),
+            Label::from_str("net").unwrap(),
+        ],
+        23,
+    );
     let compression_vec: Vec<u8> = vec![1, 102, 192, 23];
     match ns.encode(Some((&mut compression_map, 30))) {
         Ok(ns_data) => assert_eq!(ns_data, compression_vec),

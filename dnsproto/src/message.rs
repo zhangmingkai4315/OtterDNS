@@ -2,6 +2,7 @@
 use crate::dnsname::parse_name;
 use crate::edns::EDNS;
 use crate::errors::DNSProtoErr;
+use crate::label::Label;
 use crate::meta::{DNSClass, DNSType};
 use crate::meta::{Header, OpCode, Question, RCode, ResourceRecord};
 use crate::qtype::decode_message_data;
@@ -9,7 +10,6 @@ use nom::number::complete::{be_u16, be_u32};
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::io::Cursor;
-use crate::label::Label;
 // use std::str::FromStr;
 
 #[derive(Debug, PartialEq)]
@@ -250,6 +250,7 @@ named_args!(parse_message<'a>(original: &[u8])<&'a [u8], Message>,
 mod message {
     use crate::dnsname::DNSName;
     use crate::edns::EDNS;
+    use crate::label::Label;
     use crate::message::{
         parse_answer, parse_header_frame, parse_message, parse_question, Message, Record,
     };
@@ -258,7 +259,6 @@ mod message {
     use std::collections::HashMap;
     use std::io::Cursor;
     use std::str::FromStr;
-    use crate::label::Label;
 
     #[test]
     fn test_parse_header() {
@@ -403,7 +403,10 @@ mod message {
         let a = parse_answer(&answer, &original);
         let result = Record::AnswerRecord(ResourceRecord {
             name: DNSName {
-                labels: vec![Label::from_str("google").unwrap(), Label::from_str("com").unwrap()],
+                labels: vec![
+                    Label::from_str("google").unwrap(),
+                    Label::from_str("com").unwrap(),
+                ],
             },
             qtype: DNSType::NS,
             qclass: DNSClass::IN,
@@ -606,10 +609,13 @@ mod message {
         }
 
         let ref mut compression = HashMap::new();
-        compression.insert(vec![
-            Label::from_str("gtld-servers").unwrap(),
-            Label::from_str("net").unwrap()
-        ], 2usize);
+        compression.insert(
+            vec![
+                Label::from_str("gtld-servers").unwrap(),
+                Label::from_str("net").unwrap(),
+            ],
+            2usize,
+        );
         let ref mut cursor = Cursor::new(vec![]);
         match answer.encode(cursor, Some(compression)) {
             Ok(cursor) => {

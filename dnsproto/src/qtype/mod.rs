@@ -9,6 +9,7 @@ use nom::lib::std::collections::HashMap;
 use std::fmt::Debug;
 
 use crate::errors::ParseZoneDataErr;
+use crate::label::Label;
 use crate::meta::DNSType;
 pub use a::DnsTypeA;
 pub use aaaa::DnsTypeAAAA;
@@ -17,7 +18,6 @@ pub use ns::DnsTypeNS;
 pub use opt::DNSTypeOpt;
 pub use soa::DnsTypeSOA;
 use std::str::FromStr;
-use crate::label::Label;
 
 // for wireframe convert
 pub trait DNSWireFrame: Debug + Display {

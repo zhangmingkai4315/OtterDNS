@@ -1,10 +1,10 @@
 use crate::errors::{DNSProtoErr, ParseZoneDataErr};
+use crate::label::Label;
 use crate::qtype::DNSWireFrame;
 use std::collections::HashMap;
 use std::net::Ipv6Addr;
 use std::str::FromStr;
 use std::{fmt, fmt::Formatter};
-use crate::label::Label;
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct DnsTypeAAAA(Ipv6Addr);

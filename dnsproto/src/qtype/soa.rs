@@ -1,5 +1,6 @@
 use crate::dnsname::{parse_name, DNSName};
 use crate::errors::{DNSProtoErr, ParseZoneDataErr};
+use crate::label::Label;
 use crate::qtype::DNSWireFrame;
 use nom::bytes::complete::{tag, take_while};
 use nom::character::complete::digit1;
@@ -9,7 +10,6 @@ use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
 use std::str::FromStr;
-use crate::label::Label;
 
 #[derive(Debug, PartialEq)]
 pub struct DnsTypeSOA {

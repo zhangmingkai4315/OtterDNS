@@ -1,11 +1,11 @@
 use crate::errors::{DNSProtoErr, ParseZoneDataErr};
+use crate::label::Label;
 use crate::qtype::DNSWireFrame;
 use nom::lib::std::collections::hash_map::RandomState;
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
 use std::str::FromStr;
 use std::{fmt, fmt::Formatter};
-use crate::label::Label;
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct DnsTypeA(Ipv4Addr);

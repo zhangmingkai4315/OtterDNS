@@ -1,4 +1,5 @@
 use crate::errors::DNSProtoErr;
+use crate::label::Label;
 use crate::qtype::DNSWireFrame;
 use byteorder::{BigEndian, WriteBytesExt};
 use nom::number::complete::{be_u16, be_u8};
@@ -6,7 +7,6 @@ use std::collections::HashMap;
 use std::fmt::{self, Formatter};
 use std::io::{Cursor, Write};
 use std::net::{Ipv4Addr, Ipv6Addr};
-use crate::label::Label;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[repr(u16)]

@@ -388,9 +388,9 @@ impl Into<u8> for RCode {
     }
 }
 
+use crate::label::Label;
 use nom::lib::std::slice::Iter;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use crate::label::Label;
 
 /// https://tools.ietf.org/html/rfc1035#section-3.2.4
 /// specify the class of the dns record data

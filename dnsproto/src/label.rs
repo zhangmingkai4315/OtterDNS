@@ -72,7 +72,11 @@ impl PartialEq for Label {
         true
     }
 }
-
+impl Ord for Label {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
 impl PartialOrd for Label {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         for it in self.0.iter().zip_longest(other.0.iter()) {
@@ -90,18 +94,20 @@ impl PartialOrd for Label {
 }
 
 impl Label {
-
-    pub fn from_vec(input: Vec<u8>)->Label{
+    pub fn root() -> Label {
+        Label(vec![])
+    }
+    pub fn from_vec(input: Vec<u8>) -> Label {
         Label(input)
     }
 
     pub fn len(&self) -> usize {
         self.0.len()
     }
-    pub fn as_bytes(&self) -> &[u8]{
+    pub fn as_bytes(&self) -> &[u8] {
         self.0.as_slice()
     }
-    pub fn empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
@@ -190,7 +196,7 @@ mod label {
         assert_eq!(label.is_ok(), true);
         let label = label.unwrap();
         assert_eq!(label.len(), 5);
-        assert_eq!(label.empty(), false);
+        assert_eq!(label.is_empty(), false);
         assert_eq!(label.to_string(), "hello");
         let label2 = Label::from_str("heLLo").unwrap();
         assert_eq!(label == label2, true);
@@ -201,7 +207,7 @@ mod label {
         assert_eq!(label.is_ok(), true);
         let label = label.unwrap();
         assert_eq!(label.len(), 9);
-        assert_eq!(label.empty(), false);
+        assert_eq!(label.is_empty(), false);
         assert_eq!(label.to_string(), "hello\\.bai");
         let label2 = Label::from_str("heLLo\\.bai").unwrap();
         assert_eq!(label == label2, true);

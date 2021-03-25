@@ -7,17 +7,17 @@ use crate::rbtree::RBTree;
 use dnsproto::dnsname::DNSName;
 use dnsproto::meta::{DNSType, RRSet, ResourceRecord};
 // use dnsproto::qtype::{DNSWireFrame, DnsTypeSOA};
-use std::borrow::Borrow;
+use dnsproto::label::Label;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
 #[derive(Debug)]
 pub struct RBTreeNode {
-    label: String,
+    label: Label,
     rr_sets: HashMap<DNSType, RRSet>,
     parent: RefCell<Weak<RefCell<RBTreeNode>>>,
-    subtree: Option<RefCell<RBTree<String, Rc<RefCell<RBTreeNode>>>>>,
+    subtree: Option<RefCell<RBTree<Label, Rc<RefCell<RBTreeNode>>>>>,
 }
 #[derive(Debug)]
 pub struct RBZone(Rc<RefCell<RBTreeNode>>);
@@ -30,7 +30,7 @@ impl RBZone {
     }
     pub fn new_root() -> RBZone {
         let root = RBTreeNode {
-            label: "".to_string(),
+            label: Label::root(),
             rr_sets: Default::default(),
             parent: RefCell::new(Default::default()),
             subtree: None,
@@ -92,7 +92,6 @@ impl RBZone {
             return Ok(self.0.clone());
         }
         let mut current = self.0.clone();
-        let mut parent_node = current.clone();
         for label in name.labels.iter().rev() {
             labels_count -= 1;
             let clone = current.clone();
@@ -112,7 +111,6 @@ impl RBZone {
                 if labels_count == 0 {
                     return Ok(node);
                 }
-                parent_node = node.clone();
                 current = node;
                 continue;
             }
@@ -204,7 +202,7 @@ impl RBTreeNode {
         DNSName { labels }
     }
     /// create a new node from dns label and with default values.
-    fn from_label(label: String) -> Rc<RefCell<RBTreeNode>> {
+    fn from_label(label: Label) -> Rc<RefCell<RBTreeNode>> {
         Rc::new(RefCell::new(RBTreeNode {
             label,
             rr_sets: Default::default(),
@@ -218,6 +216,8 @@ impl RBTreeNode {
 mod storage {
     use super::*;
     use dnsproto::meta::DNSClass;
+    use std::str::FromStr;
+
     fn example_zone() -> RBZone {
         let zone: RBZone = RBZone::new_root();
         let dnsnames = vec![
@@ -249,20 +249,20 @@ mod storage {
     #[test]
     fn test_rb_node() {
         let parent_node = Rc::new(RefCell::new(RBTreeNode {
-            label: "com".to_string(),
+            label: Label::from_str("com").unwrap(),
             rr_sets: Default::default(),
             parent: RefCell::new(Weak::new()),
             subtree: None,
         }));
         let node = Rc::new(RefCell::new(RBTreeNode {
-            label: "baidu".to_string(),
+            label: Label::from_str("baidu").unwrap(),
             rr_sets: Default::default(),
             parent: RefCell::new(Weak::new()),
             subtree: None,
         }));
         *node.borrow_mut().parent.borrow_mut() = Rc::downgrade(&parent_node);
         let child = RBTreeNode {
-            label: "www".to_string(),
+            label: Label::from_str("www").unwrap(),
             rr_sets: Default::default(),
             parent: RefCell::new(Weak::new()),
             subtree: None,
@@ -270,7 +270,7 @@ mod storage {
         *child.parent.borrow_mut() = Rc::downgrade(&node);
         assert_eq!(child.get_name().to_string(), "www.baidu.com.".to_owned());
         let node = RBTreeNode {
-            label: "".to_string(),
+            label: Label::root(),
             rr_sets: Default::default(),
             parent: RefCell::new(Weak::new()),
             subtree: None,
@@ -281,7 +281,7 @@ mod storage {
     fn test_find_or_insert() {
         let zone = RBZone::new_root();
         let node = zone.find_or_insert(&DNSName::new("www.baidu.com").unwrap());
-        assert_eq!(node.borrow_mut().label, "www");
+        assert_eq!(node.borrow_mut().label, Label::from_str("www").unwrap());
         assert_eq!(
             node.borrow_mut().get_name(),
             DNSName::new("www.baidu.com").unwrap()
@@ -301,7 +301,7 @@ mod storage {
     #[test]
     fn test_node_rr_method() {
         let mut node = RBTreeNode {
-            label: "com".to_string(),
+            label: Label::from_str("com").unwrap(),
             rr_sets: HashMap::new(),
             parent: RefCell::new(Weak::new()),
             subtree: None,

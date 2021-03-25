@@ -1,12 +1,12 @@
 // http://www.networksorcery.com/enp/protocol/dns.htm
 use crate::dnsname::DNSName;
 use crate::errors::DNSProtoErr;
+use crate::label::Label;
 use crate::meta::DNSType;
 use crate::qtype::DNSWireFrame;
 use byteorder::{BigEndian, WriteBytesExt};
 use nom::lib::std::collections::HashMap;
 use std::io::{Cursor, Write};
-use crate::label::Label;
 
 #[derive(Debug)]
 pub struct EDNS {

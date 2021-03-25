@@ -1,42 +1,41 @@
 // http://www.networksorcery.com/enp/protocol/dns.htm
-use crate::label::{Label};
+use crate::label::Label;
 use nom::{Err::Incomplete, IResult, Needed};
 
 // use crate::types::{DNSFrameEncoder, get_dns_struct_from_raw};
-use crate::errors::{ParseZoneDataErr, DNSProtoErr};
+use crate::errors::{DNSProtoErr, ParseZoneDataErr};
 use nom::lib::std::collections::HashMap;
 use nom::lib::std::fmt::Formatter;
+use std::fmt::Display;
 use std::ops::Add;
 use std::str::FromStr;
-use std::fmt::Display;
+// use crate::utils::calculate_hash;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct DNSName {
     pub labels: Vec<Label>,
 }
 
-
 impl DNSName {
     pub fn new(domain: &str) -> Result<DNSName, ParseZoneDataErr> {
-        if domain.is_empty() || domain.eq(".")  {
+        if domain.is_empty() || domain.eq(".") {
             return Ok(DNSName::default());
         }
         let mut inner_vec = vec![];
         let mut need_join = String::new();
         for label in domain.trim().split('.') {
-
-            if label.is_empty(){
+            if label.is_empty() {
                 continue;
             }
-            if label.ends_with('\\'){
+            if label.ends_with('\\') {
                 need_join = label.to_string();
-                continue
+                continue;
             }
-            if need_join.len() > 0{
+            if !need_join.is_empty() {
                 need_join = need_join.add(label);
                 inner_vec.push(Label::from_str(need_join.as_str())?);
                 need_join = String::new();
-            }else{
+            } else {
                 inner_vec.push(Label::from_str(label)?);
             }
         }
@@ -53,11 +52,11 @@ impl DNSName {
     pub fn pop_back(&mut self) -> Option<Label> {
         self.labels.pop()
     }
-    pub fn push_back(&mut self, label: &str) -> Result<(), DNSProtoErr>{
+    pub fn push_back(&mut self, label: &str) -> Result<(), DNSProtoErr> {
         self.labels.push(Label::from_str(label)?);
         Ok(())
     }
-    pub fn push_front(&mut self, label: &str) -> Result<(), DNSProtoErr>{
+    pub fn push_front(&mut self, label: &str) -> Result<(), DNSProtoErr> {
         self.labels.insert(0, Label::from_str(label)?);
         Ok(())
     }
@@ -100,18 +99,27 @@ impl DNSName {
         true
     }
 
-    pub fn to_binary(&self, compression: Option<(&mut HashMap<Vec<Label>, usize>, usize)>) -> Vec<u8> {
+    pub fn to_binary(
+        &self,
+        compression: Option<(&mut HashMap<Vec<Label>, usize>, usize)>,
+    ) -> Vec<u8> {
         let mut binary_store: Vec<u8> = vec![];
         let mut index = 0;
         let mut with_pointer = false;
         let mut current_offset = 0;
         match compression {
             Some((store, offset)) => {
+                // Todo replace with hash u64
+                // let mut cal_last = 0;
+                // let hash_val = self.labels.iter().rev().map(|label|{
+                //     cal_last = calculate_hash(label)  + cal_last;
+                //     cal_last
+                // }).collect::<Vec<u64>>().iter().rev().collect::<Vec<u64>>();
                 for label in self.labels.iter() {
                     let current_key = self.labels[index..]
-                        .iter().map(|x|{
-                        x.clone()
-                    }).collect::<Vec<Label>>();
+                        .iter()
+                        .map(|x| x.clone())
+                        .collect::<Vec<Label>>();
                     index += 1;
                     match store.get(&current_key) {
                         Some(location) => {
@@ -232,8 +240,8 @@ pub fn parse_name<'a>(input: &'a [u8], original: &'_ [u8]) -> IResult<&'a [u8], 
 #[cfg(test)]
 mod dnsname {
     use crate::dnsname::{parse_name, DNSName};
-    use std::collections::HashMap;
     use crate::label::Label;
+    use std::collections::HashMap;
     use std::str::FromStr;
 
     #[test]
@@ -413,7 +421,7 @@ mod dnsname {
         let mut dnsname = DNSName::new("www.baidu.com").unwrap();
         let root = DNSName::new("baidu.com").unwrap();
         assert_eq!(dnsname.make_relative(&root), true);
-        assert_eq!(dnsname.labels, vec![ Label::from_str("www").unwrap()]);
+        assert_eq!(dnsname.labels, vec![Label::from_str("www").unwrap()]);
 
         let mut dnsname = DNSName::new("www.baidu.com").unwrap();
         let root = DNSName::new("www.baidu.com").unwrap();
@@ -423,17 +431,24 @@ mod dnsname {
         let mut dnsname = DNSName::new("www.com").unwrap();
         let root = DNSName::new("baidu.com").unwrap();
         assert_eq!(dnsname.make_relative(&root), false);
-        assert_eq!(dnsname.labels, vec![
-            Label::from_str("www").unwrap(),
-            Label::from_str("com").unwrap()
-        ]);
+        assert_eq!(
+            dnsname.labels,
+            vec![
+                Label::from_str("www").unwrap(),
+                Label::from_str("com").unwrap()
+            ]
+        );
 
         let mut dnsname = DNSName::new("www.baidu.com").unwrap();
         let root = DNSName::new("baidu.net").unwrap();
         assert_eq!(dnsname.make_relative(&root), false);
-        assert_eq!(dnsname.labels, vec![
-            Label::from_str("www").unwrap(),
-            Label::from_str("baidu").unwrap(),
-            Label::from_str("com").unwrap()]);
+        assert_eq!(
+            dnsname.labels,
+            vec![
+                Label::from_str("www").unwrap(),
+                Label::from_str("baidu").unwrap(),
+                Label::from_str("com").unwrap()
+            ]
+        );
     }
 }
