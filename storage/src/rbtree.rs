@@ -335,6 +335,14 @@ where
         id
     }
 
+    fn max(mut id: usize, nodes: &[Node<K, V>]) -> usize {
+        while let Some(right) = nodes[id].right {
+            id = right;
+        }
+        id
+    }
+
+
     fn put(
         maybe_id: Option<usize>,
         parent: Option<usize>,
@@ -524,6 +532,8 @@ where
     pub fn keys(&self) -> Vec<&K> {
         self.nodes.iter().map(|node| &node.key).collect::<Vec<&K>>()
     }
+    pub fn values(&self) -> Vec<&V> { self.nodes.iter().map(|node| &node.value).collect::<Vec<&V>>() }
+
 
     pub fn is_23(&self) -> bool {
         self.is_node_23(self.root)
@@ -626,6 +636,19 @@ where
         } else {
             true
         }
+    }
+    fn find_smallest(&self) -> Option<&Node<K, V>> {
+        if self.is_empty() {
+            return None
+        }
+        self.nodes.get(RBTree::min(self.root.unwrap(), &self.nodes))
+    }
+
+    fn find_largest(&self) -> Option<&Node<K, V>> {
+        if self.is_empty() {
+            return None
+        }
+        self.nodes.get(RBTree::max(self.root.unwrap(), &self.nodes))
     }
 
     fn find_next(&self, mut from: usize) -> Option<usize> {
@@ -811,5 +834,67 @@ mod test {
         assert!(tree.is_balanced());
         assert_eq!(9, tree.len());
         // println!("{}", tree.nodes.len());
+    }
+    #[test]
+    fn test_tree_find_smallest() {
+        let mut tree = RBTree::new();
+        tree.insert(12, 32);
+        tree.insert(32, 44);
+        tree.insert(123, 321);
+        tree.insert(123, 321);
+        tree.insert(1, 2);
+        tree.insert(14, 32);
+        tree.insert(20, 41);
+        tree.insert(6, 64);
+        tree.insert(41, 22);
+        tree.insert(122, 14);
+        tree.insert(41, 99);
+        match tree.find_smallest(){
+            Some(value) => {
+                assert_eq!(value.key, 1);
+                assert_eq!(value.value, 2);
+            }
+            _ => {assert!(false)}
+        }
+        match tree.find_largest(){
+            Some(value) => {
+                assert_eq!(value.key, 123);
+                assert_eq!(value.value, 321);
+            }
+            _ => {assert!(false)}
+        }
+        // tree.print();
+        // Node BLACK parent _ left: 0 right: 8 k: 32 v: 44, s: 9
+        // Node BLACK parent 1 left: 6 right: 5 k: 12 v: 32, s: 5
+        // Node BLACK parent 0 left: 3 right: _ k: 6 v: 64, s: 2
+        // Node RED parent 6 left: _ right: _ k: 1 v: 2, s: 1
+        // None
+        // None
+        // None
+        // Node BLACK parent 0 left: 4 right: _ k: 20 v: 41, s: 2
+        // Node RED parent 5 left: _ right: _ k: 14 v: 32, s: 1
+        // None
+        // None
+        // None
+        // Node BLACK parent 1 left: 7 right: 2 k: 122 v: 14, s: 3
+        // Node BLACK parent 8 left: _ right: _ k: 41 v: 99, s: 1
+        // None
+        // None
+        // Node BLACK parent 8 left: _ right: _ k: 123 v: 321, s: 1
+        // None
+        // None
+        // for i in (&tree).into_iter(){
+        //     println!("{} {}", i.0, i.1);
+        // }
+        // 1 2
+        // 6 64
+        // 12 32
+        // 14 32
+        // 20 41
+        // 32 44
+        // 41 99
+        // 122 14
+        // 123 321
+
     }
 }

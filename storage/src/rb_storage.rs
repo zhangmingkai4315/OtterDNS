@@ -21,6 +21,9 @@ pub struct RBTreeNode {
     /// if this is not a zone, the subtree is None
     subtree: Option<RefCell<RBTree<Label, Rc<RefCell<RBTreeNode>>>>>,
 }
+
+
+
 #[derive(Debug)]
 pub struct RBZone(Rc<RefCell<RBTreeNode>>);
 
@@ -86,6 +89,14 @@ impl RBZone {
         }
         current
     }
+
+    // pub fn find_v2(&self, name: &DNSName) -> Result<ZoneInfo, StorageError>{
+    //
+    //     Err(StorageError::Unimplemented)
+    // }
+
+
+
     /// find the dns name node from top zone root node. if the dns name is not found return Err
     /// otherwise return Node, do not create any new node
     pub fn find(&self, name: &DNSName) -> Result<Rc<RefCell<RBTreeNode>>, StorageError> {
@@ -122,11 +133,11 @@ impl RBZone {
         Ok(current)
     }
 
-    pub fn insert(&mut self, rr: ResourceRecord) -> Result<(), StorageError> {
-        /// TODO: DO i need to check if the rr is below to this zone?
-        let node = self.find_or_insert(rr.get_dname());
-        return node.borrow_mut().add_rr(rr);
-    }
+    // pub fn insert(&mut self, rr: ResourceRecord) -> Result<(), StorageError> {
+    //     /// TODO: DO i need to check if the rr is below to this zone?
+    //     let node = self.find_or_insert(rr.get_dname());
+    //     node.borrow_mut().add_rr(rr)
+    // }
 }
 
 impl RBTreeNode {
@@ -152,6 +163,15 @@ impl RBTreeNode {
             None => Err(StorageError::DNSTypeNotFoundError),
         }
     }
+
+    // pub fn next(&self) -> Option<Rc<RefCell<RBTreeNode>>>{
+    //     if self.subtree.is_some() && !self.subtree.unwrap().borrow().is_empty(){
+    //         for i in self.subtree.unwrap().borrow_mut().deref(){
+    //             return Some(i.1.clone())
+    //         }
+    //     }
+    //     None
+    // }
 
     pub fn delete_rrset(&mut self, dtype: DNSType) -> Result<RRSet, StorageError> {
         match self.rr_sets.remove(&dtype) {
