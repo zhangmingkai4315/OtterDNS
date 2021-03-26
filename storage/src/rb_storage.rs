@@ -15,8 +15,10 @@ use std::rc::{Rc, Weak};
 #[derive(Debug)]
 pub struct RBTreeNode {
     label: Label,
+    /// must check the ns type when travel from top to bottom.
     rr_sets: HashMap<DNSType, RRSet>,
     parent: RefCell<Weak<RefCell<RBTreeNode>>>,
+    /// if this is not a zone, the subtree is None
     subtree: Option<RefCell<RBTree<Label, Rc<RefCell<RBTreeNode>>>>>,
 }
 #[derive(Debug)]
