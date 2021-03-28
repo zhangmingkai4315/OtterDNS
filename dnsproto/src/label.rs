@@ -192,7 +192,7 @@ mod label {
     use super::*;
     use crate::utils::calculate_hash;
     #[test]
-    fn test_label_fn() {
+    fn test_label_eq_fn() {
         let label = Label::from_str("hello");
         assert_eq!(label.is_ok(), true);
         let label = label.unwrap();
@@ -252,6 +252,7 @@ mod label {
             true,
             "hello\\ world"
         );
+
         assert_eq!(
             format_rfc4343_label("hello\\.0"),
             Some("hello.0".as_bytes().to_vec()),
@@ -291,6 +292,24 @@ mod label {
         assert_eq!(valid_label("he%llo"), false);
         assert_eq!(
             valid_label(std::str::from_utf8(&[65_u8; 88]).unwrap()),
+            false
+        );
+    }
+    #[test]
+    fn test_label_from_str() {
+        assert_eq!(Label::from_str("hello").is_ok(), true);
+        assert_eq!(Label::from_str("_hello").is_ok(), true);
+        assert_eq!(Label::from_str("12hello").is_ok(), true);
+        assert_eq!(Label::from_str("*").is_ok(), true);
+
+        // https://tools.ietf.org/html/rfc4343
+        assert_eq!(Label::from_str("hello\\.world").is_ok(), true);
+        assert_eq!(Label::from_str("hello\\032").is_ok(), true);
+        assert_eq!(Label::from_str("xn--abc").is_ok(), true);
+        assert_eq!(Label::from_str("%hello").is_ok(), false);
+        assert_eq!(Label::from_str("he%llo").is_ok(), false);
+        assert_eq!(
+            Label::from_str(std::str::from_utf8(&[65_u8; 88]).unwrap()).is_ok(),
             false
         );
     }

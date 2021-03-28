@@ -95,8 +95,6 @@ impl RBZone {
     //     Err(StorageError::Unimplemented)
     // }
 
-
-
     /// find the dns name node from top zone root node. if the dns name is not found return Err
     /// otherwise return Node, do not create any new node
     pub fn find(&self, name: &DNSName) -> Result<Rc<RefCell<RBTreeNode>>, StorageError> {
@@ -109,6 +107,7 @@ impl RBZone {
             labels_count -= 1;
             let clone = current.clone();
             let mut temp = clone.borrow_mut();
+            /// domain is not a zone, just include itself node
             if temp.subtree.is_none() {
                 return Err(StorageError::DomainNotFoundError);
             }
@@ -127,6 +126,14 @@ impl RBZone {
                 current = node;
                 continue;
             }
+            /// find if include wildcard *
+            // let result = temp
+            //     .subtree
+            //     .as_mut()
+            //     .unwrap()
+            //     .get_mut()
+            //     .get(Label::from_str("*"))
+            //     .cloned();
             /// not found in subtree
             return Err(StorageError::DomainNotFoundError);
         }
