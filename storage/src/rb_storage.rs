@@ -8,9 +8,15 @@ use dnsproto::dnsname::DNSName;
 use dnsproto::meta::{DNSType, RRSet, ResourceRecord};
 // use dnsproto::qtype::{DNSWireFrame, DnsTypeSOA};
 use dnsproto::label::Label;
+use lazy_static::lazy_static;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
+use std::str::FromStr;
+
+lazy_static! {
+    static ref WILDCARD_LABEL: Label = Label::from_str("*").unwrap();
+}
 
 #[derive(Debug)]
 pub struct RBTreeNode {
@@ -21,8 +27,6 @@ pub struct RBTreeNode {
     /// if this is not a zone, the subtree is None
     subtree: Option<RefCell<RBTree<Label, Rc<RefCell<RBTreeNode>>>>>,
 }
-
-
 
 #[derive(Debug)]
 pub struct RBZone(Rc<RefCell<RBTreeNode>>);
@@ -109,7 +113,7 @@ impl RBZone {
             let mut temp = clone.borrow_mut();
             /// domain is not a zone, just include itself node
             if temp.subtree.is_none() {
-                return Err(StorageError::DomainNotFoundError);
+                return Err(StorageError::DomainNotFoundError(Some(clone.clone())));
             }
             let result = temp
                 .subtree
@@ -127,15 +131,18 @@ impl RBZone {
                 continue;
             }
             /// find if include wildcard *
-            // let result = temp
-            //     .subtree
-            //     .as_mut()
-            //     .unwrap()
-            //     .get_mut()
-            //     .get(Label::from_str("*"))
-            //     .cloned();
+            let result = temp
+                .subtree
+                .as_mut()
+                .unwrap()
+                .get_mut()
+                .get(&WILDCARD_LABEL)
+                .cloned();
+            if let Some(node) = result {
+                return Ok(node);
+            }
             /// not found in subtree
-            return Err(StorageError::DomainNotFoundError);
+            return Err(StorageError::DomainNotFoundError(Some(clone.clone())));
         }
         Ok(current)
     }
@@ -264,6 +271,21 @@ mod storage {
                 ResourceRecord::new("google.com.", DNSType::NS, DNSClass::IN, 1000, None).unwrap(),
             ),
             (
+                DNSName::new("*.baidu.com").unwrap(),
+                ResourceRecord::new("*.baidu.com.", DNSType::A, DNSClass::IN, 1234, None).unwrap(),
+            ),
+            (
+                DNSName::new("test\\.dns.baidu.com").unwrap(),
+                ResourceRecord::new(
+                    "test\\.dns.baidu.com.",
+                    DNSType::A,
+                    DNSClass::IN,
+                    1234,
+                    None,
+                )
+                .unwrap(),
+            ),
+            (
                 DNSName::new("www.google.com.").unwrap(),
                 ResourceRecord::new("www.google.com.", DNSType::NS, DNSClass::IN, 1000, None)
                     .unwrap(),
@@ -271,7 +293,10 @@ mod storage {
         ];
         for (name, rr) in dnsnames {
             let node = zone.find_or_insert(&name);
-            node.borrow_mut().add_rr(rr);
+            let mut borrow_node = node.borrow_mut();
+            if let Err(_e) = borrow_node.add_rr(rr) {
+                panic!("create example zone fail");
+            }
         }
         zone
     }
@@ -325,6 +350,16 @@ mod storage {
             Ok(node) => assert_eq!(node.borrow_mut().rr_sets.len(), 1),
             _ => assert!(false),
         }
+
+        let dname = DNSName::new("ftp.baidu.com").unwrap();
+        match zone.find(&dname) {
+            // find wirdcard match
+            Ok(node) => {
+                assert_eq!(node.borrow_mut().rr_sets.len(), 1);
+                assert_eq!(node.borrow_mut().rr_sets.get(&DNSType::A).is_some(), true);
+            }
+            _ => assert!(false),
+        }
     }
 
     #[test]
@@ -339,6 +374,10 @@ mod storage {
         if let Err(_) = node.add_rr(rr) {
             assert!(false)
         }
+        let rr = ResourceRecord::new("*", DNSType::A, DNSClass::IN, 1000, None).unwrap();
+        if let Err(_) = node.add_rr(rr) {
+            assert!(false)
+        }
         let rr =
             ResourceRecord::new("google.com.", DNSType::SOA, DNSClass::IN, 1000, None).unwrap();
         if let Err(_) = node.add_rr(rr) {
@@ -346,6 +385,17 @@ mod storage {
         }
         let rr =
             ResourceRecord::new("google.com.", DNSType::CNAME, DNSClass::IN, 1000, None).unwrap();
+        if let Err(_) = node.add_rr(rr) {
+            assert!(true)
+        }
+        let rr = ResourceRecord::new(
+            "abc\\.google.com.",
+            DNSType::CNAME,
+            DNSClass::IN,
+            1000,
+            None,
+        )
+        .unwrap();
         if let Err(_) = node.add_rr(rr) {
             assert!(true)
         }

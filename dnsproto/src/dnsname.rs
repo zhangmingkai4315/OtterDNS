@@ -32,7 +32,7 @@ impl DNSName {
                 continue;
             }
             if !need_join.is_empty() {
-                need_join = need_join.add(label);
+                need_join = need_join.add(".").add(label);
                 inner_vec.push(Label::from_str(need_join.as_str())?);
                 need_join = String::new();
             } else {

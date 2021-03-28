@@ -342,7 +342,6 @@ where
         id
     }
 
-
     fn put(
         maybe_id: Option<usize>,
         parent: Option<usize>,
@@ -532,8 +531,12 @@ where
     pub fn keys(&self) -> Vec<&K> {
         self.nodes.iter().map(|node| &node.key).collect::<Vec<&K>>()
     }
-    pub fn values(&self) -> Vec<&V> { self.nodes.iter().map(|node| &node.value).collect::<Vec<&V>>() }
-
+    pub fn values(&self) -> Vec<&V> {
+        self.nodes
+            .iter()
+            .map(|node| &node.value)
+            .collect::<Vec<&V>>()
+    }
 
     pub fn is_23(&self) -> bool {
         self.is_node_23(self.root)
@@ -639,14 +642,14 @@ where
     }
     fn find_smallest(&self) -> Option<&Node<K, V>> {
         if self.is_empty() {
-            return None
+            return None;
         }
         self.nodes.get(RBTree::min(self.root.unwrap(), &self.nodes))
     }
 
     fn find_largest(&self) -> Option<&Node<K, V>> {
         if self.is_empty() {
-            return None
+            return None;
         }
         self.nodes.get(RBTree::max(self.root.unwrap(), &self.nodes))
     }
@@ -849,19 +852,23 @@ mod test {
         tree.insert(41, 22);
         tree.insert(122, 14);
         tree.insert(41, 99);
-        match tree.find_smallest(){
+        match tree.find_smallest() {
             Some(value) => {
                 assert_eq!(value.key, 1);
                 assert_eq!(value.value, 2);
             }
-            _ => {assert!(false)}
+            _ => {
+                assert!(false)
+            }
         }
-        match tree.find_largest(){
+        match tree.find_largest() {
             Some(value) => {
                 assert_eq!(value.key, 123);
                 assert_eq!(value.value, 321);
             }
-            _ => {assert!(false)}
+            _ => {
+                assert!(false)
+            }
         }
         // tree.print();
         // Node BLACK parent _ left: 0 right: 8 k: 32 v: 44, s: 9
@@ -895,6 +902,5 @@ mod test {
         // 41 99
         // 122 14
         // 123 321
-
     }
 }
