@@ -2,7 +2,7 @@
 // use intrusive_collections::{RBTree, intrusive_adapter, RBTreeLink, KeyAdapter};
 // use std::cell::Cell;
 use crate::errors::StorageError;
-use crate::rbtree::RBTree;
+use crate::rbtree::{RBTree, TreeIterator};
 // use crate::Storage;
 use dnsproto::dnsname::DNSName;
 use dnsproto::meta::{DNSType, RRSet, ResourceRecord};
@@ -26,28 +26,29 @@ lazy_static! {
 pub struct RBTreeNode {
     label: Label,
     rr_sets: HashMap<DNSType, RRSet>,
-    parent: RefCell<Weak<RefCell<RBTreeNode>>>,
+    parent: Weak<RefCell<RBTreeNode>>,
     subtree: Option<RBTree<Label, Rc<RefCell<RBTreeNode>>>>,
 }
 
 #[derive(Debug)]
 pub struct RBZone(Rc<RefCell<RBTreeNode>>);
 
+
+// struct ZoneIter<'a>{
+//     stack: Vec<Rc<RefCell<RBTreeNode>>>,
+//     current: Option<Rc<RefCell<RBTreeNode>>>,
+//     iter: Option<TreeIterator<'a , Label, Rc<RefCell<RBTreeNode>>>>
+// }
+
 // impl RBZone{
 //     fn iter(&self) -> ZoneIter {
 //         ZoneIter{
 //             stack: vec![self.0.clone()],
+//             current: None,
 //             iter: None
 //         }
 //     }
 // }
-
-// struct ZoneIter<'a>{
-//     stack: Vec<Rc<RefCell<RBTreeNode>>>,
-//     iter: Option<TreeIterator<'a , Label, Rc<RefCell<RBTreeNode>>>>
-// }
-//
-//
 //
 // impl<'a> Iterator for ZoneIter<'a>{
 //     type Item = Rc<RefCell<RBTreeNode>>;
@@ -63,14 +64,15 @@ pub struct RBZone(Rc<RefCell<RBTreeNode>>);
 //             if self.stack.is_empty() {
 //                 return None
 //             }
-//             let parent = self.stack.pop().unwrap();
-//             if let Some(ref v) = (*parent).borrow_mut().subtree{
+//             self.current = Some(self.stack.pop().unwrap());
+//             if let Some(v) = &self.current{
+//                 if let Some(ref v) = v.borrow_mut().subtree{
+//                     self.iter = Some(v.into_iter());
+//                 }
+//             }
+//             if let Some(ref v) = self.current.unwrap().borrow_mut().subtree{
 //                 self.iter = Some(v.into_iter());
 //             }
-//             // let node = self.stack.pop().unwrap().borrow_mut();
-//             // if let Some(v) = &(*node).subtree{
-//             //     self.iter = Some(v.into_iter());
-//             // }
 //         }
 //     }
 // }
@@ -85,7 +87,7 @@ impl RBZone {
         let root = RBTreeNode {
             label: Label::root(),
             rr_sets: Default::default(),
-            parent: RefCell::new(Default::default()),
+            parent: Default::default(),
             subtree: None,
         };
         RBZone(Rc::new(RefCell::new(root)))
@@ -121,7 +123,7 @@ impl RBZone {
                 /// subtree exist but has not label node
                 /// create a new label node
                 let node = RBTreeNode::from_label(label.clone());
-                *(*node).borrow_mut().parent.borrow_mut() = Rc::downgrade(&parent_node);
+                (*node).borrow_mut().parent = Rc::downgrade(&parent_node);
                 // (*node).parent.borrow_mut() = Rc::downgrade(&parent_node);
                 subtree.insert(label.clone(), node.clone());
                 return node;
@@ -129,7 +131,7 @@ impl RBZone {
                 /// create a path to next label, but if each label has a new rbtree will consume
                 /// too much memory , so should build with a compressed way
                 let create = RBTreeNode::from_label(label.clone());
-                *(*create).borrow_mut().parent.borrow_mut() = Rc::downgrade(&parent_node);
+                (*create).borrow_mut().parent = Rc::downgrade(&parent_node);
                 subtree.insert(label.clone(), create.clone());
                 current = create.clone();
                 parent_node = create;
@@ -249,14 +251,14 @@ impl RBTreeNode {
         }
         let mut labels = vec![];
         labels.push(self.label.clone());
-        let mut current = self.parent.borrow().upgrade();
+        let mut current = self.parent.upgrade();
         while let Some(value) = current {
             let label = (*value).borrow_mut().label.to_owned();
             if label.is_empty() {
                 break;
             }
             labels.push(label);
-            current = (*value).borrow_mut().parent.borrow().upgrade();
+            current = (*value).borrow_mut().parent.upgrade();
         }
         DNSName { labels }
     }
@@ -265,7 +267,7 @@ impl RBTreeNode {
         Rc::new(RefCell::new(RBTreeNode {
             label,
             rr_sets: Default::default(),
-            parent: RefCell::new(Weak::new()),
+            parent: Weak::new(),
             subtree: None,
         }))
     }
@@ -328,28 +330,28 @@ mod storage {
         let parent_node = Rc::new(RefCell::new(RBTreeNode {
             label: Label::from_str("com").unwrap(),
             rr_sets: Default::default(),
-            parent: RefCell::new(Weak::new()),
+            parent: Weak::new(),
             subtree: None,
         }));
-        let node = Rc::new(RefCell::new(RBTreeNode {
+        let mut node = Rc::new(RefCell::new(RBTreeNode {
             label: Label::from_str("baidu").unwrap(),
             rr_sets: Default::default(),
-            parent: RefCell::new(Weak::new()),
+            parent: Weak::new(),
             subtree: None,
         }));
-        *node.deref().borrow_mut().parent.borrow_mut() = Rc::downgrade(&parent_node);
-        let child = RBTreeNode {
+        node.deref().borrow_mut().parent = Rc::downgrade(&parent_node);
+        let mut child = RBTreeNode {
             label: Label::from_str("www").unwrap(),
             rr_sets: Default::default(),
-            parent: RefCell::new(Weak::new()),
+            parent: Weak::new(),
             subtree: None,
         };
-        *child.parent.borrow_mut() = Rc::downgrade(&node);
+        child.parent = Rc::downgrade(&node);
         assert_eq!(child.get_name().to_string(), "www.baidu.com.".to_owned());
         let node = RBTreeNode {
             label: Label::root(),
             rr_sets: Default::default(),
-            parent: RefCell::new(Weak::new()),
+            parent: Weak::new(),
             subtree: None,
         };
         assert_eq!(node.get_name().to_string(), ".".to_owned());
@@ -396,7 +398,7 @@ mod storage {
         let mut node = RBTreeNode {
             label: Label::from_str("com").unwrap(),
             rr_sets: HashMap::new(),
-            parent: RefCell::new(Weak::new()),
+            parent: Weak::new(),
             subtree: None,
         };
         let rr = ResourceRecord::new("google.com.", DNSType::NS, DNSClass::IN, 1000, None).unwrap();
