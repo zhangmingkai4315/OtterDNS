@@ -873,7 +873,7 @@ mod test {
     }
 
     #[test]
-    fn test_iter_rbtree(){
+    fn test_iter_rbtree() {
         let mut tree = RBTree::new();
         tree.insert(1, 2);
         tree.insert(14, 32);

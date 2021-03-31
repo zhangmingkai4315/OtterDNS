@@ -2,7 +2,7 @@
 // use intrusive_collections::{RBTree, intrusive_adapter, RBTreeLink, KeyAdapter};
 // use std::cell::Cell;
 use crate::errors::StorageError;
-use crate::rbtree::{RBTree, TreeIterator};
+use crate::rbtree::RBTree;
 // use crate::Storage;
 use dnsproto::dnsname::DNSName;
 use dnsproto::meta::{DNSType, RRSet, ResourceRecord};
@@ -11,12 +11,12 @@ use dnsproto::label::Label;
 use lazy_static::lazy_static;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::rc::{Rc, Weak};
 use std::str::FromStr;
-use std::ops::Deref;
-use std::borrow::{Borrow, BorrowMut};
+// use std::borrow::{Borrow, BorrowMut};
 // use std::iter::IntoIterator;
-use std::vec::IntoIter;
+// use std::vec::IntoIter;
 
 lazy_static! {
     static ref WILDCARD_LABEL: Label = Label::from_str("*").unwrap();
@@ -33,46 +33,47 @@ pub struct RBTreeNode {
 #[derive(Debug)]
 pub struct RBZone(Rc<RefCell<RBTreeNode>>);
 
-impl RBZone{
-    fn iter(&self) -> ZoneIter {
-        ZoneIter{
-            stack: vec![self.0.clone()],
-            iter: None
-        }
-    }
-}
+// impl RBZone{
+//     fn iter(&self) -> ZoneIter {
+//         ZoneIter{
+//             stack: vec![self.0.clone()],
+//             iter: None
+//         }
+//     }
+// }
 
-struct ZoneIter<'a>{
-    stack: Vec<Rc<RefCell<RBTreeNode>>>,
-    iter: Option<TreeIterator<'a , Label, Rc<RefCell<RBTreeNode>>>>
-}
-
-
-
-impl<'a> Iterator for ZoneIter<'a>{
-    type Item = Rc<RefCell<RBTreeNode>>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop{
-            if let Some(node) =  &mut self.iter {
-                if let Some(o) = node.next() {
-                    return Some(o.1.clone());
-                }
-                self.iter = None;
-            }
-            if self.stack.is_empty() {
-                return None
-            }
-            // let node = self.stack.pop().unwrap().clone();
-            // if let Some(v) = &(*node).borrow_mut().subtree{
-            //     self.iter = Some(v.into_iter());
-            // }
-        }
-    }
-}
-
-
-
+// struct ZoneIter<'a>{
+//     stack: Vec<Rc<RefCell<RBTreeNode>>>,
+//     iter: Option<TreeIterator<'a , Label, Rc<RefCell<RBTreeNode>>>>
+// }
+//
+//
+//
+// impl<'a> Iterator for ZoneIter<'a>{
+//     type Item = Rc<RefCell<RBTreeNode>>;
+//
+//     fn next(&mut self) -> Option<Self::Item> {
+//         loop{
+//             if let Some(node) =  &mut self.iter {
+//                 if let Some(o) = node.next() {
+//                     return Some(o.1.clone());
+//                 }
+//                 self.iter = None;
+//             }
+//             if self.stack.is_empty() {
+//                 return None
+//             }
+//             let parent = self.stack.pop().unwrap();
+//             if let Some(ref v) = (*parent).borrow_mut().subtree{
+//                 self.iter = Some(v.into_iter());
+//             }
+//             // let node = self.stack.pop().unwrap().borrow_mut();
+//             // if let Some(v) = &(*node).subtree{
+//             //     self.iter = Some(v.into_iter());
+//             // }
+//         }
+//     }
+// }
 
 impl RBZone {
     pub fn from_node(node: RBTreeNode) -> RBZone {
@@ -101,7 +102,7 @@ impl RBZone {
         let mut parent_node = current.clone();
         for label in name.labels.iter().rev() {
             labels_count -= 1;
-            let mut clone = current.clone();
+            let clone = current.clone();
             let mut temp = clone.deref().borrow_mut();
             let subtree = temp.subtree.get_or_insert(RBTree::new());
 
@@ -152,18 +153,13 @@ impl RBZone {
         let mut current = self.0.clone();
         for label in name.labels.iter().rev() {
             labels_count -= 1;
-            let mut clone = current.clone();
+            let clone = current.clone();
             let mut temp = clone.deref().borrow_mut();
             /// domain is not a zone, just include itself node
             if temp.subtree.is_none() {
                 return Err(StorageError::DomainNotFoundError(Some(clone.clone())));
             }
-            let result = temp
-                .subtree
-                .as_mut()
-                .unwrap()
-                .get(&label.clone())
-                .cloned();
+            let result = temp.subtree.as_mut().unwrap().get(&label.clone()).cloned();
             /// subtree exist and has label node
             if let Some(node) = result {
                 if labels_count == 0 {
@@ -173,13 +169,7 @@ impl RBZone {
                 continue;
             }
             /// find if include wildcard *
-            let result = temp
-                .subtree
-                .as_mut()
-                .unwrap()
-
-                .get(&WILDCARD_LABEL)
-                .cloned();
+            let result = temp.subtree.as_mut().unwrap().get(&WILDCARD_LABEL).cloned();
             if let Some(node) = result {
                 return Ok(node);
             }
@@ -260,7 +250,7 @@ impl RBTreeNode {
         let mut labels = vec![];
         labels.push(self.label.clone());
         let mut current = self.parent.borrow().upgrade();
-        while let Some(mut value) = current {
+        while let Some(value) = current {
             let label = (*value).borrow_mut().label.to_owned();
             if label.is_empty() {
                 break;
@@ -325,7 +315,7 @@ mod storage {
             ),
         ];
         for (name, rr) in dnsnames {
-            let mut node = zone.find_or_insert(&name);
+            let node = zone.find_or_insert(&name);
             let mut borrow_node = node.deref().borrow_mut();
             if let Err(_e) = borrow_node.add_rr(rr) {
                 panic!("create example zone fail");
@@ -341,7 +331,7 @@ mod storage {
             parent: RefCell::new(Weak::new()),
             subtree: None,
         }));
-        let mut node = Rc::new(RefCell::new(RBTreeNode {
+        let node = Rc::new(RefCell::new(RBTreeNode {
             label: Label::from_str("baidu").unwrap(),
             rr_sets: Default::default(),
             parent: RefCell::new(Weak::new()),
@@ -367,8 +357,11 @@ mod storage {
     #[test]
     fn test_find_or_insert() {
         let zone = RBZone::new_root();
-        let mut node = zone.find_or_insert(&DNSName::new("www.baidu.com").unwrap());
-        assert_eq!(node.deref().borrow_mut().label, Label::from_str("www").unwrap());
+        let node = zone.find_or_insert(&DNSName::new("www.baidu.com").unwrap());
+        assert_eq!(
+            node.deref().borrow_mut().label,
+            Label::from_str("www").unwrap()
+        );
         assert_eq!(
             node.deref().borrow_mut().get_name(),
             DNSName::new("www.baidu.com").unwrap()
@@ -380,16 +373,19 @@ mod storage {
         let zone = example_zone();
         let dname = DNSName::new("baidu.com").unwrap();
         match zone.find(&dname) {
-            Ok(mut node) => assert_eq!(node.deref().borrow_mut().rr_sets.len(), 1),
+            Ok(node) => assert_eq!(node.deref().borrow_mut().rr_sets.len(), 1),
             _ => assert!(false),
         }
 
         let dname = DNSName::new("ftp.baidu.com").unwrap();
         match zone.find(&dname) {
             // find wirdcard match
-            Ok(mut node) => {
+            Ok(node) => {
                 assert_eq!(node.deref().borrow_mut().rr_sets.len(), 1);
-                assert_eq!(node.deref().borrow_mut().rr_sets.get(&DNSType::A).is_some(), true);
+                assert_eq!(
+                    node.deref().borrow_mut().rr_sets.get(&DNSType::A).is_some(),
+                    true
+                );
             }
             _ => assert!(false),
         }
