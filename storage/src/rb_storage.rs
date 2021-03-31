@@ -13,6 +13,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 use std::str::FromStr;
+use std::ops::Deref;
+use std::borrow::Borrow;
 
 lazy_static! {
     static ref WILDCARD_LABEL: Label = Label::from_str("*").unwrap();
@@ -30,6 +32,43 @@ pub struct RBTreeNode {
 
 #[derive(Debug)]
 pub struct RBZone(Rc<RefCell<RBTreeNode>>);
+
+impl RBZone{
+    fn iter(&self) -> ZoneIter {
+        ZoneIter{
+            parent: None,
+            next: Option::from(self.0.clone())
+        }
+    }
+}
+
+struct ZoneIter{
+    parent: Option<Rc<RefCell<RBTreeNode>>>,
+    next: Option<Rc<RefCell<RBTreeNode>>>,
+}
+
+
+
+impl Iterator for ZoneIter{
+    type Item = Rc<RefCell<RBTreeNode>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // self.next.map(|node|{
+        //     if node.subtree.is_some(){
+        //         self.next = node.subtree.map(|v|{
+        //             self.child = v.borrow().values();
+        //             self.position = 0;
+        //             self.child.get(self.position)
+        //         })
+        //     }
+        //     node
+        // })
+        None
+    }
+}
+
+
+
 
 impl RBZone {
     pub fn from_node(node: RBTreeNode) -> RBZone {
