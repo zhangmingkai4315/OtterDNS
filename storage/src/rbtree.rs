@@ -870,37 +870,20 @@ mod test {
                 assert!(false)
             }
         }
-        // tree.print();
-        // Node BLACK parent _ left: 0 right: 8 k: 32 v: 44, s: 9
-        // Node BLACK parent 1 left: 6 right: 5 k: 12 v: 32, s: 5
-        // Node BLACK parent 0 left: 3 right: _ k: 6 v: 64, s: 2
-        // Node RED parent 6 left: _ right: _ k: 1 v: 2, s: 1
-        // None
-        // None
-        // None
-        // Node BLACK parent 0 left: 4 right: _ k: 20 v: 41, s: 2
-        // Node RED parent 5 left: _ right: _ k: 14 v: 32, s: 1
-        // None
-        // None
-        // None
-        // Node BLACK parent 1 left: 7 right: 2 k: 122 v: 14, s: 3
-        // Node BLACK parent 8 left: _ right: _ k: 41 v: 99, s: 1
-        // None
-        // None
-        // Node BLACK parent 8 left: _ right: _ k: 123 v: 321, s: 1
-        // None
-        // None
-        // for i in (&tree).into_iter(){
-        //     println!("{} {}", i.0, i.1);
-        // }
-        // 1 2
-        // 6 64
-        // 12 32
-        // 14 32
-        // 20 41
-        // 32 44
-        // 41 99
-        // 122 14
-        // 123 321
+    }
+
+    #[test]
+    fn test_iter_rbtree(){
+        let mut tree = RBTree::new();
+        tree.insert(1, 2);
+        tree.insert(14, 32);
+        tree.insert(20, 41);
+        tree.insert(6, 64);
+        let mut a = (&tree).into_iter();
+        assert_eq!(*a.next().unwrap().0, 1);
+        assert_eq!(*a.next().unwrap().0, 6);
+        assert_eq!(*a.next().unwrap().0, 14);
+        assert_eq!(*a.next().unwrap().0, 20);
+        assert_eq!(a.next(), None);
     }
 }
