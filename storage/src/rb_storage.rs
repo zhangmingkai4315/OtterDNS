@@ -2,7 +2,7 @@
 // use intrusive_collections::{RBTree, intrusive_adapter, RBTreeLink, KeyAdapter};
 // use std::cell::Cell;
 use crate::errors::StorageError;
-use crate::rbtree::{RBTree, TreeIterator};
+use crate::rbtree::{RBTree};
 // use crate::Storage;
 use dnsproto::dnsname::DNSName;
 use dnsproto::meta::{DNSType, RRSet, ResourceRecord};
@@ -14,7 +14,6 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
 use std::str::FromStr;
-use std::borrow::{BorrowMut, Borrow};
 // use std::borrow::{Borrow, BorrowMut};
 // use std::iter::IntoIterator;
 // use std::vec::IntoIter;
@@ -34,7 +33,6 @@ pub struct RBTreeNode {
 
 #[derive(Debug)]
 pub struct RBZone(Rc<RefCell<RBTreeNode>>);
-
 
 // struct ZoneIter<'a>{
 //     stack: Vec<Rc<RefCell<RBTreeNode>>>,
@@ -94,8 +92,6 @@ impl RBZone {
         };
         RBZone(Rc::new(RefCell::new(root)))
     }
-
-
 
     /// locate the dns name node from top zone root node. if the dns name is not found in this zone
     /// create a sub node based the label.
@@ -189,12 +185,12 @@ impl RBZone {
 
 impl RBTreeNode {
     pub fn new_root() -> RBTreeNode {
-        return RBTreeNode {
+        RBTreeNode {
             label: Label::root(),
             rr_sets: Default::default(),
             parent: None,
             subtree: None,
-        };
+        }
     }
     fn has_type(&self, qtype: DNSType) -> bool {
         for (q_type, _) in self.rr_sets.iter() {
@@ -226,10 +222,56 @@ impl RBTreeNode {
         }
     }
 
+    /// locate the dns name node from top zone root node. if the dns name is not found in this zone
+    /// create a sub node based the label.
+    /// should valid if the name is below to the zone data.
+    pub fn find_or_insert(&mut self, name: &DNSName) -> &mut RBTreeNode {
+        let mut labels_count = name.label_count();
+        if labels_count == 0 {
+            return self;
+        }
+        let mut parent_node = None;
+        let mut current = self;
+
+        for label in name.labels.iter().rev() {
+            labels_count -= 1;
+            let subtree = current.subtree.get_or_insert(RBTree::new());
+            let result = subtree.get(&label.clone()).cloned();
+            /// subtree exist and has label node
+            if let Some(node) = result {
+                if labels_count == 0 {
+                    return unsafe { node.as_ptr().as_mut().unwrap() };
+                }
+                parent_node = Some(node.clone());
+                current = unsafe { node.as_ptr().as_mut().unwrap() };
+                continue;
+            }
+            let node = RBTreeNode::from_label(label.clone());
+            if let Some(parent) = parent_node{
+                (*node).borrow_mut().parent = Some(Rc::downgrade(&parent));
+            }else{
+                (*node).borrow_mut().parent = None
+            }
+            subtree.insert(label.clone(), node.clone());
+            // not found in subtree
+            if labels_count == 0 {
+                // subtree exist but has not label node
+                // create a new label node
+                return unsafe { node.as_ptr().as_mut().unwrap() };
+            } else {
+                // create a path to next label, but if each label has a new rbtree will consume
+                // too much memory , so should build with a compressed way
+                current = unsafe { node.clone().as_ptr().as_mut().unwrap() };
+                parent_node = Some(node);
+            }
+        }
+        current
+    }
+
     pub fn find(&self, name: &DNSName) -> Result<&RBTreeNode, StorageError> {
         let mut labels_count = name.label_count();
         if labels_count == 0 {
-            return Ok(self.clone());
+            return Ok(self);
         }
         let mut current = self;
         for label in name.labels.iter().rev() {
@@ -237,25 +279,29 @@ impl RBTreeNode {
             if current.subtree.is_none() {
                 return Err(StorageError::DomainNotFoundError(None));
             }
-            let result = current.subtree.as_ref().unwrap().get(&label.clone()).cloned();
+            let result = current
+                .subtree
+                .as_ref()
+                .unwrap()
+                .get(&label.clone())
+                .cloned();
             /// subtree exist and has label node
             if let Some(node) = result {
                 if labels_count == 0 {
-                    return Ok(unsafe {
-                        node.as_ptr().as_ref().unwrap()
-                    });
+                    return Ok(unsafe { node.as_ptr().as_ref().unwrap() });
                 }
-                current = unsafe {
-                    node.as_ptr().as_ref().unwrap()
-                };
+                current = unsafe { node.as_ptr().as_ref().unwrap() };
                 continue;
             }
             /// find if include wildcard *
-            let result = current.subtree.as_ref().unwrap().get(&WILDCARD_LABEL).cloned();
+            let result = current
+                .subtree
+                .as_ref()
+                .unwrap()
+                .get(&WILDCARD_LABEL)
+                .cloned();
             if let Some(node) = result {
-                return Ok(unsafe {
-                    node.as_ptr().as_ref().unwrap()
-                });
+                return Ok(unsafe { node.as_ptr().as_ref().unwrap() });
             }
             /// not found in subtree
             return Err(StorageError::DomainNotFoundError(None));
@@ -287,15 +333,14 @@ impl RBTreeNode {
         }
         Ok(())
     }
-
+    #[allow(dead_code)]
     fn get_parent(&self) -> Option<Rc<RefCell<RBTreeNode>>> {
-        if let Some(parent) = self.parent.clone(){
+        if let Some(parent) = self.parent.clone() {
             parent.upgrade()
-        }else{
+        } else {
             None
         }
     }
-
 
     #[allow(dead_code)]
     pub fn get_name(&self) -> DNSName {
@@ -304,7 +349,7 @@ impl RBTreeNode {
         }
         let mut labels = vec![];
         labels.push(self.label.clone());
-        if let Some(parent) = &self.parent{
+        if let Some(parent) = &self.parent {
             let mut current = parent.upgrade();
             while let Some(value) = current {
                 let label = (*value).borrow_mut().label.to_owned();
@@ -312,10 +357,10 @@ impl RBTreeNode {
                     break;
                 }
                 labels.push(label);
-                if let Some(parent) = &(*value).borrow_mut().parent{
+                if let Some(parent) = &(*value).borrow_mut().parent {
                     current = parent.upgrade();
-                }else{
-                    break
+                } else {
+                    break;
                 }
             }
         }
@@ -379,6 +424,53 @@ mod storage {
             let node = zone.find_or_insert(&name);
             let mut borrow_node = node.deref().borrow_mut();
             if let Err(_e) = borrow_node.add_rr(rr) {
+                panic!("create example zone fail");
+            }
+        }
+        zone
+    }
+
+    fn example_zone_v2() -> RBTreeNode {
+        let mut zone: RBTreeNode = RBTreeNode::new_root();
+        let dnsnames = vec![
+            (
+                DNSName::new("baidu.com").unwrap(),
+                ResourceRecord::new("baidu.com.", DNSType::A, DNSClass::IN, 1000, None).unwrap(),
+            ),
+            (
+                DNSName::new("www.google.com.").unwrap(),
+                ResourceRecord::new("www.google.com.", DNSType::A, DNSClass::IN, 1000, None)
+                    .unwrap(),
+            ),
+            (
+                DNSName::new("google.com.").unwrap(),
+                ResourceRecord::new("google.com.", DNSType::NS, DNSClass::IN, 1000, None).unwrap(),
+            ),
+            (
+                DNSName::new("*.baidu.com").unwrap(),
+                ResourceRecord::new("*.baidu.com.", DNSType::A, DNSClass::IN, 1234, None).unwrap(),
+            ),
+            (
+                DNSName::new("test\\.dns.baidu.com").unwrap(),
+                ResourceRecord::new(
+                    "test\\.dns.baidu.com.",
+                    DNSType::A,
+                    DNSClass::IN,
+                    1234,
+                    None,
+                )
+                .unwrap(),
+            ),
+            (
+                DNSName::new("www.google.com.").unwrap(),
+                ResourceRecord::new("www.google.com.", DNSType::NS, DNSClass::IN, 1000, None)
+                    .unwrap(),
+            ),
+        ];
+        for (name, rr) in dnsnames {
+            let node = zone.find_or_insert(&name);
+            // let mut borrow_node = node.deref().borrow_mut();
+            if let Err(_e) = node.add_rr(rr) {
                 panic!("create example zone fail");
             }
         }
@@ -492,8 +584,22 @@ mod storage {
     }
 
     #[test]
-    fn test_node_find(){
-        let node = RBTreeNode::new_root();
+    fn test_rbnode_insert() {
+        let zone = example_zone_v2();
+        let dname = DNSName::new("baidu.com").unwrap();
+        match zone.find(&dname) {
+            Ok(node) => assert_eq!(node.rr_sets.len(), 1),
+            _ => assert!(false),
+        }
 
+        let dname = DNSName::new("ftp.baidu.com").unwrap();
+        match zone.find(&dname) {
+            // find wirdcard match
+            Ok(node) => {
+                assert_eq!(node.rr_sets.len(), 1);
+                assert_eq!(node.rr_sets.get(&DNSType::A).is_some(), true);
+            }
+            _ => assert!(false),
+        }
     }
 }
