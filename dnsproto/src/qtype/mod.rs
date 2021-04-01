@@ -1,9 +1,10 @@
 mod a;
 mod aaaa;
+mod helper;
+mod mx;
 mod ns;
 mod opt;
 mod soa;
-mod mx;
 
 use super::errors::DNSProtoErr;
 use nom::lib::std::collections::HashMap;
@@ -14,23 +15,24 @@ use crate::label::Label;
 use crate::meta::DNSType;
 pub use a::DnsTypeA;
 pub use aaaa::DnsTypeAAAA;
+pub use mx::DnsTypeMX;
 use nom::lib::std::fmt::Display;
 pub use ns::DnsTypeNS;
 pub use opt::DNSTypeOpt;
 pub use soa::DnsTypeSOA;
-pub use mx::DnsTypeMX;
 use std::str::FromStr;
 
-// for wireframe convert
+type CompressionType<'a> = Option<(&'a mut HashMap<Vec<Label>, usize>, usize)>;
+
 pub trait DNSWireFrame: Debug + Display {
     fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr>
     where
         Self: Sized;
-    fn get_type(&self)->DNSType;
+    fn get_type(&self) -> DNSType;
     fn encode(
         &self,
         // frame: &mut Cursor<Vec<u8>>,
-        compression: Option<(&mut HashMap<Vec<Label>, usize>, usize)>,
+        compression: CompressionType,
     ) -> Result<Vec<u8>, DNSProtoErr>;
 }
 

@@ -2,7 +2,7 @@
 // use intrusive_collections::{RBTree, intrusive_adapter, RBTreeLink, KeyAdapter};
 // use std::cell::Cell;
 use crate::errors::StorageError;
-use crate::rbtree::{RBTree};
+use crate::rbtree::RBTree;
 // use crate::Storage;
 use dnsproto::dnsname::DNSName;
 use dnsproto::meta::{DNSType, RRSet, ResourceRecord};
@@ -476,8 +476,11 @@ mod storage {
         }
 
         let zone = RBTreeNode::new_root();
-        for ix in zone{
-            assert_eq!(ix.deref().borrow().get_name().to_string(),String::from("."));
+        for ix in zone {
+            assert_eq!(
+                ix.deref().borrow().get_name().to_string(),
+                String::from(".")
+            );
         }
     }
 }

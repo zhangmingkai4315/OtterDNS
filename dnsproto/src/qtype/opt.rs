@@ -1,13 +1,11 @@
 use crate::errors::DNSProtoErr;
-use crate::label::Label;
-use crate::qtype::DNSWireFrame;
+use crate::meta::DNSType;
+use crate::qtype::{CompressionType, DNSWireFrame};
 use byteorder::{BigEndian, WriteBytesExt};
 use nom::number::complete::{be_u16, be_u8};
-use std::collections::HashMap;
 use std::fmt::{self, Formatter};
 use std::io::{Cursor, Write};
 use std::net::{Ipv4Addr, Ipv6Addr};
-use crate::meta::DNSType;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[repr(u16)]
@@ -148,10 +146,7 @@ impl DNSWireFrame for DNSTypeOpt {
         DNSType::OPT
     }
 
-    fn encode(
-        &self,
-        _: Option<(&mut HashMap<Vec<Label>, usize>, usize)>,
-    ) -> Result<Vec<u8>, DNSProtoErr> {
+    fn encode(&self, _: CompressionType) -> Result<Vec<u8>, DNSProtoErr> {
         let frame = vec![];
         let mut cursor = Cursor::new(frame);
         if self.data.is_none() {

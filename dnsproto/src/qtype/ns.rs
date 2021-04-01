@@ -1,12 +1,9 @@
 use crate::dnsname::{parse_name, DNSName};
 use crate::errors::{DNSProtoErr, ParseZoneDataErr};
-use crate::label::Label;
-use crate::qtype::DNSWireFrame;
-use nom::lib::std::collections::HashMap;
-use std::fmt;
-use std::fmt::Formatter;
-use std::str::FromStr;
 use crate::meta::DNSType;
+use crate::qtype::{CompressionType, DNSWireFrame};
+use std::fmt::{self, Formatter};
+use std::str::FromStr;
 
 #[derive(Debug, PartialEq)]
 pub struct DnsTypeNS {
@@ -54,10 +51,7 @@ impl DNSWireFrame for DnsTypeNS {
     fn get_type(&self) -> DNSType {
         DNSType::NS
     }
-    fn encode(
-        &self,
-        compression: Option<(&mut HashMap<Vec<Label>, usize>, usize)>,
-    ) -> Result<Vec<u8>, DNSProtoErr> {
+    fn encode(&self, compression: CompressionType) -> Result<Vec<u8>, DNSProtoErr> {
         Ok(self.ns.to_binary(compression))
     }
 }

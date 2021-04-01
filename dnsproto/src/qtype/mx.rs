@@ -1,35 +1,38 @@
+use crate::dnsname::{parse_name, DNSName};
 use crate::errors::{DNSProtoErr, ParseZoneDataErr};
-use crate::label::Label;
-use crate::qtype::DNSWireFrame;
-use nom::lib::std::collections::hash_map::RandomState;
-use std::collections::HashMap;
+use crate::meta::DNSType;
+use crate::qtype::helper::not_space;
+use crate::qtype::{CompressionType, DNSWireFrame};
+use nom::character::complete::{digit1, multispace0};
+use nom::number::complete::be_u16;
 use std::str::FromStr;
 use std::{fmt, fmt::Formatter};
-use crate::meta::DNSType;
-use nom::character::complete::{digit1, multispace0};
-use nom::bytes::streaming::take_while;
-use crate::qtype::soa::is_not_space;
-use nom::number::complete::be_u16;
-use crate::dnsname::{parse_name, DNSName};
 
+// https://tools.ietf.org/html/rfc1035#section-3.3.9
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+// |                  PREFERENCE                   |
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+// /                   EXCHANGE                    /
+// /                                               /
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
 #[derive(Debug, PartialEq)]
-pub struct DnsTypeMX{
-    priority:  u16,
-    exchange:  DNSName,
+pub struct DnsTypeMX {
+    priority: u16,
+    exchange: DNSName,
 }
 
 impl DnsTypeMX {
     pub fn new(priority: u16, exchange: &str) -> Result<Self, DNSProtoErr> {
-        Ok(DnsTypeMX{
+        Ok(DnsTypeMX {
             priority,
-            exchange: DNSName::new(exchange)?
+            exchange: DNSName::new(exchange)?,
         })
     }
 }
 
 impl fmt::Display for DnsTypeMX {
     fn fmt(&self, format: &mut Formatter<'_>) -> fmt::Result {
-        write!(format, "{} {}",self.priority, self.exchange.to_string())
+        write!(format, "{} {}", self.priority, self.exchange.to_string())
     }
 }
 impl DNSWireFrame for DnsTypeMX {
@@ -44,10 +47,7 @@ impl DNSWireFrame for DnsTypeMX {
         DNSType::MX
     }
 
-    fn encode(
-        &self,
-        compression: Option<(&mut HashMap<Vec<Label>, usize, RandomState>, usize)>,
-    ) -> Result<Vec<u8>, DNSProtoErr> {
+    fn encode(&self, compression: CompressionType) -> Result<Vec<u8>, DNSProtoErr> {
         let mut data = vec![];
         data.extend_from_slice(&self.priority.to_be_bytes()[..]);
         match compression {
@@ -70,10 +70,10 @@ impl FromStr for DnsTypeMX {
         let (rest, priority) = digit1(str)?;
         let priority = u16::from_str(priority)?;
         let (rest, _) = multispace0(rest)?;
-        let (_, exchange) = take_while(is_not_space)(rest)?;
+        let (_, exchange) = not_space(rest)?;
         Ok(DnsTypeMX {
             priority,
-            exchange: DNSName::new(exchange)?
+            exchange: DNSName::new(exchange)?,
         })
     }
 }
@@ -88,3 +88,51 @@ named_args!(parse_mx<'a>(original: &[u8])<DnsTypeMX>,
         }
     )
 ));
+
+#[cfg(test)]
+mod test {
+    use crate::label::Label;
+    use crate::qtype::{DNSWireFrame, DnsTypeMX};
+    use std::collections::HashMap;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_dns_type_mx() {
+        let bin_arr = [
+            0x00u8, 0x0f, 0x02, 0x6d, 0x78, 0x01, 0x6e, 0x06, 0x73, 0x68, 0x69, 0x66, 0x65, 0x6e,
+            0x03, 0x63, 0x6f, 0x6d, 0x00,
+        ];
+        assert_eq!(
+            DnsTypeMX::decode(&bin_arr, None).unwrap(),
+            DnsTypeMX::new(15, "mx.n.shifen.com.").unwrap()
+        );
+
+        assert_eq!(
+            "15 mx.n.shifen.com.".parse::<DnsTypeMX>().unwrap(),
+            DnsTypeMX::new(15, "mx.n.shifen.com.").unwrap()
+        );
+
+        assert_eq!(
+            "15 mx.n.shifen.com."
+                .parse::<DnsTypeMX>()
+                .unwrap()
+                .encode(None)
+                .unwrap(),
+            &bin_arr,
+        );
+        let mut compression_map = HashMap::new();
+        compression_map.insert(vec![Label::from_str("com").unwrap()], 12usize);
+        let compressed_bin = [
+            0x00u8, 0x0f, 0x02, 0x6d, 0x78, 0x01, 0x6e, 0x06, 0x73, 0x68, 0x69, 0x66, 0x65, 0x6e,
+            0xc0, 0x0c,
+        ];
+        assert_eq!(
+            "15 mx.n.shifen.com."
+                .parse::<DnsTypeMX>()
+                .unwrap()
+                .encode(Some((&mut compression_map, 0)))
+                .unwrap(),
+            &compressed_bin,
+        );
+    }
+}

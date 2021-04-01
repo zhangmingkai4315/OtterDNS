@@ -1,12 +1,9 @@
 use crate::errors::{DNSProtoErr, ParseZoneDataErr};
-use crate::label::Label;
-use crate::qtype::DNSWireFrame;
-use nom::lib::std::collections::hash_map::RandomState;
-use std::collections::HashMap;
+use crate::meta::DNSType;
+use crate::qtype::{CompressionType, DNSWireFrame};
 use std::net::Ipv4Addr;
 use std::str::FromStr;
 use std::{fmt, fmt::Formatter};
-use crate::meta::DNSType;
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct DnsTypeA(Ipv4Addr);
@@ -35,10 +32,7 @@ impl DNSWireFrame for DnsTypeA {
         DNSType::A
     }
 
-    fn encode(
-        &self,
-        _: Option<(&mut HashMap<Vec<Label>, usize, RandomState>, usize)>,
-    ) -> Result<Vec<u8>, DNSProtoErr> {
+    fn encode(&self, _: CompressionType) -> Result<Vec<u8>, DNSProtoErr> {
         Ok(self.0.octets().to_vec())
     }
 }
