@@ -3,6 +3,7 @@ mod aaaa;
 mod ns;
 mod opt;
 mod soa;
+mod mx;
 
 use super::errors::DNSProtoErr;
 use nom::lib::std::collections::HashMap;
@@ -17,6 +18,7 @@ use nom::lib::std::fmt::Display;
 pub use ns::DnsTypeNS;
 pub use opt::DNSTypeOpt;
 pub use soa::DnsTypeSOA;
+pub use mx::DnsTypeMX;
 use std::str::FromStr;
 
 // for wireframe convert
