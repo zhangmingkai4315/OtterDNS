@@ -2,7 +2,7 @@
 // use intrusive_collections::{RBTree, intrusive_adapter, RBTreeLink, KeyAdapter};
 // use std::cell::Cell;
 use crate::errors::StorageError;
-use crate::rbtree::{RBTree, TreeIterator};
+use crate::rbtree::{RBTree};
 // use crate::Storage;
 use dnsproto::dnsname::DNSName;
 use dnsproto::meta::{DNSType, RRSet, ResourceRecord};
@@ -63,10 +63,10 @@ impl Iterator for ZoneIterator {
                                 self.next = Some((v.0.clone(), Some(v.1)));
                                 self.parent_stack.push((parent.0.clone(), parent.1));
                                 return Some(next);
-                            } else {
-                                // no more item in this tree shift to another sub tree
-                                self.next = Some((parent.0.clone(), parent.1))
                             }
+                            // no more item in this tree shift to another sub tree
+                            self.next = Some((parent.0.clone(), parent.1));
+                            return Some(next);
                         }
                     }
                 } else {
@@ -90,11 +90,10 @@ impl RBTreeNode {
     }
 
     pub fn find_smallest(
-        original: Rc<RefCell<RBTreeNode>>,
+        current: Rc<RefCell<RBTreeNode>>,
         stack: &mut Vec<(Rc<RefCell<RBTreeNode>>, Option<usize>)>,
         id: Option<usize>,
     ) -> (Rc<RefCell<RBTreeNode>>, Option<usize>) {
-        let current = original.clone();
         if let Some(subtree) = &current.deref().borrow_mut().subtree {
             if let Some((val, id)) = subtree.find_smallest_value() {
                 stack.push((current.clone(), Some(id)));
@@ -103,17 +102,6 @@ impl RBTreeNode {
         }
         (current, id)
     }
-
-    // pub fn find_largest(original: Rc<RefCell<RBTreeNode>>, stack: &mut Vec<Rc<RefCell<RBTreeNode>>>) -> Rc<RefCell<RBTreeNode>> {
-    //     let current = original.clone();
-    //     if let Some(subtree) = &current.deref().borrow_mut().subtree{
-    //         if let Some(val) = subtree.find_largest_value(){
-    //             stack.push(current.clone());
-    //             return RBTreeNode::find_smallest(val.clone(), stack);
-    //         }
-    //     }
-    //     current
-    // }
     fn has_type(&self, qtype: DNSType) -> bool {
         for (q_type, _) in self.rr_sets.iter() {
             if *q_type == qtype {
@@ -359,7 +347,7 @@ mod storage {
             parent: None,
             subtree: None,
         }));
-        let mut node = Rc::new(RefCell::new(RBTreeNode {
+        let node = Rc::new(RefCell::new(RBTreeNode {
             label: Label::from_str("baidu").unwrap(),
             rr_sets: Default::default(),
             parent: None,
@@ -471,13 +459,21 @@ mod storage {
     #[test]
     fn test_rbtree_iterator() {
         let zone = example_zone_v2();
-        let mut i = 10;
+        let mut index = 0;
+        let iter_order = [
+            "*.baidu.com.",
+            "test\\.dns.baidu.com.",
+            "baidu.com.",
+            "google.com.",
+            "com.",
+            ".",
+        ];
         for ix in zone {
-            i = i - 1;
-            if i == 0 {
-                break;
-            }
-            println!("{:?}", ix);
+            assert_eq!(
+                ix.deref().borrow().get_name().to_string(),
+                String::from(iter_order[index])
+            );
+            index = index + 1;
         }
     }
 }

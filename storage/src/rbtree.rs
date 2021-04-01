@@ -709,7 +709,7 @@ where
         Some(from)
     }
 
-    pub fn find_next_value(&self, mut from: usize) -> Option<(&V, usize)> {
+    pub fn find_next_value(&self, from: usize) -> Option<(&V, usize)> {
         match self.find_next(from) {
             Some(current_id) => {
                 let node = &self.nodes[current_id];
@@ -916,7 +916,7 @@ mod test {
 
         match tree.find_smallest_value() {
             Some(value) => {
-                assert_eq!(*value.0, 1);
+                assert_eq!(*value.0, 2);
             }
             _ => {
                 assert!(false)

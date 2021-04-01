@@ -116,6 +116,7 @@ impl DNSName {
                 //     cal_last
                 // }).collect::<Vec<u64>>().iter().rev().collect::<Vec<u64>>();
                 for label in self.labels.iter() {
+                    #[allow(clippy::map_clone)]
                     let current_key = self.labels[index..]
                         .iter()
                         .map(|x| x.clone())
@@ -251,10 +252,10 @@ mod dnsname {
         assert_eq!(dname.label_count(), 3);
         assert_eq!(other.label_count(), 2);
         assert_eq!(dname.is_part_of(&other), true);
-        dname.push_front("test");
+        dname.push_front("test").unwrap();
         assert_eq!(dname.label_count(), 4);
         assert_eq!(dname.is_part_of(&other), true);
-        dname.push_back("app");
+        dname.push_back("app").unwrap();
         assert_eq!(dname.label_count(), 5);
         assert_eq!(dname.is_part_of(&other), false);
 
