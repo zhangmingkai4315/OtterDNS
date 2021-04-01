@@ -24,6 +24,7 @@ pub trait DNSWireFrame: Debug + Display {
     fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr>
     where
         Self: Sized;
+    fn get_type(&self)->DNSType;
     fn encode(
         &self,
         // frame: &mut Cursor<Vec<u8>>,

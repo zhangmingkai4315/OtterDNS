@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::net::Ipv4Addr;
 use std::str::FromStr;
 use std::{fmt, fmt::Formatter};
+use crate::meta::DNSType;
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct DnsTypeA(Ipv4Addr);
@@ -28,6 +29,10 @@ impl DNSWireFrame for DnsTypeA {
         }
         let data = unsafe { &*(data as *const [u8] as *const [u8; 4]) };
         Ok(DnsTypeA(Ipv4Addr::from(*data)))
+    }
+
+    fn get_type(&self) -> DNSType {
+        DNSType::A
     }
 
     fn encode(

@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
 use std::str::FromStr;
+use crate::meta::DNSType;
 
 #[derive(Debug, PartialEq)]
 pub struct DnsTypeSOA {
@@ -167,6 +168,11 @@ impl DNSWireFrame for DnsTypeSOA {
             Err(_err) => Err(DNSProtoErr::PacketParseError),
         }
     }
+
+    fn get_type(&self) -> DNSType {
+        DNSType::SOA
+    }
+
     fn encode(
         &self,
         compression: Option<(&mut HashMap<Vec<Label>, usize>, usize)>,

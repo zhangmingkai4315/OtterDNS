@@ -26,7 +26,6 @@ lazy_static! {
 pub struct RBTreeNode {
     label: Label,
     rr_sets: HashMap<DNSType, RRSet>,
-    /// parent is None when current node is root node.
     parent: Option<Weak<RefCell<RBTreeNode>>>,
     subtree: Option<RBTree<Label, Rc<RefCell<RBTreeNode>>>>,
 }
@@ -474,6 +473,11 @@ mod storage {
                 String::from(iter_order[index])
             );
             index = index + 1;
+        }
+
+        let zone = RBTreeNode::new_root();
+        for ix in zone{
+            assert_eq!(ix.deref().borrow().get_name().to_string(),String::from("."));
         }
     }
 }

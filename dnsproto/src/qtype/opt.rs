@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::fmt::{self, Formatter};
 use std::io::{Cursor, Write};
 use std::net::{Ipv4Addr, Ipv6Addr};
+use crate::meta::DNSType;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[repr(u16)]
@@ -142,6 +143,11 @@ impl DNSWireFrame for DNSTypeOpt {
             Err(_err) => Err(DNSProtoErr::PacketParseError),
         }
     }
+
+    fn get_type(&self) -> DNSType {
+        DNSType::OPT
+    }
+
     fn encode(
         &self,
         _: Option<(&mut HashMap<Vec<Label>, usize>, usize)>,

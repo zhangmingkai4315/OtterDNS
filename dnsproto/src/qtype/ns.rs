@@ -6,6 +6,7 @@ use nom::lib::std::collections::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
 use std::str::FromStr;
+use crate::meta::DNSType;
 
 #[derive(Debug, PartialEq)]
 pub struct DnsTypeNS {
@@ -49,6 +50,9 @@ impl DNSWireFrame for DnsTypeNS {
             Ok((_, ns)) => Ok(ns),
             Err(_err) => Err(DNSProtoErr::PacketParseError),
         }
+    }
+    fn get_type(&self) -> DNSType {
+        DNSType::NS
     }
     fn encode(
         &self,
