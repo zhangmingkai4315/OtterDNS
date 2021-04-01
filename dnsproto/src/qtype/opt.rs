@@ -208,34 +208,38 @@ impl DNSTypeOpt {
         }
     }
 }
+#[cfg(test)]
+mod test {
+    use super::*;
 
-#[test]
-fn test_ecs_create() {
-    match EdnsECS::new_ipv4("1.0.0.0".parse().unwrap(), 8, 0) {
-        Ok(ecs) => {
-            let data = Vec::new();
-            let cursor = Cursor::new(data);
-            match ecs.encode(cursor) {
-                Ok((val, _)) => {
-                    assert_eq!(val.into_inner(), vec![0, 1, 8, 0, 1]);
+    #[test]
+    fn test_ecs_create() {
+        match EdnsECS::new_ipv4("1.0.0.0".parse().unwrap(), 8, 0) {
+            Ok(ecs) => {
+                let data = Vec::new();
+                let cursor = Cursor::new(data);
+                match ecs.encode(cursor) {
+                    Ok((val, _)) => {
+                        assert_eq!(val.into_inner(), vec![0, 1, 8, 0, 1]);
+                    }
+                    Err(_) => assert!(false),
                 }
-                Err(_) => assert!(false),
             }
+            Err(_) => assert!(false),
         }
-        Err(_) => assert!(false),
-    }
-    match EdnsECS::new_ipv4("1.1.0.0".parse().unwrap(), 16, 0) {
-        Ok(ecs) => {
-            let data = Vec::new();
-            let cursor = Cursor::new(data);
-            match ecs.encode(cursor) {
-                Ok((val, _)) => {
-                    assert_eq!(val.into_inner(), vec![0, 1, 16, 0, 1, 1]);
+        match EdnsECS::new_ipv4("1.1.0.0".parse().unwrap(), 16, 0) {
+            Ok(ecs) => {
+                let data = Vec::new();
+                let cursor = Cursor::new(data);
+                match ecs.encode(cursor) {
+                    Ok((val, _)) => {
+                        assert_eq!(val.into_inner(), vec![0, 1, 16, 0, 1, 1]);
+                    }
+                    Err(_) => assert!(false),
                 }
-                Err(_) => assert!(false),
             }
+            Err(_) => assert!(false),
         }
-        Err(_) => assert!(false),
     }
 }
 

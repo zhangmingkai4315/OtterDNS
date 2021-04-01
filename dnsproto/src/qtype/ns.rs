@@ -55,41 +55,50 @@ impl DNSWireFrame for DnsTypeNS {
         Ok(self.ns.to_binary(compression))
     }
 }
+#[cfg(test)]
+mod test {
+    use crate::dnsname::DNSName;
+    use crate::label::Label;
+    use crate::qtype::{DNSWireFrame, DnsTypeNS};
+    use std::collections::HashMap;
+    use std::str::FromStr;
 
-#[test]
-fn test_ns_encode() {
-    let non_compression_vec: Vec<u8> = vec![
-        1, 102, 12, 103, 116, 108, 100, 45, 115, 101, 114, 118, 101, 114, 115, 3, 110, 101, 116, 0,
-    ];
-    let ns = DnsTypeNS {
-        ns: DNSName::new("f.gtld-servers.net").unwrap(),
-    };
-    match ns.encode(None) {
-        Ok(ns_data) => assert_eq!(ns_data, non_compression_vec),
-        _ => {
-            assert!(false);
+    #[test]
+    fn test_ns_encode() {
+        let non_compression_vec: Vec<u8> = vec![
+            1, 102, 12, 103, 116, 108, 100, 45, 115, 101, 114, 118, 101, 114, 115, 3, 110, 101,
+            116, 0,
+        ];
+        let ns = DnsTypeNS {
+            ns: DNSName::new("f.gtld-servers.net").unwrap(),
+        };
+        match ns.encode(None) {
+            Ok(ns_data) => assert_eq!(ns_data, non_compression_vec),
+            _ => {
+                assert!(false);
+            }
         }
-    }
-    let mut compression_map = HashMap::new();
-    compression_map.insert(
-        vec![
-            Label::from_str("gtld-servers").unwrap(),
-            Label::from_str("net").unwrap(),
-        ],
-        23,
-    );
-    let compression_vec: Vec<u8> = vec![1, 102, 192, 23];
-    match ns.encode(Some((&mut compression_map, 30))) {
-        Ok(ns_data) => assert_eq!(ns_data, compression_vec),
-        _ => {
-            assert!(false);
+        let mut compression_map = HashMap::new();
+        compression_map.insert(
+            vec![
+                Label::from_str("gtld-servers").unwrap(),
+                Label::from_str("net").unwrap(),
+            ],
+            23,
+        );
+        let compression_vec: Vec<u8> = vec![1, 102, 192, 23];
+        match ns.encode(Some((&mut compression_map, 30))) {
+            Ok(ns_data) => assert_eq!(ns_data, compression_vec),
+            _ => {
+                assert!(false);
+            }
         }
-    }
-    let update_vec = vec![192, 30];
-    match ns.encode(Some((&mut compression_map, 0))) {
-        Ok(ns_data) => assert_eq!(ns_data, update_vec),
-        _ => {
-            assert!(false);
+        let update_vec = vec![192, 30];
+        match ns.encode(Some((&mut compression_map, 0))) {
+            Ok(ns_data) => assert_eq!(ns_data, update_vec),
+            _ => {
+                assert!(false);
+            }
         }
     }
 }

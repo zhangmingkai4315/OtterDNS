@@ -46,72 +46,77 @@ impl FromStr for DnsTypeA {
         }
     }
 }
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::qtype::DNSWireFrame;
 
-#[test]
-fn test_dns_type_a() {
-    assert_eq!(
-        DnsTypeA::decode(&[0, 0, 0, 0], None).unwrap(),
-        DnsTypeA(Ipv4Addr::new(0, 0, 0, 0))
-    );
-    assert_eq!(
-        DnsTypeA::decode(&[127, 0, 0, 1], None).unwrap(),
-        DnsTypeA(Ipv4Addr::new(127, 0, 0, 1))
-    );
-    assert_eq!(
-        DnsTypeA::decode(&[255, 255, 255, 255], None).unwrap(),
-        DnsTypeA(Ipv4Addr::new(255, 255, 255, 255))
-    );
+    #[test]
+    fn test_dns_type_a() {
+        assert_eq!(
+            DnsTypeA::decode(&[0, 0, 0, 0], None).unwrap(),
+            DnsTypeA(Ipv4Addr::new(0, 0, 0, 0))
+        );
+        assert_eq!(
+            DnsTypeA::decode(&[127, 0, 0, 1], None).unwrap(),
+            DnsTypeA(Ipv4Addr::new(127, 0, 0, 1))
+        );
+        assert_eq!(
+            DnsTypeA::decode(&[255, 255, 255, 255], None).unwrap(),
+            DnsTypeA(Ipv4Addr::new(255, 255, 255, 255))
+        );
 
-    assert_eq!(
-        "1.2.3.4".parse::<DnsTypeA>().unwrap(),
-        DnsTypeA::decode(&[1, 2, 3, 4], None).unwrap()
-    );
-    assert_eq!(
-        "192.168.1.1".parse::<DnsTypeA>().unwrap(),
-        DnsTypeA::decode(&[192, 168, 1, 1], None).unwrap()
-    );
-    assert_eq!(
-        "127.0.0.1".parse::<DnsTypeA>().unwrap(),
-        DnsTypeA::decode(&[127, 0, 0, 1], None).unwrap()
-    );
-    assert_eq!(
-        "255.255.255.0".parse::<DnsTypeA>().unwrap(),
-        DnsTypeA::decode(&[255, 255, 255, 0], None).unwrap()
-    );
+        assert_eq!(
+            "1.2.3.4".parse::<DnsTypeA>().unwrap(),
+            DnsTypeA::decode(&[1, 2, 3, 4], None).unwrap()
+        );
+        assert_eq!(
+            "192.168.1.1".parse::<DnsTypeA>().unwrap(),
+            DnsTypeA::decode(&[192, 168, 1, 1], None).unwrap()
+        );
+        assert_eq!(
+            "127.0.0.1".parse::<DnsTypeA>().unwrap(),
+            DnsTypeA::decode(&[127, 0, 0, 1], None).unwrap()
+        );
+        assert_eq!(
+            "255.255.255.0".parse::<DnsTypeA>().unwrap(),
+            DnsTypeA::decode(&[255, 255, 255, 0], None).unwrap()
+        );
 
-    for failed_ip in vec!["-1.-1.-2.-3", "256.256.265.23", "", "1.2.3", "1.2.3"] {
-        match failed_ip.parse::<DnsTypeA>() {
-            Err(ParseZoneDataErr::AddrParseError(_)) => {}
-            _ => assert!(false, format!("parse {} should return error", failed_ip)),
+        for failed_ip in vec!["-1.-1.-2.-3", "256.256.265.23", "", "1.2.3", "1.2.3"] {
+            match failed_ip.parse::<DnsTypeA>() {
+                Err(ParseZoneDataErr::AddrParseError(_)) => {}
+                _ => assert!(false, format!("parse {} should return error", failed_ip)),
+            }
         }
-    }
 
-    assert_eq!(
-        "1.2.3.4".parse::<DnsTypeA>().unwrap().encode(None).unwrap(),
-        &[1, 2, 3, 4]
-    );
-    assert_eq!(
-        "192.168.1.1"
-            .parse::<DnsTypeA>()
-            .unwrap()
-            .encode(None)
-            .unwrap(),
-        &[192, 168, 1, 1]
-    );
-    assert_eq!(
-        "127.0.0.1"
-            .parse::<DnsTypeA>()
-            .unwrap()
-            .encode(None)
-            .unwrap(),
-        &[127, 0, 0, 1]
-    );
-    assert_eq!(
-        "255.255.255.0"
-            .parse::<DnsTypeA>()
-            .unwrap()
-            .encode(None)
-            .unwrap(),
-        &[255, 255, 255, 0]
-    );
+        assert_eq!(
+            "1.2.3.4".parse::<DnsTypeA>().unwrap().encode(None).unwrap(),
+            &[1, 2, 3, 4]
+        );
+        assert_eq!(
+            "192.168.1.1"
+                .parse::<DnsTypeA>()
+                .unwrap()
+                .encode(None)
+                .unwrap(),
+            &[192, 168, 1, 1]
+        );
+        assert_eq!(
+            "127.0.0.1"
+                .parse::<DnsTypeA>()
+                .unwrap()
+                .encode(None)
+                .unwrap(),
+            &[127, 0, 0, 1]
+        );
+        assert_eq!(
+            "255.255.255.0"
+                .parse::<DnsTypeA>()
+                .unwrap()
+                .encode(None)
+                .unwrap(),
+            &[255, 255, 255, 0]
+        );
+    }
 }
