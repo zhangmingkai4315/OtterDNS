@@ -108,6 +108,11 @@ impl DeleteResult {
     }
 }
 
+pub struct NodeWithId<'a, K, V> {
+    node: &'a Node<K, V>,
+    id: usize,
+}
+
 impl<K, V> RBTree<K, V>
 where
     K: Ord + Debug,
@@ -127,7 +132,19 @@ where
                 Ordering::Greater => maybe_id = node.right,
             }
         }
+        None
+    }
 
+    pub fn get_id(&self, key: &K) -> Option<usize> {
+        let mut maybe_id = self.root;
+        while let Some(id) = maybe_id {
+            let node = &self.nodes[id];
+            match key.cmp(&node.key) {
+                Ordering::Equal => return Some(id),
+                Ordering::Less => maybe_id = node.left,
+                Ordering::Greater => maybe_id = node.right,
+            }
+        }
         None
     }
 
@@ -640,21 +657,37 @@ where
             true
         }
     }
-    fn find_smallest(&self) -> Option<&Node<K, V>> {
+    pub fn find_smallest(&self) -> Option<NodeWithId<'_, K, V>> {
         if self.is_empty() {
             return None;
         }
-        self.nodes.get(RBTree::min(self.root.unwrap(), &self.nodes))
+        let id = RBTree::min(self.root.unwrap(), &self.nodes);
+        return match self.nodes.get(id) {
+            Some(node) => Some(NodeWithId { node, id }),
+            _ => None,
+        };
     }
 
-    fn find_largest(&self) -> Option<&Node<K, V>> {
+    pub fn find_smallest_value(&self) -> Option<(&V, usize)> {
+        match self.find_smallest() {
+            Some(node) => Some((&node.node.value, node.id)),
+            _ => None,
+        }
+    }
+
+    pub fn find_largest(&self) -> Option<&Node<K, V>> {
         if self.is_empty() {
             return None;
         }
         self.nodes.get(RBTree::max(self.root.unwrap(), &self.nodes))
     }
-
-    fn find_next(&self, mut from: usize) -> Option<usize> {
+    pub fn find_largest_value(&self) -> Option<&V> {
+        match self.find_largest() {
+            Some(largest) => Some(&largest.value),
+            _ => None,
+        }
+    }
+    pub fn find_next(&self, mut from: usize) -> Option<usize> {
         let the_key = &self.nodes[from].key;
         if let Some(right) = self.nodes[from].right {
             from = Self::min(right, &self.nodes);
@@ -674,6 +707,16 @@ where
         }
 
         Some(from)
+    }
+
+    pub fn find_next_value(&self, mut from: usize) -> Option<(&V, usize)> {
+        match self.find_next(from) {
+            Some(current_id) => {
+                let node = &self.nodes[current_id];
+                Some((&node.value, current_id))
+            }
+            _ => None,
+        }
     }
 }
 
@@ -854,8 +897,8 @@ mod test {
         tree.insert(41, 99);
         match tree.find_smallest() {
             Some(value) => {
-                assert_eq!(value.key, 1);
-                assert_eq!(value.value, 2);
+                assert_eq!(value.node.key, 1);
+                assert_eq!(value.node.value, 2);
             }
             _ => {
                 assert!(false)
@@ -865,6 +908,15 @@ mod test {
             Some(value) => {
                 assert_eq!(value.key, 123);
                 assert_eq!(value.value, 321);
+            }
+            _ => {
+                assert!(false)
+            }
+        }
+
+        match tree.find_smallest_value() {
+            Some(value) => {
+                assert_eq!(*value.0, 1);
             }
             _ => {
                 assert!(false)

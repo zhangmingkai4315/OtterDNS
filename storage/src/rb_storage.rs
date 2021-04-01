@@ -2,7 +2,7 @@
 // use intrusive_collections::{RBTree, intrusive_adapter, RBTreeLink, KeyAdapter};
 // use std::cell::Cell;
 use crate::errors::StorageError;
-use crate::rbtree::RBTree;
+use crate::rbtree::{RBTree, TreeIterator};
 // use crate::Storage;
 use dnsproto::dnsname::DNSName;
 use dnsproto::meta::{DNSType, RRSet, ResourceRecord};
@@ -31,48 +31,53 @@ pub struct RBTreeNode {
     subtree: Option<RBTree<Label, Rc<RefCell<RBTreeNode>>>>,
 }
 
-// struct ZoneIter<'a>{
-//     stack: Vec<Rc<RefCell<RBTreeNode>>>,
-//     current: Option<Rc<RefCell<RBTreeNode>>>,
-//     iter: Option<TreeIterator<'a , Label, Rc<RefCell<RBTreeNode>>>>
-// }
+pub struct ZoneIterator {
+    parent_stack: Vec<(Rc<RefCell<RBTreeNode>>, Option<usize>)>,
+    next: Option<(Rc<RefCell<RBTreeNode>>, Option<usize>)>,
+}
 
-// impl RBZone{
-//     fn iter(&self) -> ZoneIter {
-//         ZoneIter{
-//             stack: vec![self.0.clone()],
-//             current: None,
-//             iter: None
-//         }
-//     }
-// }
-//
-// impl<'a> Iterator for ZoneIter<'a>{
-//     type Item = Rc<RefCell<RBTreeNode>>;
-//
-//     fn next(&mut self) -> Option<Self::Item> {
-//         loop{
-//             if let Some(node) =  &mut self.iter {
-//                 if let Some(o) = node.next() {
-//                     return Some(o.1.clone());
-//                 }
-//                 self.iter = None;
-//             }
-//             if self.stack.is_empty() {
-//                 return None
-//             }
-//             self.current = Some(self.stack.pop().unwrap());
-//             if let Some(v) = &self.current{
-//                 if let Some(ref v) = v.borrow_mut().subtree{
-//                     self.iter = Some(v.into_iter());
-//                 }
-//             }
-//             if let Some(ref v) = self.current.unwrap().borrow_mut().subtree{
-//                 self.iter = Some(v.into_iter());
-//             }
-//         }
-//     }
-// }
+impl IntoIterator for RBTreeNode {
+    type Item = Rc<RefCell<RBTreeNode>>;
+    type IntoIter = ZoneIterator;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let mut stack = Vec::new();
+        let (smallest, id) =
+            RBTreeNode::find_smallest(Rc::new(RefCell::new(self)), &mut stack, None);
+        ZoneIterator {
+            parent_stack: stack,
+            next: Some((smallest, id)),
+        }
+    }
+}
+
+impl Iterator for ZoneIterator {
+    type Item = Rc<RefCell<RBTreeNode>>;
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some((next, id)) = self.next.take() {
+                if let Some(id) = id {
+                    if let Some(parent) = self.parent_stack.pop() {
+                        if let Some(tree) = &parent.0.deref().borrow().subtree {
+                            if let Some(v) = tree.find_next_value(id) {
+                                self.next = Some((v.0.clone(), Some(v.1)));
+                                self.parent_stack.push((parent.0.clone(), parent.1));
+                                return Some(next);
+                            } else {
+                                // no more item in this tree shift to another sub tree
+                                self.next = Some((parent.0.clone(), parent.1))
+                            }
+                        }
+                    }
+                } else {
+                    return Some(next);
+                }
+            } else {
+                return None;
+            }
+        }
+    }
+}
 
 impl RBTreeNode {
     pub fn new_root() -> RBTreeNode {
@@ -83,6 +88,32 @@ impl RBTreeNode {
             subtree: None,
         }
     }
+
+    pub fn find_smallest(
+        original: Rc<RefCell<RBTreeNode>>,
+        stack: &mut Vec<(Rc<RefCell<RBTreeNode>>, Option<usize>)>,
+        id: Option<usize>,
+    ) -> (Rc<RefCell<RBTreeNode>>, Option<usize>) {
+        let current = original.clone();
+        if let Some(subtree) = &current.deref().borrow_mut().subtree {
+            if let Some((val, id)) = subtree.find_smallest_value() {
+                stack.push((current.clone(), Some(id)));
+                return RBTreeNode::find_smallest(val.clone(), stack, Some(id));
+            }
+        }
+        (current, id)
+    }
+
+    // pub fn find_largest(original: Rc<RefCell<RBTreeNode>>, stack: &mut Vec<Rc<RefCell<RBTreeNode>>>) -> Rc<RefCell<RBTreeNode>> {
+    //     let current = original.clone();
+    //     if let Some(subtree) = &current.deref().borrow_mut().subtree{
+    //         if let Some(val) = subtree.find_largest_value(){
+    //             stack.push(current.clone());
+    //             return RBTreeNode::find_smallest(val.clone(), stack);
+    //         }
+    //     }
+    //     current
+    // }
     fn has_type(&self, qtype: DNSType) -> bool {
         for (q_type, _) in self.rr_sets.iter() {
             if *q_type == qtype {
@@ -415,6 +446,38 @@ mod storage {
                 assert_eq!(node.rr_sets.get(&DNSType::A).is_some(), true);
             }
             _ => assert!(false),
+        }
+    }
+
+    #[test]
+    fn test_find_smallest() {
+        let zone = example_zone_v2();
+        let zone_rc = Rc::new(RefCell::new(zone));
+        let mut stack = vec![];
+        let smallest = RBTreeNode::find_smallest(zone_rc, &mut stack, None);
+        assert_eq!(
+            smallest.0.deref().borrow().label,
+            Label::from_str("*").unwrap()
+        );
+        assert_eq!(stack.len(), 3);
+        let zone = RBTreeNode::new_root();
+        let zone_rc = Rc::new(RefCell::new(zone));
+        let mut stack = vec![];
+        let smallest = RBTreeNode::find_smallest(zone_rc, &mut stack, None);
+        assert_eq!(smallest.0.deref().borrow().label, Label::root());
+        assert_eq!(stack.len(), 0);
+    }
+
+    #[test]
+    fn test_rbtree_iterator() {
+        let zone = example_zone_v2();
+        let mut i = 10;
+        for ix in zone {
+            i = i - 1;
+            if i == 0 {
+                break;
+            }
+            println!("{:?}", ix);
         }
     }
 }
