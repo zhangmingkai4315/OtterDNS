@@ -20,6 +20,7 @@ use nom::lib::std::fmt::Display;
 pub use ns::DnsTypeNS;
 pub use opt::DNSTypeOpt;
 pub use soa::DnsTypeSOA;
+use std::any::Any;
 use std::str::FromStr;
 
 type CompressionType<'a> = Option<(&'a mut HashMap<Vec<Label>, usize>, usize)>;
@@ -34,6 +35,7 @@ pub trait DNSWireFrame: Debug + Display {
         // frame: &mut Cursor<Vec<u8>>,
         compression: CompressionType,
     ) -> Result<Vec<u8>, DNSProtoErr>;
+    fn as_any(&self) -> &dyn Any;
 }
 
 pub fn decode_message_data<'a>(

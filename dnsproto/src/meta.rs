@@ -226,7 +226,12 @@ impl ResourceRecord {
     pub fn get_type(&self) -> DNSType {
         self.qtype
     }
-
+    pub fn get_ttl(&self) -> u32 {
+        self.ttl
+    }
+    pub fn get_data(&self) -> &Option<Box<dyn DNSWireFrame>> {
+        &self.data
+    }
     pub fn get_label_count(&self) -> usize {
         self.name.label_count()
     }
@@ -287,6 +292,12 @@ impl RRSet {
     pub fn clear(&mut self) {
         self.signatures.clear();
         self.signatures.clear();
+    }
+    pub fn size(&self) -> usize {
+        self.content.len()
+    }
+    pub fn content(&self) -> &Vec<ResourceRecord> {
+        self.content.as_ref()
     }
     pub fn add(&mut self, rr: ResourceRecord) {
         self.ttl = rr.ttl;

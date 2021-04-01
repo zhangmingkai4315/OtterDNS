@@ -1,6 +1,7 @@
 use crate::errors::{DNSProtoErr, ParseZoneDataErr};
 use crate::meta::DNSType;
 use crate::qtype::{CompressionType, DNSWireFrame};
+use std::any::Any;
 use std::net::Ipv4Addr;
 use std::str::FromStr;
 use std::{fmt, fmt::Formatter};
@@ -27,13 +28,16 @@ impl DNSWireFrame for DnsTypeA {
         let data = unsafe { &*(data as *const [u8] as *const [u8; 4]) };
         Ok(DnsTypeA(Ipv4Addr::from(*data)))
     }
-
     fn get_type(&self) -> DNSType {
         DNSType::A
     }
 
     fn encode(&self, _: CompressionType) -> Result<Vec<u8>, DNSProtoErr> {
         Ok(self.0.octets().to_vec())
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

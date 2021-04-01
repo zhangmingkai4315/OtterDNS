@@ -6,6 +6,7 @@ use nom::bytes::complete::{tag, take_while};
 use nom::character::complete::digit1;
 use nom::character::complete::multispace0;
 use nom::number::complete::be_u32;
+use std::any::Any;
 use std::fmt;
 use std::fmt::Formatter;
 use std::str::FromStr;
@@ -104,12 +105,6 @@ impl DnsTypeSOA {
             minimum,
         })
     }
-    pub(crate) fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
-        match parse_soa(data, original.unwrap_or(&[])) {
-            Ok((_, soa)) => Ok(soa),
-            Err(_err) => Err(DNSProtoErr::PacketParseError),
-        }
-    }
 }
 
 impl fmt::Display for DnsTypeSOA {
@@ -167,6 +162,10 @@ impl DNSWireFrame for DnsTypeSOA {
         data.extend_from_slice(&self.expire.to_be_bytes()[..]);
         data.extend_from_slice(&self.minimum.to_be_bytes()[..]);
         Ok(data)
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 #[cfg(test)]

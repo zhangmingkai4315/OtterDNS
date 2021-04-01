@@ -117,7 +117,7 @@ impl RBTreeNode {
         }
         false
     }
-    pub fn find_rrset(&mut self, dtype: DNSType) -> Result<&RRSet, StorageError> {
+    pub fn find_rrset(&self, dtype: DNSType) -> Result<&RRSet, StorageError> {
         match self.rr_sets.get(&dtype) {
             Some(rrset) => Ok(rrset),
             None => Err(StorageError::DNSTypeNotFoundError),
@@ -176,7 +176,35 @@ impl RBTreeNode {
         }
         current
     }
-
+    pub fn find_best(&self, name: &DNSName) -> &RBTreeNode {
+        let mut labels_count = name.label_count();
+        if labels_count == 0 {
+            return self;
+        }
+        let mut current = self;
+        for label in name.labels.iter().rev() {
+            labels_count -= 1;
+            if current.subtree.is_none() {
+                return self;
+            }
+            let result = current
+                .subtree
+                .as_ref()
+                .unwrap()
+                .get(&label.clone())
+                .cloned();
+            /// subtree exist and has label node
+            if let Some(node) = result {
+                if labels_count == 0 {
+                    return unsafe { node.as_ptr().as_ref().unwrap() };
+                }
+                current = unsafe { node.as_ptr().as_ref().unwrap() };
+                continue;
+            }
+            return current;
+        }
+        current
+    }
     pub fn find(&self, name: &DNSName) -> Result<&RBTreeNode, StorageError> {
         let mut labels_count = name.label_count();
         if labels_count == 0 {
@@ -217,6 +245,30 @@ impl RBTreeNode {
         }
         Ok(current)
     }
+    pub fn find_soa(&self) -> Result<&ResourceRecord, StorageError> {
+        return match self.find_rrset(DNSType::SOA) {
+            Ok(rrset) => {
+                if rrset.content().len() != 1 {
+                    return Err(StorageError::SOAResourceError);
+                }
+                Ok(rrset.content().get(0).unwrap())
+            }
+            _ => {
+                if let Some(parent) = &self.parent {
+                    if let Some(parent) = parent.upgrade() {
+                        match unsafe { parent.as_ptr().as_ref() } {
+                            Some(parent) => {
+                                return parent.find_soa();
+                            }
+                            _ => return Err(StorageError::SOAResourceError),
+                        };
+                    }
+                }
+                Err(StorageError::SOAResourceError)
+            }
+        };
+    }
+
     pub fn add_rr(&mut self, rr: ResourceRecord) -> Result<(), StorageError> {
         match rr.get_type() {
             DNSType::RRSIG => {
@@ -290,14 +342,59 @@ impl RBTreeNode {
 mod storage {
     use super::*;
     use dnsproto::meta::DNSClass;
+    use dnsproto::qtype::DnsTypeSOA;
     use std::str::FromStr;
 
     fn example_zone_v2() -> RBTreeNode {
         let mut zone: RBTreeNode = RBTreeNode::new_root();
+        zone.add_rr(
+            ResourceRecord::new(
+                ".",
+                DNSType::SOA,
+                DNSClass::IN,
+                1000,
+                Some(Box::new(
+                    DnsTypeSOA::new(
+                        "a.root-servers.net.",
+                        "nstld.verisign-grs.com.",
+                        2021033102,
+                        1800,
+                        900,
+                        604800,
+                        86400,
+                    )
+                    .unwrap(),
+                )),
+            )
+            .unwrap(),
+        )
+        .unwrap();
         let dnsnames = vec![
             (
                 DNSName::new("baidu.com").unwrap(),
                 ResourceRecord::new("baidu.com.", DNSType::A, DNSClass::IN, 1000, None).unwrap(),
+            ),
+            (
+                DNSName::new("baidu.com").unwrap(),
+                ResourceRecord::new(
+                    "baidu.com.",
+                    DNSType::SOA,
+                    DNSClass::IN,
+                    1000,
+                    Some(Box::new(
+                        DnsTypeSOA::new(
+                            "dns.baidu.com.",
+                            "sa.baidu.com",
+                            2012144258,
+                            300,
+                            300,
+                            2592000,
+                            7200,
+                        )
+                        .unwrap(),
+                    )),
+                )
+                .unwrap(),
             ),
             (
                 DNSName::new("www.google.com.").unwrap(),
@@ -421,7 +518,7 @@ mod storage {
         let zone = example_zone_v2();
         let dname = DNSName::new("baidu.com").unwrap();
         match zone.find(&dname) {
-            Ok(node) => assert_eq!(node.rr_sets.len(), 1),
+            Ok(node) => assert_eq!(node.rr_sets.len(), 2),
             _ => assert!(false),
         }
 
@@ -482,5 +579,47 @@ mod storage {
                 String::from(".")
             );
         }
+    }
+    #[test]
+    fn test_find_best() {
+        let zone = example_zone_v2();
+        let best = zone.find_best(&DNSName::new("www.baidu.com").unwrap());
+        assert_eq!(best.get_name().to_string(), "baidu.com.");
+        let best = zone.find_best(&DNSName::new("www.google.com.").unwrap());
+        assert_eq!(best.get_name().to_string(), "www.google.com.");
+
+        let zone = RBTreeNode::new_root();
+        let best = zone.find_best(&DNSName::new("www.baidu.com").unwrap());
+        assert_eq!(best.get_name().to_string(), ".");
+    }
+
+    #[test]
+    fn test_find_soa() {
+        let zone = example_zone_v2();
+        let soa = zone.find_soa().unwrap();
+        let soa_record = DnsTypeSOA::new(
+            "a.root-servers.net.",
+            "nstld.verisign-grs.com.",
+            2021033102,
+            1800,
+            900,
+            604800,
+            86400,
+        )
+        .unwrap();
+        assert_eq!(soa.get_type(), DNSType::SOA);
+        assert_eq!(soa.get_dname().to_string(), ".");
+        assert_eq!(
+            soa.get_data().as_ref().unwrap().to_string(),
+            "a.root-servers.net. nstld.verisign-grs.com. ( 2021033102 1800 900 604800 86400 )"
+        );
+        assert_eq!(
+            soa.get_data()
+                .as_ref()
+                .unwrap()
+                .as_any()
+                .downcast_ref::<DnsTypeSOA>(),
+            Some(&soa_record)
+        );
     }
 }

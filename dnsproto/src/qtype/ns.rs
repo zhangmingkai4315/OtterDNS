@@ -2,6 +2,7 @@ use crate::dnsname::{parse_name, DNSName};
 use crate::errors::{DNSProtoErr, ParseZoneDataErr};
 use crate::meta::DNSType;
 use crate::qtype::{CompressionType, DNSWireFrame};
+use std::any::Any;
 use std::fmt::{self, Formatter};
 use std::str::FromStr;
 
@@ -53,6 +54,9 @@ impl DNSWireFrame for DnsTypeNS {
     }
     fn encode(&self, compression: CompressionType) -> Result<Vec<u8>, DNSProtoErr> {
         Ok(self.ns.to_binary(compression))
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 #[cfg(test)]

@@ -3,6 +3,7 @@ use crate::meta::DNSType;
 use crate::qtype::{CompressionType, DNSWireFrame};
 use byteorder::{BigEndian, WriteBytesExt};
 use nom::number::complete::{be_u16, be_u8};
+use std::any::Any;
 use std::fmt::{self, Formatter};
 use std::io::{Cursor, Write};
 use std::net::{Ipv4Addr, Ipv6Addr};
@@ -165,6 +166,10 @@ impl DNSWireFrame for DNSTypeOpt {
         } else {
             Err(DNSProtoErr::PacketSerializeError)
         }
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

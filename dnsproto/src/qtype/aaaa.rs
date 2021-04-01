@@ -1,6 +1,7 @@
 use crate::errors::{DNSProtoErr, ParseZoneDataErr};
 use crate::meta::DNSType;
 use crate::qtype::{CompressionType, DNSWireFrame};
+use std::any::Any;
 use std::net::Ipv6Addr;
 use std::str::FromStr;
 use std::{fmt, fmt::Formatter};
@@ -33,6 +34,9 @@ impl DNSWireFrame for DnsTypeAAAA {
     }
     fn encode(&self, _: CompressionType) -> Result<Vec<u8>, DNSProtoErr> {
         Ok(self.0.octets().to_vec())
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

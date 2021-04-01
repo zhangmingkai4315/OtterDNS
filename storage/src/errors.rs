@@ -13,7 +13,8 @@ pub enum StorageError {
     DNSTypeNotFoundError,
     #[error("storage not ready")]
     StorageNotReadyError,
-
+    #[error("soa resource record not found")]
+    SOAResourceError,
     #[error("can't add CNAME RR to a node that already has RRs present")]
     AddCNAMEConflictError,
 

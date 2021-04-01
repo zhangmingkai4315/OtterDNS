@@ -5,6 +5,7 @@ use crate::qtype::helper::not_space;
 use crate::qtype::{CompressionType, DNSWireFrame};
 use nom::character::complete::{digit1, multispace0};
 use nom::number::complete::be_u16;
+use std::any::Any;
 use std::str::FromStr;
 use std::{fmt, fmt::Formatter};
 
@@ -61,6 +62,9 @@ impl DNSWireFrame for DnsTypeMX {
             }
         }
         Ok(data)
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

@@ -21,11 +21,3 @@ trait Storage {
     fn delete(&mut self, qtype: DNSType, domain: &DNSName) -> Result<(), StorageError>;
     fn get_soa(&mut self, domain: DNSName) -> Result<DnsTypeSOA, StorageError>;
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
