@@ -6,7 +6,6 @@ use crate::rbtree::RBTree;
 // use crate::Storage;
 use dnsproto::dnsname::DNSName;
 use dnsproto::meta::{DNSType, RRSet, ResourceRecord};
-// use dnsproto::qtype::{DNSWireFrame, DnsTypeSOA};
 use dnsproto::label::Label;
 use lazy_static::lazy_static;
 use std::cell::RefCell;

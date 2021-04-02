@@ -5,6 +5,7 @@ mod mx;
 mod ns;
 mod opt;
 mod soa;
+mod cname;
 
 use super::errors::DNSProtoErr;
 use nom::lib::std::collections::HashMap;
@@ -20,6 +21,7 @@ use nom::lib::std::fmt::Display;
 pub use ns::DnsTypeNS;
 pub use opt::DNSTypeOpt;
 pub use soa::DnsTypeSOA;
+pub use cname::DnsTypeCNAME;
 use std::any::Any;
 use std::str::FromStr;
 
