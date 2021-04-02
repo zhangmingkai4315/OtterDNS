@@ -8,14 +8,14 @@ use std::str::FromStr;
 
 #[derive(Debug, PartialEq)]
 pub struct DnsTypeNS {
-    pub(crate) ns: DNSName,
+    pub(crate) name: DNSName,
 }
 
 impl FromStr for DnsTypeNS {
     type Err = ParseZoneDataErr;
     fn from_str(a_str: &str) -> Result<Self, Self::Err> {
         Ok(DnsTypeNS {
-            ns: DNSName::new(a_str)?,
+            name: DNSName::new(a_str)?,
         })
     }
 }
@@ -23,21 +23,21 @@ impl FromStr for DnsTypeNS {
 impl DnsTypeNS {
     pub fn new(name: &str) -> Result<DnsTypeNS, DNSProtoErr> {
         Ok(DnsTypeNS {
-            ns: DNSName::new(name)?,
+            name: DNSName::new(name)?,
         })
     }
 }
 
 impl fmt::Display for DnsTypeNS {
     fn fmt(&self, format: &mut Formatter<'_>) -> fmt::Result {
-        write!(format, "{}", self.ns.to_string())
+        write!(format, "{}", self.name.to_string())
     }
 }
 named_args!(parse_ns<'a>(original: &[u8])<DnsTypeNS>,
     do_parse!(
-        ns: call!(parse_name, original)>>
+        name: call!(parse_name, original)>>
         (DnsTypeNS{
-            ns,
+            name,
         }
     )
 ));
@@ -53,7 +53,7 @@ impl DNSWireFrame for DnsTypeNS {
         DNSType::NS
     }
     fn encode(&self, compression: CompressionType) -> Result<Vec<u8>, DNSProtoErr> {
-        Ok(self.ns.to_binary(compression))
+        Ok(self.name.to_binary(compression))
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -74,7 +74,7 @@ mod test {
             116, 0,
         ];
         let ns = DnsTypeNS {
-            ns: DNSName::new("f.gtld-servers.net").unwrap(),
+            name: DNSName::new("f.gtld-servers.net").unwrap(),
         };
         match ns.encode(None) {
             Ok(ns_data) => assert_eq!(ns_data, non_compression_vec),

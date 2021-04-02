@@ -583,7 +583,7 @@ mod message {
     fn test_encode_answer() {
         use crate::qtype::DnsTypeNS;
         let nsdata = DnsTypeNS {
-            ns: DNSName::new("b.gtld-servers.net").unwrap(),
+            name: DNSName::new("b.gtld-servers.net").unwrap(),
         };
 
         let answer = ResourceRecord {
