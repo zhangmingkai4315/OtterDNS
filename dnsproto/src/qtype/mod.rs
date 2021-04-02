@@ -5,7 +5,9 @@ mod helper;
 mod mx;
 mod ns;
 mod opt;
+mod ptr;
 mod soa;
+mod srv;
 mod txt;
 
 use super::errors::DNSProtoErr;
@@ -15,13 +17,15 @@ use std::fmt::Debug;
 use crate::errors::ParseZoneDataErr;
 use crate::label::Label;
 use crate::meta::DNSType;
+use crate::qtype::txt::DnsTypeTXT;
 pub use a::DnsTypeA;
 pub use aaaa::DnsTypeAAAA;
 pub use cname::DnsTypeCNAME;
 pub use mx::DnsTypeMX;
 use nom::lib::std::fmt::Display;
 pub use ns::DnsTypeNS;
-pub use opt::DNSTypeOpt;
+pub use opt::DnsTypeOpt;
+pub use ptr::DnsTypePTR;
 pub use soa::DnsTypeSOA;
 use std::any::Any;
 use std::str::FromStr;
@@ -55,6 +59,18 @@ pub fn decode_message_data<'a>(
             Ok(val) => Ok(Box::new(val)),
             _ => Err(DNSProtoErr::PacketParseError),
         },
+        DNSType::CNAME => match DnsTypeCNAME::decode(data, Some(original)) {
+            Ok(val) => Ok(Box::new(val)),
+            _ => Err(DNSProtoErr::PacketParseError),
+        },
+        DNSType::TXT => match DnsTypeTXT::decode(data, Some(original)) {
+            Ok(val) => Ok(Box::new(val)),
+            _ => Err(DNSProtoErr::PacketParseError),
+        },
+        DNSType::PTR => match DnsTypePTR::decode(data, Some(original)) {
+            Ok(val) => Ok(Box::new(val)),
+            _ => Err(DNSProtoErr::PacketParseError),
+        },
         DNSType::SOA => match DnsTypeSOA::decode(data, Some(original)) {
             Ok(val) => Ok(Box::new(val)),
             _ => Err(DNSProtoErr::PacketParseError),
@@ -63,7 +79,7 @@ pub fn decode_message_data<'a>(
             Ok(val) => Ok(Box::new(val)),
             _ => Err(DNSProtoErr::PacketParseError),
         },
-        DNSType::OPT => match DNSTypeOpt::decode(data, None) {
+        DNSType::OPT => match DnsTypeOpt::decode(data, None) {
             Ok(val) => Ok(Box::new(val)),
             _ => Err(DNSProtoErr::PacketParseError),
         },

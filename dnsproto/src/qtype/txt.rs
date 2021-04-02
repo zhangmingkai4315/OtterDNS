@@ -36,9 +36,7 @@ impl fmt::Display for DnsTypeTXT {
 impl DNSWireFrame for DnsTypeTXT {
     fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
         match std::str::from_utf8(data) {
-            Ok(text_str) => {
-                DnsTypeTXT::new(text_str)
-            },
+            Ok(text_str) => DnsTypeTXT::new(text_str),
             _ => Err(DNSProtoErr::PacketParseError),
         }
     }

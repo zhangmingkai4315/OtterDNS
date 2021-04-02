@@ -116,20 +116,20 @@ pub enum Opt {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct DNSTypeOpt {
+pub struct DnsTypeOpt {
     pub(crate) code: EDNSOptionCode,
     pub(crate) length: u16,
     pub(crate) raw_data: Vec<u8>,
     pub(crate) data: Option<Opt>,
 }
 
-impl fmt::Display for DNSTypeOpt {
+impl fmt::Display for DnsTypeOpt {
     fn fmt(&self, _format: &mut Formatter<'_>) -> fmt::Result {
         unimplemented!()
     }
 }
 
-impl DNSWireFrame for DNSTypeOpt {
+impl DNSWireFrame for DnsTypeOpt {
     fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr>
     where
         Self: Sized,
@@ -173,12 +173,12 @@ impl DNSWireFrame for DNSTypeOpt {
     }
 }
 
-named_args!(parse_opt<'a>()<DNSTypeOpt>,
+named_args!(parse_opt<'a>()<DnsTypeOpt>,
     do_parse!(
         code: be_u16>>
         length: be_u16>>
         raw_data: take!(length)>>
-        (DNSTypeOpt{
+        (DnsTypeOpt{
             code: code.into(),
             length,
             data: None,
@@ -187,9 +187,9 @@ named_args!(parse_opt<'a>()<DNSTypeOpt>,
     )
 ));
 
-impl Default for DNSTypeOpt {
+impl Default for DnsTypeOpt {
     fn default() -> Self {
-        DNSTypeOpt {
+        DnsTypeOpt {
             code: EDNSOptionCode::Reserved,
             length: 0,
             raw_data: vec![],
@@ -198,7 +198,7 @@ impl Default for DNSTypeOpt {
     }
 }
 
-impl DNSTypeOpt {
+impl DnsTypeOpt {
     fn decode_with_type(&mut self) -> Result<(), DNSProtoErr> {
         match self.code {
             EDNSOptionCode::Reserved => Ok(()),

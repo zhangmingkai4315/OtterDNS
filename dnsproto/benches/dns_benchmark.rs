@@ -4,7 +4,7 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use dnsproto::edns::EDNS;
 use dnsproto::message::Message;
 use dnsproto::meta::{DNSClass, DNSType, Header, Question, ResourceRecord};
-use dnsproto::qtype::{DNSTypeOpt, DnsTypeA, DnsTypeNS};
+use dnsproto::qtype::{DnsTypeA, DnsTypeNS, DnsTypeOpt};
 
 fn dns_parse_message(c: &mut Criterion) {
     let message = [

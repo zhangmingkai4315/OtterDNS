@@ -9,7 +9,7 @@ OtterDNS 一个权威DNS解析软件
 - 提供对于标准Zone文件的读取和加载(不支持Bind扩展指令)
 - 提供基于红黑树的数据存储模型的定义和操作
 
-#### TODO
+#### 2. 查询逻辑
 1. 实现单个节点下的域名遍历（iterator和标签的Ord的配合使用）
 2. 实现搜索的逻辑实现
     - 假设节点为根节点, 查询域名为www.google.com
@@ -24,3 +24,4 @@ OtterDNS 一个权威DNS解析软件
 - [RFC 1034](https://tools.ietf.org/html/rfc1034) 域名服务器查询响应及数据存储
 - [RFC 1035](https://tools.ietf.org/html/rfc1035) 基本的DNS协议，字段，区文件数据解析
 - [RFC 4343](https://tools.ietf.org/html/rfc4343) DNS字符标签格式声明
+- [RFC 2782](https://tools.ietf.org/html/rfc2782) SRV记录定义
