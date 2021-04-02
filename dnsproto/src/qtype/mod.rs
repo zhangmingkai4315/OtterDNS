@@ -1,11 +1,12 @@
 mod a;
 mod aaaa;
+mod cname;
 mod helper;
 mod mx;
 mod ns;
 mod opt;
 mod soa;
-mod cname;
+mod txt;
 
 use super::errors::DNSProtoErr;
 use nom::lib::std::collections::HashMap;
@@ -16,12 +17,12 @@ use crate::label::Label;
 use crate::meta::DNSType;
 pub use a::DnsTypeA;
 pub use aaaa::DnsTypeAAAA;
+pub use cname::DnsTypeCNAME;
 pub use mx::DnsTypeMX;
 use nom::lib::std::fmt::Display;
 pub use ns::DnsTypeNS;
 pub use opt::DNSTypeOpt;
 pub use soa::DnsTypeSOA;
-pub use cname::DnsTypeCNAME;
 use std::any::Any;
 use std::str::FromStr;
 

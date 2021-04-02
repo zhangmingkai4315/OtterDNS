@@ -1,4 +1,4 @@
-use crate::dnsname::{parse_name};
+use crate::dnsname::parse_name;
 use crate::errors::{DNSProtoErr, ParseZoneDataErr};
 use crate::meta::DNSType;
 use crate::qtype::{CompressionType, DNSWireFrame, DnsTypeNS};
@@ -31,7 +31,7 @@ impl fmt::Display for DnsTypeCNAME {
 impl DNSWireFrame for DnsTypeCNAME {
     fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
         match parse_name(data, original.unwrap_or(&[])) {
-            Ok((_, name)) => Ok(DnsTypeCNAME(DnsTypeNS{name})),
+            Ok((_, name)) => Ok(DnsTypeCNAME(DnsTypeNS { name })),
             Err(_err) => Err(DNSProtoErr::PacketParseError),
         }
     }
@@ -48,11 +48,11 @@ impl DNSWireFrame for DnsTypeCNAME {
 #[cfg(test)]
 mod test {
     use crate::label::Label;
-    use crate::qtype::{DnsTypeCNAME, DNSWireFrame};
+    use crate::qtype::{DNSWireFrame, DnsTypeCNAME};
     use std::collections::HashMap;
     use std::str::FromStr;
     #[test]
-    fn test_cname_decode(){
+    fn test_cname_decode() {
         let non_compression_vec: Vec<u8> = vec![
             1, 102, 12, 103, 116, 108, 100, 45, 115, 101, 114, 118, 101, 114, 115, 3, 110, 101,
             116, 0,
