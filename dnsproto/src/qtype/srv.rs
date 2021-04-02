@@ -155,4 +155,18 @@ mod test {
         let from_bin = from_bin.unwrap();
         assert_eq!(from_bin, srv_record)
     }
+
+    #[test]
+    fn test_srv_encode() {
+        let srv_bin = vec![
+            0x00, 0x0a, 0x00, 0x01, 0x1f, 0x90, 0x03, 0x66, 0x74, 0x70, 0x0c, 0x7a, 0x68, 0x61,
+            0x6e, 0x67, 0x6d, 0x69, 0x6e, 0x67, 0x6b, 0x61, 0x69, 0x02, 0x63, 0x6e, 0x00,
+        ];
+        let srv_record = DnsTypeSRV::from_str("10 1 8080 ftp.zhangmingkai.cn.");
+        assert_eq!(srv_record.is_ok(), true);
+        let srv_record = srv_record.unwrap();
+        let encoded = srv_record.encode(None);
+        assert_eq!(encoded.is_ok(), true);
+        assert_eq!(encoded.unwrap(), srv_bin);
+    }
 }
