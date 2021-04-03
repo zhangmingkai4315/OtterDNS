@@ -2,6 +2,7 @@ mod a;
 mod aaaa;
 mod cname;
 mod helper;
+mod loc;
 mod mx;
 mod ns;
 mod opt;
