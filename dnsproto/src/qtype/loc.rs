@@ -43,6 +43,7 @@ pub struct DnsTypeLOC {
 
 named!( parse_lat<&str,&str>, alt!( tag!( "S" ) | tag!( "N" ) ) );
 named!( parse_lng<&str,&str>, alt!( tag!( "E" ) | tag!( "W" ) ) );
+static DEFAULT_SIZE_HP_VP: [f64; 4] = [0.0, 1.0, 10000.00, 10.0];
 
 impl FromStr for DnsTypeLOC {
     type Err = ParseZoneDataErr;
@@ -102,7 +103,33 @@ impl FromStr for DnsTypeLOC {
                 }
             }
         };
+        let val = current
+            .split_whitespace()
+            .into_iter()
+            .collect::<Vec<&str>>();
+        let mut additional: [f64; 4] = [0.0, 0.0, 0.0, 0.0];
+        let mut iter_index = 0;
+        for inner in val {
+            match f64::from_str(inner.trim_end_matches("m")) {
+                Ok(val) => {
+                    additional[iter_index] = val;
+                    iter_index += 1;
+                }
+                Err(err) => return Err(ParseZoneDataErr::ParseDNSFromStrError(err.to_string())),
+            }
+        }
+        for inner in 0..=3 {
+            if inner < iter_index {
+                continue;
+            }
+            additional[inner] = DEFAULT_SIZE_HP_VP[inner]
+        }
+        //TODO: write a function to turn 1000m => 0x13 => 1 * 10 ^3
+        // so the input is a f64 but output is u8
 
+        //TODO: write a function turn lat and label into lat:u32
+        // write a function turn lng and label into lng:u32
+        // write a function turn alt f64 into u32
         Ok(DnsTypeLOC {
             version: 0,
             size: 0,
