@@ -41,9 +41,66 @@ pub struct DnsTypeLOC {
 // Horizontal precision defaults to 10,000 meters, and vertical precision
 // to 10 meters.
 
-named!( parse_lat<&str,&str>, alt!( tag!( "S" ) | tag!( "N" ) ) );
+named!( parse_lat<&str,&str>, alt!( tag!( "S" ) | tag!( "s" ) | tag!( "N" ) | tag!( "n" ) ) );
 named!( parse_lng<&str,&str>, alt!( tag!( "E" ) | tag!( "W" ) ) );
-static DEFAULT_SIZE_HP_VP: [f64; 4] = [0.0, 1.0, 10000.00, 10.0];
+static DEFAULT_SIZE_HP_VP: [u8; 4] = [0x00, 0x12, 0x16, 0x13];
+
+fn translate_loc_lat_to_u32(val: [f64; 3], label: &str) -> Result<u32, ParseZoneDataErr> {
+    if val[0] >= 90.00 || val[1] >= 60.00 || val[2] >= 60.00 {
+        return Err(ParseZoneDataErr::ParseDNSFromStrError(
+            "loc translate error".to_owned(),
+        ));
+    }
+    let latitude =
+        1000 * 60 * 60 * (val[0] as u32) + 1000 * 60 * (val[1] as u32) + 1000 * (val[2] as u32);
+    if latitude > 90 * 1000 * 60 * 60 {
+        return Err(ParseZoneDataErr::ParseDNSFromStrError(
+            "loc overflow error".to_owned(),
+        ));
+    }
+    return match label {
+        "s" | "S" => Ok(latitude + 1 << 31),
+        "n" | "N" => Ok(1 << 31 - latitude),
+        _ => Err(ParseZoneDataErr::ParseDNSFromStrError(
+            "unknow loc label error".to_owned(),
+        )),
+    };
+}
+
+fn translate_loc_lng_to_u32(val: [f64; 3], label: &str) -> Result<u32, ParseZoneDataErr> {
+    if val[0] >= 180.00 || val[1] >= 60.00 || val[2] >= 60.00 {
+        return Err(ParseZoneDataErr::ParseDNSFromStrError(
+            "loc translate error".to_owned(),
+        ));
+    }
+    let longitude =
+        1000 * 60 * 60 * (val[0] as u32) + 1000 * 60 * (val[1] as u32) + 1000 * (val[2] as u32);
+    if longitude > 180 * 1000 * 60 * 60 {
+        return Err(ParseZoneDataErr::ParseDNSFromStrError(
+            "loc overflow error".to_owned(),
+        ));
+    }
+    return match label {
+        "e" | "E" => Ok(longitude + 1 << 31),
+        "w" | "W" => Ok(1 << 31 - longitude),
+        _ => Err(ParseZoneDataErr::ParseDNSFromStrError(
+            "unknow loc label error".to_owned(),
+        )),
+    };
+}
+
+fn translate_loc_alt_to_u32(val: f64) -> Result<u32, ParseZoneDataErr> {
+    if val < -100000.00 || val > 42849672.95 {
+        return Err(ParseZoneDataErr::ParseDNSFromStrError(
+            "out of alt range error".to_owned(),
+        ));
+    }
+    Ok((100 as f64 * val + 100000000.0 + 0.5) as u32)
+}
+
+fn translate_loc_additiona_to_u8(val: f64) -> Result<u8, ParseZoneDataErr> {
+    Ok(0u8)
+}
 
 impl FromStr for DnsTypeLOC {
     type Err = ParseZoneDataErr;
@@ -103,26 +160,30 @@ impl FromStr for DnsTypeLOC {
                 }
             }
         };
+
         let val = current
             .split_whitespace()
             .into_iter()
             .collect::<Vec<&str>>();
-        let mut additional: [f64; 4] = [0.0, 0.0, 0.0, 0.0];
+        // let mut additional: [f64; 4] = [0.0, 0, 0, 0];
+        let mut additional_u8 = [0u8, 0, 0, 0];
         let mut iter_index = 0;
         for inner in val {
             match f64::from_str(inner.trim_end_matches("m")) {
                 Ok(val) => {
-                    additional[iter_index] = val;
+                    // additional[iter_index] = val;
+                    additional_u8[iter_index] = translate_loc_additiona_to_u8(val)?;
                     iter_index += 1;
                 }
                 Err(err) => return Err(ParseZoneDataErr::ParseDNSFromStrError(err.to_string())),
             }
         }
+
         for inner in 0..=3 {
             if inner < iter_index {
                 continue;
             }
-            additional[inner] = DEFAULT_SIZE_HP_VP[inner]
+            additional_u8[inner] = DEFAULT_SIZE_HP_VP[inner]
         }
         //TODO: write a function to turn 1000m => 0x13 => 1 * 10 ^3
         // so the input is a f64 but output is u8
@@ -135,8 +196,8 @@ impl FromStr for DnsTypeLOC {
             size: 0,
             hor_precision: 0,
             ver_precision: 0,
-            lat: 0,
-            lon: 0,
+            lat: translate_loc_lat_to_u32(lat, lat_label)?,
+            lon: translate_loc_lng_to_u32(lng, lng_label)?,
             alt: 0,
         })
     }

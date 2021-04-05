@@ -900,27 +900,21 @@ mod test {
                 assert_eq!(value.node.key, 1);
                 assert_eq!(value.node.value, 2);
             }
-            _ => {
-                assert!(false)
-            }
+            _ => assert!(false),
         }
         match tree.find_largest() {
             Some(value) => {
                 assert_eq!(value.key, 123);
                 assert_eq!(value.value, 321);
             }
-            _ => {
-                assert!(false)
-            }
+            _ => assert!(false),
         }
 
         match tree.find_smallest_value() {
             Some(value) => {
                 assert_eq!(*value.0, 2);
             }
-            _ => {
-                assert!(false)
-            }
+            _ => assert!(false),
         }
     }
 
