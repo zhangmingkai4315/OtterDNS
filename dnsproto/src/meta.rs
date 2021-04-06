@@ -438,6 +438,7 @@ pub enum DNSType {
     MX = 15,
     TXT = 16,
     AAAA = 28,
+    LOC = 29,
     SRV = 33,
     OPT = 41,
     DS = 43,

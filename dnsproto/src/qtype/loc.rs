@@ -5,9 +5,16 @@ use crate::errors::{DNSProtoErr, ParseZoneDataErr};
 use nom::character::complete::multispace0;
 use nom::number::complete::{be_u32, be_u8, double};
 // use std::any::Any;
+use crate::meta::DNSType;
+use crate::qtype::{CompressionType, DNSWireFrame};
+use std::any::Any;
 use std::fmt;
 use std::fmt::Formatter;
 use std::str::FromStr;
+
+named!( parse_lat<&str,&str>, alt!( tag!( "S" ) | tag!( "s" ) | tag!( "N" ) | tag!( "n" ) ) );
+named!( parse_lng<&str,&str>, alt!( tag!( "E" ) | tag!( "W" ) ) );
+static DEFAULT_SIZE_HP_VP: [u8; 3] = [0x12, 0x16, 0x13];
 
 #[derive(Debug, PartialEq)]
 pub struct DnsTypeLOC {
@@ -38,126 +45,6 @@ pub struct DnsTypeLOC {
 // The size defaults to one meter, which is perfect for a single host.
 // Horizontal precision defaults to 10,000 meters, and vertical precision
 // to 10 meters.
-
-named!( parse_lat<&str,&str>, alt!( tag!( "S" ) | tag!( "s" ) | tag!( "N" ) | tag!( "n" ) ) );
-named!( parse_lng<&str,&str>, alt!( tag!( "E" ) | tag!( "W" ) ) );
-static DEFAULT_SIZE_HP_VP: [u8; 3] = [0x12, 0x16, 0x13];
-
-fn translate_loc_lat_to_u32(val: [f64; 3], label: &str) -> Result<u32, ParseZoneDataErr> {
-    if val[0] >= 90.00 || val[1] >= 60.00 || val[2] >= 60.00 {
-        return Err(ParseZoneDataErr::ParseDNSFromStrError(
-            "loc translate error".to_owned(),
-        ));
-    }
-    let latitude =
-        (1000.0 * 60.0 * 60.0 * val[0] + (1000.0 * 60.0 * val[1]) + (1000.0 * val[2])) as u32;
-    if latitude > 90 * 1000 * 60 * 60 {
-        return Err(ParseZoneDataErr::ParseDNSFromStrError(
-            "loc overflow error".to_owned(),
-        ));
-    }
-    match label {
-        "s" | "S" => Ok((1u32 << 31) - latitude),
-        "n" | "N" => Ok((1u32 << 31) + latitude),
-        _ => Err(ParseZoneDataErr::ParseDNSFromStrError(
-            "unknow loc label error".to_owned(),
-        )),
-    }
-}
-
-fn translate_loc_lng_to_u32(val: [f64; 3], label: &str) -> Result<u32, ParseZoneDataErr> {
-    if val[0] >= 180.00 || val[1] >= 60.00 || val[2] >= 60.00 {
-        return Err(ParseZoneDataErr::ParseDNSFromStrError(
-            "loc translate error".to_owned(),
-        ));
-    }
-    let longitude =
-        ((1000.0 * 60.0 * 60.0 * val[0]) + (1000.0 * 60.0 * val[1]) + (1000.0 * val[2])) as u32;
-    if longitude > 180 * 1000 * 60 * 60 {
-        return Err(ParseZoneDataErr::ParseDNSFromStrError(
-            "loc overflow error".to_owned(),
-        ));
-    }
-    match label {
-        "e" | "E" => Ok(longitude + (1u32 << 31)),
-        "w" | "W" => Ok((1u32 << 31) - longitude),
-        _ => Err(ParseZoneDataErr::ParseDNSFromStrError(
-            "unknow loc label error".to_owned(),
-        )),
-    }
-}
-
-fn translate_loc_alt_to_u32(val: &str) -> Result<u32, ParseZoneDataErr> {
-    let val = val.trim_end_matches(|c| c == 'm' || c == 'M');
-    match f64::from_str(val) {
-        Ok(val) => {
-            if !(-100000.00..=42849672.95).contains(&val) {
-                return Err(ParseZoneDataErr::ParseDNSFromStrError(
-                    "out of alt range error".to_owned(),
-                ));
-            }
-            Ok((100_f64 * val + 10000000.0 + 0.5) as u32)
-        }
-        _ => Err(ParseZoneDataErr::ParseDNSFromStrError(
-            "unknown loc record alt".to_owned(),
-        )),
-    }
-}
-
-fn translate_loc_additiona_to_u8(val: &str) -> Result<u8, ParseZoneDataErr> {
-    let val = val.trim_end_matches(|c| c == 'm' || c == 'M');
-    let val = val.split('.').collect::<Vec<&str>>();
-    let mut val_size = val.len();
-    let mut e: u8;
-    let m: u8;
-    let mut metre = 0;
-    let mut cmeter = 0;
-    let mut result: i32;
-    if val_size == 0 {
-        return Err(ParseZoneDataErr::ParseDNSFromStrError(
-            "parse loc a error".to_owned(),
-        ));
-    }
-    if val_size == 2 {
-        match i32::from_str(val[1]) {
-            Ok(temp) => cmeter = temp,
-            Err(_) => {
-                return Err(ParseZoneDataErr::ParseDNSFromStrError(
-                    "parse loc a error".to_owned(),
-                ))
-            }
-        }
-        val_size -= 1;
-    }
-    if val_size == 1 {
-        match i32::from_str(val[0]) {
-            Ok(temp) => metre = temp,
-            Err(_) => {
-                return Err(ParseZoneDataErr::ParseDNSFromStrError(
-                    "parse loc a error".to_owned(),
-                ))
-            }
-        }
-    }
-    if metre > 0 {
-        e = 2;
-        result = metre;
-    } else {
-        e = 0;
-        result = cmeter;
-    }
-    while result >= 10 {
-        e += 1;
-        result /= 10;
-    }
-    if e > 9 {
-        return Err(ParseZoneDataErr::ParseDNSFromStrError(
-            "parse loc out of range".to_owned(),
-        ));
-    }
-    m = result as u8;
-    Ok(e & 0x0f | m << 4 & 0xf0)
-}
 
 impl FromStr for DnsTypeLOC {
     type Err = ParseZoneDataErr;
@@ -372,6 +259,154 @@ impl fmt::Display for DnsTypeLOC {
             self.get_vertpre()
         )
     }
+}
+
+impl DNSWireFrame for DnsTypeLOC {
+    fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
+        match parse_loc(data, original.unwrap_or(&[])) {
+            Ok((_, soa)) => Ok(soa),
+            Err(_err) => Err(DNSProtoErr::PacketParseError),
+        }
+    }
+
+    fn get_type(&self) -> DNSType {
+        DNSType::LOC
+    }
+
+    fn encode(&self, _: CompressionType) -> Result<Vec<u8>, DNSProtoErr>
+    where
+        Self: Sized,
+    {
+        let mut data = vec![];
+        data.extend_from_slice(&self.version.to_be_bytes()[..]);
+        data.extend_from_slice(&self.size.to_be_bytes()[..]);
+        data.extend_from_slice(&self.hor_precision.to_be_bytes()[..]);
+        data.extend_from_slice(&self.ver_precision.to_be_bytes()[..]);
+        data.extend_from_slice(&self.lat.to_be_bytes()[..]);
+        data.extend_from_slice(&self.lon.to_be_bytes()[..]);
+        data.extend_from_slice(&self.alt.to_be_bytes()[..]);
+        Ok(data)
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+fn translate_loc_lat_to_u32(val: [f64; 3], label: &str) -> Result<u32, ParseZoneDataErr> {
+    if val[0] >= 90.00 || val[1] >= 60.00 || val[2] >= 60.00 {
+        return Err(ParseZoneDataErr::ParseDNSFromStrError(
+            "loc translate error".to_owned(),
+        ));
+    }
+    let latitude =
+        (1000.0 * 60.0 * 60.0 * val[0] + (1000.0 * 60.0 * val[1]) + (1000.0 * val[2])) as u32;
+    if latitude > 90 * 1000 * 60 * 60 {
+        return Err(ParseZoneDataErr::ParseDNSFromStrError(
+            "loc overflow error".to_owned(),
+        ));
+    }
+    match label {
+        "s" | "S" => Ok((1u32 << 31) - latitude),
+        "n" | "N" => Ok((1u32 << 31) + latitude),
+        _ => Err(ParseZoneDataErr::ParseDNSFromStrError(
+            "unknow loc label error".to_owned(),
+        )),
+    }
+}
+
+fn translate_loc_lng_to_u32(val: [f64; 3], label: &str) -> Result<u32, ParseZoneDataErr> {
+    if val[0] >= 180.00 || val[1] >= 60.00 || val[2] >= 60.00 {
+        return Err(ParseZoneDataErr::ParseDNSFromStrError(
+            "loc translate error".to_owned(),
+        ));
+    }
+    let longitude =
+        ((1000.0 * 60.0 * 60.0 * val[0]) + (1000.0 * 60.0 * val[1]) + (1000.0 * val[2])) as u32;
+    if longitude > 180 * 1000 * 60 * 60 {
+        return Err(ParseZoneDataErr::ParseDNSFromStrError(
+            "loc overflow error".to_owned(),
+        ));
+    }
+    match label {
+        "e" | "E" => Ok(longitude + (1u32 << 31)),
+        "w" | "W" => Ok((1u32 << 31) - longitude),
+        _ => Err(ParseZoneDataErr::ParseDNSFromStrError(
+            "unknow loc label error".to_owned(),
+        )),
+    }
+}
+
+fn translate_loc_alt_to_u32(val: &str) -> Result<u32, ParseZoneDataErr> {
+    let val = val.trim_end_matches(|c| c == 'm' || c == 'M');
+    match f64::from_str(val) {
+        Ok(val) => {
+            if !(-100000.00..=42849672.95).contains(&val) {
+                return Err(ParseZoneDataErr::ParseDNSFromStrError(
+                    "out of alt range error".to_owned(),
+                ));
+            }
+            Ok((100_f64 * val + 10000000.0 + 0.5) as u32)
+        }
+        _ => Err(ParseZoneDataErr::ParseDNSFromStrError(
+            "unknown loc record alt".to_owned(),
+        )),
+    }
+}
+
+fn translate_loc_additiona_to_u8(val: &str) -> Result<u8, ParseZoneDataErr> {
+    let val = val.trim_end_matches(|c| c == 'm' || c == 'M');
+    let val = val.split('.').collect::<Vec<&str>>();
+    let mut val_size = val.len();
+    let mut e: u8;
+    let m: u8;
+    let mut metre = 0;
+    let mut cmeter = 0;
+    let mut result: i32;
+    if val_size == 0 {
+        return Err(ParseZoneDataErr::ParseDNSFromStrError(
+            "parse loc a error".to_owned(),
+        ));
+    }
+    if val_size == 2 {
+        match i32::from_str(val[1]) {
+            Ok(temp) => cmeter = temp,
+            Err(_) => {
+                return Err(ParseZoneDataErr::ParseDNSFromStrError(
+                    "parse loc a error".to_owned(),
+                ))
+            }
+        }
+        val_size -= 1;
+    }
+    if val_size == 1 {
+        match i32::from_str(val[0]) {
+            Ok(temp) => metre = temp,
+            Err(_) => {
+                return Err(ParseZoneDataErr::ParseDNSFromStrError(
+                    "parse loc a error".to_owned(),
+                ))
+            }
+        }
+    }
+    if metre > 0 {
+        e = 2;
+        result = metre;
+    } else {
+        e = 0;
+        result = cmeter;
+    }
+    while result >= 10 {
+        e += 1;
+        result /= 10;
+    }
+    if e > 9 {
+        return Err(ParseZoneDataErr::ParseDNSFromStrError(
+            "parse loc out of range".to_owned(),
+        ));
+    }
+    m = result as u8;
+    Ok(e & 0x0f | m << 4 & 0xf0)
 }
 
 #[cfg(test)]
