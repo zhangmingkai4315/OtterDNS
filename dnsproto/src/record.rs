@@ -79,7 +79,7 @@ impl ResourceRecord {
         }
         // token must be ttl or class or type
         // after this code, at least we don't need care about ttl.
-        if let Ok(t) = token.parse::<u32>() {
+        if let Ok(t) = gen_ttl_from_token(token) {
             is_ttl_set = true;
             ttl = t;
         } else {
@@ -218,33 +218,27 @@ impl ResourceRecord {
     }
 }
 
-// #[test]
-// fn test_parse_rr_from_str_err() {
-//     let s = "@  IN  NS  @";
-//     let rr: Result<RawResource, ParseZoneDataErr> =
-//         RawResource::new(s, Some(1000), None, None, None);
-//     assert_eq!(rr.unwrap_err(), ParseZoneDataErr::NoDefaultDomain);
-//
-//     let rr: Result<RawResource, ParseZoneDataErr> =
-//         RawResource::new(s, Some(1000), None, Some("mail"), None);
-//     assert_eq!(rr.unwrap_err(), ParseZoneDataErr::NoOriginDomain);
-//
-//     let rr: Result<RawResource, ParseZoneDataErr> =
-//         RawResource::new(s, None, None, Some("mail"), Some("google.com."));
-//     assert_eq!(rr.unwrap_err(), ParseZoneDataErr::NoDefaultTTL);
-//
-//     let rr: Result<RawResource, ParseZoneDataErr> =
-//         RawResource::new(s, None, None, Some("-."), None);
-//     assert_eq!(
-//         rr.unwrap_err(),
-//         ParseZoneDataErr::ValidDomainErr("-.".to_owned())
-//     );
-//
-//     let s = "mail. NS  ns1.google.com.";
-//     let rr: Result<RawResource, ParseZoneDataErr> =
-//         RawResource::new(s, None, None, None, None);
-//     assert_eq!(rr.unwrap_err(), ParseZoneDataErr::NoDefaultTTL);
-// }
+fn gen_ttl_from_token(token: &str) -> Result<u32, ParseZoneDataErr> {
+    let mut ttl: u32 = 0;
+    let mut temp: u32 = 0;
+    for i in token.chars() {
+        match i {
+            's' | 'S' => ttl += temp,
+            'm' | 'M' => ttl += temp * 60,
+            'h' | 'H' => ttl += temp * 60 * 60,
+            'd' | 'D' => ttl += temp * 60 * 60 * 24,
+            'w' | 'W' => ttl += temp * 60 * 60 * 24 * 7,
+            '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => {
+                temp *= 10;
+                temp += u32::from(i) - 48;
+                continue;
+            }
+            _ => return Err(ParseZoneDataErr::ParseDNSFromStrError(token.to_owned())),
+        }
+        temp = 0;
+    }
+    Ok(ttl + temp)
+}
 
 #[cfg(test)]
 mod record {
@@ -252,6 +246,7 @@ mod record {
     use crate::errors::ParseZoneDataErr;
     use crate::meta::{DNSClass, DNSType, ResourceRecord};
     use crate::qtype::{DnsTypeA, DnsTypeNS};
+    use crate::record::gen_ttl_from_token;
     use std::convert::TryFrom;
 
     #[test]
@@ -386,5 +381,20 @@ mod record {
                 data: Some(Box::new(DnsTypeNS::new("mail.google.com.").unwrap()))
             }
         );
+    }
+    #[test]
+    fn test_gen_ttl_from_token() {
+        let tcs = [
+            ("10m", 600),
+            ("11m", 660),
+            ("1m", 60),
+            ("1h", 3600),
+            ("1001", 1001),
+            ("1d", 86400),
+            ("1w", 86400 * 7),
+        ];
+        for tc in tcs.iter() {
+            assert_eq!(gen_ttl_from_token(tc.0).unwrap(), tc.1);
+        }
     }
 }
