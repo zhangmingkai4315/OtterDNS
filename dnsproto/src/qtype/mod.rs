@@ -18,6 +18,8 @@ use std::fmt::Debug;
 use crate::errors::ParseZoneDataErr;
 use crate::label::Label;
 use crate::meta::DNSType;
+use crate::qtype::loc::DnsTypeLOC;
+use crate::qtype::srv::DnsTypeSRV;
 use crate::qtype::txt::DnsTypeTXT;
 pub use a::DnsTypeA;
 pub use aaaa::DnsTypeAAAA;
@@ -77,6 +79,14 @@ pub fn decode_message_data<'a>(
             _ => Err(DNSProtoErr::PacketParseError),
         },
         DNSType::AAAA => match DnsTypeAAAA::decode(data, Some(original)) {
+            Ok(val) => Ok(Box::new(val)),
+            _ => Err(DNSProtoErr::PacketParseError),
+        },
+        DNSType::LOC => match DnsTypeLOC::decode(data, None) {
+            Ok(val) => Ok(Box::new(val)),
+            _ => Err(DNSProtoErr::PacketParseError),
+        },
+        DNSType::SRV => match DnsTypeSRV::decode(data, None) {
             Ok(val) => Ok(Box::new(val)),
             _ => Err(DNSProtoErr::PacketParseError),
         },
