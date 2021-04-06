@@ -1,12 +1,10 @@
-use crate::dnsname::{parse_name, DNSName};
+// use crate::dnsname::{parse_name, DNSName};
 use crate::errors::{DNSProtoErr, ParseZoneDataErr};
-use crate::meta::DNSType;
-use crate::qtype::{CompressionType, DNSWireFrame};
-use nom::bytes::complete::{tag, take_while};
-use nom::character::complete::{digit1, multispace0};
-use nom::combinator::rest;
+// use crate::meta::DNSType;
+// use crate::qtype::{CompressionType, DNSWireFrame};
+use nom::character::complete::multispace0;
 use nom::number::complete::{be_u32, be_u8, double};
-use std::any::Any;
+// use std::any::Any;
 use std::fmt;
 use std::fmt::Formatter;
 use std::str::FromStr;
@@ -43,7 +41,7 @@ pub struct DnsTypeLOC {
 
 named!( parse_lat<&str,&str>, alt!( tag!( "S" ) | tag!( "s" ) | tag!( "N" ) | tag!( "n" ) ) );
 named!( parse_lng<&str,&str>, alt!( tag!( "E" ) | tag!( "W" ) ) );
-static DEFAULT_SIZE_HP_VP: [u8; 4] = [0x00, 0x12, 0x16, 0x13];
+static DEFAULT_SIZE_HP_VP: [u8; 3] = [0x12, 0x16, 0x13];
 
 fn translate_loc_lat_to_u32(val: [f64; 3], label: &str) -> Result<u32, ParseZoneDataErr> {
     if val[0] >= 90.00 || val[1] >= 60.00 || val[2] >= 60.00 {
@@ -52,19 +50,19 @@ fn translate_loc_lat_to_u32(val: [f64; 3], label: &str) -> Result<u32, ParseZone
         ));
     }
     let latitude =
-        1000 * 60 * 60 * (val[0] as u32) + 1000 * 60 * (val[1] as u32) + 1000 * (val[2] as u32);
+        (1000.0 * 60.0 * 60.0 * val[0] + (1000.0 * 60.0 * val[1]) + (1000.0 * val[2])) as u32;
     if latitude > 90 * 1000 * 60 * 60 {
         return Err(ParseZoneDataErr::ParseDNSFromStrError(
             "loc overflow error".to_owned(),
         ));
     }
-    return match label {
-        "s" | "S" => Ok(latitude + 1 << 31),
-        "n" | "N" => Ok(1 << 31 - latitude),
+    match label {
+        "s" | "S" => Ok((1u32 << 31) - latitude),
+        "n" | "N" => Ok((1u32 << 31) + latitude),
         _ => Err(ParseZoneDataErr::ParseDNSFromStrError(
             "unknow loc label error".to_owned(),
         )),
-    };
+    }
 }
 
 fn translate_loc_lng_to_u32(val: [f64; 3], label: &str) -> Result<u32, ParseZoneDataErr> {
@@ -74,32 +72,91 @@ fn translate_loc_lng_to_u32(val: [f64; 3], label: &str) -> Result<u32, ParseZone
         ));
     }
     let longitude =
-        1000 * 60 * 60 * (val[0] as u32) + 1000 * 60 * (val[1] as u32) + 1000 * (val[2] as u32);
+        ((1000.0 * 60.0 * 60.0 * val[0]) + (1000.0 * 60.0 * val[1]) + (1000.0 * val[2])) as u32;
     if longitude > 180 * 1000 * 60 * 60 {
         return Err(ParseZoneDataErr::ParseDNSFromStrError(
             "loc overflow error".to_owned(),
         ));
     }
-    return match label {
-        "e" | "E" => Ok(longitude + 1 << 31),
-        "w" | "W" => Ok(1 << 31 - longitude),
+    match label {
+        "e" | "E" => Ok(longitude + (1u32 << 31)),
+        "w" | "W" => Ok((1u32 << 31) - longitude),
         _ => Err(ParseZoneDataErr::ParseDNSFromStrError(
             "unknow loc label error".to_owned(),
         )),
-    };
+    }
 }
 
-fn translate_loc_alt_to_u32(val: f64) -> Result<u32, ParseZoneDataErr> {
-    if val < -100000.00 || val > 42849672.95 {
+fn translate_loc_alt_to_u32(val: &str) -> Result<u32, ParseZoneDataErr> {
+    let val = val.trim_end_matches(|c| c == 'm' || c == 'M');
+    match f64::from_str(val) {
+        Ok(val) => {
+            if !(-100000.00..=42849672.95).contains(&val) {
+                return Err(ParseZoneDataErr::ParseDNSFromStrError(
+                    "out of alt range error".to_owned(),
+                ));
+            }
+            Ok((100_f64 * val + 10000000.0 + 0.5) as u32)
+        }
+        _ => Err(ParseZoneDataErr::ParseDNSFromStrError(
+            "unknown loc record alt".to_owned(),
+        )),
+    }
+}
+
+fn translate_loc_additiona_to_u8(val: &str) -> Result<u8, ParseZoneDataErr> {
+    let val = val.trim_end_matches(|c| c == 'm' || c == 'M');
+    let val = val.split('.').collect::<Vec<&str>>();
+    let mut val_size = val.len();
+    let mut e: u8;
+    let m: u8;
+    let mut metre = 0;
+    let mut cmeter = 0;
+    let mut result: i32;
+    if val_size == 0 {
         return Err(ParseZoneDataErr::ParseDNSFromStrError(
-            "out of alt range error".to_owned(),
+            "parse loc a error".to_owned(),
         ));
     }
-    Ok((100 as f64 * val + 100000000.0 + 0.5) as u32)
-}
-
-fn translate_loc_additiona_to_u8(val: f64) -> Result<u8, ParseZoneDataErr> {
-    Ok(0u8)
+    if val_size == 2 {
+        match i32::from_str(val[1]) {
+            Ok(temp) => cmeter = temp,
+            Err(_) => {
+                return Err(ParseZoneDataErr::ParseDNSFromStrError(
+                    "parse loc a error".to_owned(),
+                ))
+            }
+        }
+        val_size -= 1;
+    }
+    if val_size == 1 {
+        match i32::from_str(val[0]) {
+            Ok(temp) => metre = temp,
+            Err(_) => {
+                return Err(ParseZoneDataErr::ParseDNSFromStrError(
+                    "parse loc a error".to_owned(),
+                ))
+            }
+        }
+    }
+    if metre > 0 {
+        e = 2;
+        result = metre;
+    } else {
+        e = 0;
+        result = cmeter;
+    }
+    while result >= 10 {
+        e += 1;
+        result /= 10;
+    }
+    if e > 9 {
+        return Err(ParseZoneDataErr::ParseDNSFromStrError(
+            "parse loc out of range".to_owned(),
+        ));
+    }
+    m = result as u8;
+    return Ok(e & 0x0f | m << 4 & 0xf0);
 }
 
 impl FromStr for DnsTypeLOC {
@@ -165,54 +222,36 @@ impl FromStr for DnsTypeLOC {
             .split_whitespace()
             .into_iter()
             .collect::<Vec<&str>>();
-        // let mut additional: [f64; 4] = [0.0, 0, 0, 0];
-        let mut additional_u8 = [0u8, 0, 0, 0];
+        if val.is_empty() {
+            return Err(ParseZoneDataErr::ParseDNSFromStrError(
+                "loc record must have altitude infomation".to_owned(),
+            ));
+        }
+        let alt_str = val[0];
+        let alt = translate_loc_alt_to_u32(alt_str)?;
+        let mut additional_u8 = [0, 0, 0];
         let mut iter_index = 0;
-        for inner in val {
-            match f64::from_str(inner.trim_end_matches("m")) {
-                Ok(val) => {
-                    // additional[iter_index] = val;
-                    additional_u8[iter_index] = translate_loc_additiona_to_u8(val)?;
-                    iter_index += 1;
-                }
-                Err(err) => return Err(ParseZoneDataErr::ParseDNSFromStrError(err.to_string())),
-            }
+        for inner in &val[1..] {
+            let temp = translate_loc_additiona_to_u8(inner)?;
+            additional_u8[iter_index] = temp;
+            iter_index += 1;
         }
 
-        for inner in 0..=3 {
+        for inner in 0..3 {
             if inner < iter_index {
                 continue;
             }
             additional_u8[inner] = DEFAULT_SIZE_HP_VP[inner]
         }
-        //TODO: write a function to turn 1000m => 0x13 => 1 * 10 ^3
-        // so the input is a f64 but output is u8
-
-        //TODO: write a function turn lat and label into lat:u32
-        // write a function turn lng and label into lng:u32
-        // write a function turn alt f64 into u32
         Ok(DnsTypeLOC {
             version: 0,
-            size: 0,
-            hor_precision: 0,
-            ver_precision: 0,
+            size: additional_u8[0],
+            hor_precision: additional_u8[1],
+            ver_precision: additional_u8[2],
             lat: translate_loc_lat_to_u32(lat, lat_label)?,
             lon: translate_loc_lng_to_u32(lng, lng_label)?,
-            alt: 0,
+            alt: alt,
         })
-    }
-}
-
-#[test]
-fn test_loc_from_str() {
-    let cases = [
-        "52 22 23.000 N 4 53 32.000 E -2.00m 0.00m 10000m 10m",
-        "52 N 4 E -2.00m 0.00m 10000m 10m",
-        "31.000 N 106 28 29.000 W 10.00m 1m 10000m 10m",
-    ];
-    for test_case in cases.iter() {
-        let loc = DnsTypeLOC::from_str(test_case);
-        assert_eq!(loc.is_ok(), true);
     }
 }
 
@@ -264,4 +303,80 @@ impl fmt::Display for DnsTypeLOC {
     fn fmt(&self, format: &mut Formatter<'_>) -> fmt::Result {
         write!(format, "{} {} {}", self.lat, self.lon, self.alt,)
     }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::qtype::loc::{translate_loc_additiona_to_u8, DnsTypeLOC};
+    use std::str::FromStr;
+
+    #[test]
+    fn test_loc_from_str() {
+        let cases = [
+            (
+                // dig loc caida.org @8.8.8.8
+                "32 53 1.000 N 117 14 25.000 W 107.00m 30m 10m 10m",
+                DnsTypeLOC::new(0, 0x33, 0x13, 0x13, 2265864648, 1725418648, 10010700).unwrap(),
+            ),
+            (
+                // dig loc ckdhr.com @8.8.8.8
+                "42 21 43.528 N 71 5 6.284 W -25.00m 1m 3000m 10m",
+                DnsTypeLOC::new(0, 0x12, 0x35, 0x13, 2299987176, 1891577364, 9997500).unwrap(),
+            ),
+            (
+                // dig loc alink.net @8.8.8.8
+                "37 22 26.000 N 122 1 47.000 W 30.00m 30m 30m 10m",
+                DnsTypeLOC::new(0, 0x33, 0x33, 0x13, 2282029648, 1708176648, 10003000).unwrap(),
+            ),
+        ];
+        for test_case in cases.iter() {
+            let loc = DnsTypeLOC::from_str(test_case.0);
+            assert_eq!(loc.is_ok(), true);
+            assert_eq!(loc.unwrap(), test_case.1)
+        }
+    }
+
+    #[test]
+    fn test_translate_loc_additiona_to_u8() {
+        let input = [
+            ("30m", 0x33),  // 51
+            ("30M", 0x33),  // 51
+            ("30", 0x33),   // 51
+            ("10m", 0x13),  // 19
+            ("3000", 0x35), // 53
+        ];
+        for i in input.iter() {
+            assert_eq!(translate_loc_additiona_to_u8(i.0), Ok(i.1));
+        }
+    }
+
+    #[test]
+    fn test_translate_altitude_to_u32() {
+        // let input = [
+        //     ("107m", 10010700),
+        //     ("30M", 10003000),
+        //     ("-25m", 9997500),
+        //     // ("10m", 0x13),
+        //     // ("-24m", (4, 10)),
+        //     // ("-44m", (4, 10)),
+        // ];
+        // for i in input.iter() {
+        //     assert_eq!(translate_loc_additiona_to_u8(i.0), Ok(i.1));
+        // }
+    }
+
+    // #[test]
+    // fn test_translate_lat_lon_to_u32() {
+    //     let input = [
+    //         ("107m", 10010700),
+    //         ("30M", 10003000),
+    //         ("-25m", 9997500),
+    //         ("10m", 0x13),
+    //         ("-24m", (4, 10)),
+    //         ("-44m", (4, 10)),
+    //     ];
+    //     for i in input.iter() {
+    //         assert_eq!(translate_loc_additiona_to_u8(i.0), Ok(i.1));
+    //     }
+    // }
 }
