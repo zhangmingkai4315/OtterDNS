@@ -412,6 +412,7 @@ fn translate_loc_additiona_to_u8(val: &str) -> Result<u8, ParseZoneDataErr> {
 #[cfg(test)]
 mod test {
     use crate::qtype::loc::{translate_loc_additiona_to_u8, DnsTypeLOC};
+    use crate::qtype::DNSWireFrame;
     use std::str::FromStr;
 
     #[test]
@@ -469,5 +470,31 @@ mod test {
             loc.to_string(),
             "32 53 1 N 117 14 25 W 107.00m 30.00m 10.00m 10.00m"
         )
+    }
+
+    #[test]
+    fn test_dns_type_loc() {
+        let input = [
+            0x00, 0x12, 0x35, 0x13, 0x89, 0x17, 0x04, 0xe8, 0x70, 0xbf, 0x2e, 0x14, 0x00, 0x98,
+            0x8c, 0xbc,
+        ];
+        let loc_example =
+            DnsTypeLOC::new(0, 0x12, 0x35, 0x13, 2299987176, 1891577364, 9997500).unwrap();
+        match DnsTypeLOC::decode(&input, None) {
+            Ok(loc) => {
+                assert_eq!(loc, loc_example)
+            }
+            _ => {
+                assert!(false)
+            }
+        }
+        match loc_example.encode(None) {
+            Ok(binary_encoded) => {
+                assert_eq!(binary_encoded.as_slice(), input)
+            }
+            _ => {
+                assert!(false)
+            }
+        }
     }
 }
