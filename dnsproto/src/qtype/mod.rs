@@ -53,6 +53,7 @@ pub fn decode_message_data<'a>(
     original: &'a [u8],
     dtype: DNSType,
 ) -> Result<Box<dyn DNSWireFrame>, DNSProtoErr> {
+    // A NS CNAME TXT PTR SOA AAAA LOC SRV OPT
     match dtype {
         DNSType::A => match DnsTypeA::decode(data, None) {
             Ok(val) => Ok(Box::new(val)),
@@ -97,17 +98,14 @@ pub fn decode_message_data<'a>(
         _ => Err(DNSProtoErr::UnImplementedError),
     }
 }
-
+// TODO: Update Decode From String
 pub fn decode_dns_data_from_string(
     string: &str,
     dtype: DNSType,
 ) -> Result<Box<dyn DNSWireFrame>, ParseZoneDataErr> {
+    // A NS CNAME TXT PTR SOA AAAA LOC SRV OPT[unimpl]
     match dtype {
         DNSType::A => match DnsTypeA::from_str(string) {
-            Ok(dtype) => Ok(Box::new(dtype)),
-            Err(err) => Err(err),
-        },
-        DNSType::AAAA => match DnsTypeAAAA::from_str(string) {
             Ok(dtype) => Ok(Box::new(dtype)),
             Err(err) => Err(err),
         },
@@ -115,10 +113,39 @@ pub fn decode_dns_data_from_string(
             Ok(dtype) => Ok(Box::new(dtype)),
             Err(err) => Err(err),
         },
+        DNSType::CNAME => match DnsTypeCNAME::from_str(string) {
+            Ok(dtype) => Ok(Box::new(dtype)),
+            Err(err) => Err(err),
+        },
+        DNSType::TXT => match DnsTypeTXT::from_str(string) {
+            Ok(dtype) => Ok(Box::new(dtype)),
+            Err(err) => Err(err),
+        },
+        DNSType::PTR => match DnsTypePTR::from_str(string) {
+            Ok(dtype) => Ok(Box::new(dtype)),
+            Err(err) => Err(err),
+        },
         DNSType::SOA => match DnsTypeSOA::from_str(string) {
             Ok(dtype) => Ok(Box::new(dtype)),
             Err(err) => Err(err),
         },
+        DNSType::LOC => match DnsTypeLOC::from_str(string) {
+            Ok(dtype) => Ok(Box::new(dtype)),
+            Err(err) => Err(err),
+        },
+        DNSType::AAAA => match DnsTypeAAAA::from_str(string) {
+            Ok(dtype) => Ok(Box::new(dtype)),
+            Err(err) => Err(err),
+        },
+        DNSType::SRV => match DnsTypeSRV::from_str(string) {
+            Ok(dtype) => Ok(Box::new(dtype)),
+            Err(err) => Err(err),
+        },
+        DNSType::SOA => match DnsTypeSOA::from_str(string) {
+            Ok(dtype) => Ok(Box::new(dtype)),
+            Err(err) => Err(err),
+        },
+
         _ => Err(ParseZoneDataErr::UnimplementedErr),
     }
 }
