@@ -297,6 +297,42 @@ impl DnsTypeLOC {
             alt,
         })
     }
+
+    fn get_lat_and_lng(&self) -> (String, String) {
+        let lat = (self.lat as i64 - (1 << 31)) as f64 / 3600000.0;
+        let remlat = 60.0 * (lat - (lat as i64) as f64);
+
+        let lng = (self.lon as i64 - (1 << 31)) as f64 / 3600000.0;
+        let remlng = 60.0 * (lng - (lng as i64) as f64);
+        let lat_label = match lat > 0.0 {
+            true => "N".to_owned(),
+            false => "S".to_owned(),
+        };
+        let lng_label = match lng > 0.0 {
+            true => "E".to_owned(),
+            false => "W".to_owned(),
+        };
+        (
+            format!(
+                "{} {} {} {}",
+                (lat as i64).abs(),
+                (remlat as i64).abs(),
+                ((((remlat - (remlat as i64) as f64) * 60.0) as f64)
+                    .round()
+                    .abs()),
+                lat_label
+            ),
+            format!(
+                "{} {} {} {}",
+                (lng as i64).abs(),
+                (remlng as i64).abs(),
+                ((((remlng - (remlng as i64) as f64) * 60.0) as f64)
+                    .round()
+                    .abs()),
+                lng_label
+            ),
+        )
+    }
 }
 
 impl fmt::Display for DnsTypeLOC {
@@ -349,34 +385,13 @@ mod test {
             assert_eq!(translate_loc_additiona_to_u8(i.0), Ok(i.1));
         }
     }
-
     #[test]
-    fn test_translate_altitude_to_u32() {
-        // let input = [
-        //     ("107m", 10010700),
-        //     ("30M", 10003000),
-        //     ("-25m", 9997500),
-        //     // ("10m", 0x13),
-        //     // ("-24m", (4, 10)),
-        //     // ("-44m", (4, 10)),
-        // ];
-        // for i in input.iter() {
-        //     assert_eq!(translate_loc_additiona_to_u8(i.0), Ok(i.1));
-        // }
+    fn test_format_loc_to_string() {
+        //  "32 53 1.000 N 117 14 25.000 W 107.00m 30m 10m 10m",
+        let loc = DnsTypeLOC::new(0, 0x33, 0x13, 0x13, 2265864648, 1725418648, 10010700).unwrap();
+        assert_eq!(
+            loc.get_lat_and_lng(),
+            ("32 53 1 N".to_owned(), "117 14 25 W".to_owned())
+        );
     }
-
-    // #[test]
-    // fn test_translate_lat_lon_to_u32() {
-    //     let input = [
-    //         ("107m", 10010700),
-    //         ("30M", 10003000),
-    //         ("-25m", 9997500),
-    //         ("10m", 0x13),
-    //         ("-24m", (4, 10)),
-    //         ("-44m", (4, 10)),
-    //     ];
-    //     for i in input.iter() {
-    //         assert_eq!(translate_loc_additiona_to_u8(i.0), Ok(i.1));
-    //     }
-    // }
 }
