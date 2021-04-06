@@ -156,7 +156,7 @@ fn translate_loc_additiona_to_u8(val: &str) -> Result<u8, ParseZoneDataErr> {
         ));
     }
     m = result as u8;
-    return Ok(e & 0x0f | m << 4 & 0xf0);
+    Ok(e & 0x0f | m << 4 & 0xf0)
 }
 
 impl FromStr for DnsTypeLOC {
@@ -297,7 +297,30 @@ impl DnsTypeLOC {
             alt,
         })
     }
-
+    fn get_size(&self) -> String {
+        format!("{:.2}m", Self::get_addtional(self.size))
+    }
+    fn get_horizpre(&self) -> String {
+        format!("{:.2}m", Self::get_addtional(self.hor_precision))
+    }
+    fn get_vertpre(&self) -> String {
+        format!("{:.2}m", Self::get_addtional(self.ver_precision))
+    }
+    fn get_altitude(&self) -> String {
+        format!("{:.2}m", (self.alt as f64) / 100.0 - 100000.0)
+    }
+    fn get_addtional(additional: u8) -> f64 {
+        let mut size = 0.01 * ((additional >> 4 & 0xf) as f64);
+        let mut count = additional & 0xf;
+        loop {
+            if count == 0 {
+                break;
+            }
+            size *= 10.0;
+            count -= 1;
+        }
+        size
+    }
     fn get_lat_and_lng(&self) -> (String, String) {
         let lat = (self.lat as i64 - (1 << 31)) as f64 / 3600000.0;
         let remlat = 60.0 * (lat - (lat as i64) as f64);
@@ -337,7 +360,17 @@ impl DnsTypeLOC {
 
 impl fmt::Display for DnsTypeLOC {
     fn fmt(&self, format: &mut Formatter<'_>) -> fmt::Result {
-        write!(format, "{} {} {}", self.lat, self.lon, self.alt,)
+        let location = self.get_lat_and_lng();
+        write!(
+            format,
+            "{} {} {} {} {} {}",
+            location.0,
+            location.1,
+            self.get_altitude(),
+            self.get_size(),
+            self.get_horizpre(),
+            self.get_vertpre()
+        )
     }
 }
 
@@ -393,5 +426,13 @@ mod test {
             loc.get_lat_and_lng(),
             ("32 53 1 N".to_owned(), "117 14 25 W".to_owned())
         );
+        assert_eq!(loc.get_size(), "30.00m".to_string());
+        assert_eq!(loc.get_horizpre(), "10.00m".to_string());
+        assert_eq!(loc.get_vertpre(), "10.00m".to_string());
+        assert_eq!(loc.get_altitude(), "107.00m".to_string());
+        assert_eq!(
+            loc.to_string(),
+            "32 53 1 N 117 14 25 W 107.00m 30.00m 10.00m 10.00m"
+        )
     }
 }
