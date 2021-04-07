@@ -1,12 +1,12 @@
 // http://www.networksorcery.com/enp/protocol/dns.htm
 use crate::dnsname::parse_name;
 use crate::edns::EDNS;
-use crate::errors::DNSProtoErr;
 use crate::label::Label;
 use crate::meta::{DNSClass, DNSType};
 use crate::meta::{Header, OpCode, Question, RCode, ResourceRecord};
 use crate::qtype::decode_message_data;
 use nom::number::complete::{be_u16, be_u32};
+use otterlib::errors::DNSProtoErr;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::io::Cursor;

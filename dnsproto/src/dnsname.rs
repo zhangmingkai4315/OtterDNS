@@ -3,13 +3,12 @@ use crate::label::Label;
 use nom::{Err::Incomplete, IResult, Needed};
 
 // use crate::types::{DNSFrameEncoder, get_dns_struct_from_raw};
-use crate::errors::{DNSProtoErr, ParseZoneDataErr};
 use nom::lib::std::collections::HashMap;
 use nom::lib::std::fmt::Formatter;
+use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
 use std::fmt::Display;
 use std::ops::Add;
 use std::str::FromStr;
-// use crate::utils::calculate_hash;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct DNSName {

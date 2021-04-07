@@ -1,7 +1,7 @@
 use crate::dnsname::{parse_name, DNSName};
-use crate::errors::{DNSProtoErr, ParseZoneDataErr};
 use crate::meta::DNSType;
 use crate::qtype::{CompressionType, DNSWireFrame};
+use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
 use std::any::Any;
 use std::fmt::{self, Formatter};
 use std::str::FromStr;

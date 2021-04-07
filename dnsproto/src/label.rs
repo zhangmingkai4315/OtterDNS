@@ -1,14 +1,15 @@
 #![allow(unused_doc_comments)]
-use crate::errors::ParseZoneDataErr;
 use crate::utils::is_safe_ascii;
 use itertools::EitherOrBoth::{Both, Left, Right};
 use itertools::Itertools;
 use nom::lib::std::fmt::Formatter;
 use nom::AsChar;
+use otterlib::errors::ParseZoneDataErr;
 use std::cmp::Ordering;
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 use std::str::FromStr;
+
 #[derive(Debug, Clone)]
 pub struct Label(Vec<u8>);
 

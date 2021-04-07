@@ -1,11 +1,11 @@
 // http://www.networksorcery.com/enp/protocol/dns.htm
 use crate::dnsname::DNSName;
-use crate::errors::DNSProtoErr;
 use crate::label::Label;
 use crate::meta::DNSType;
 use crate::qtype::DNSWireFrame;
 use byteorder::{BigEndian, WriteBytesExt};
 use nom::lib::std::collections::HashMap;
+use otterlib::errors::DNSProtoErr;
 use std::io::{Cursor, Write};
 
 #[derive(Debug)]

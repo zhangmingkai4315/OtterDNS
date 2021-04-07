@@ -1,13 +1,13 @@
 // a red-black-tree storage for store all dns data
 // use intrusive_collections::{RBTree, intrusive_adapter, RBTreeLink, KeyAdapter};
 // use std::cell::Cell;
-use crate::errors::StorageError;
 use crate::rbtree::RBTree;
 // use crate::Storage;
 use dnsproto::dnsname::DNSName;
 use dnsproto::label::Label;
 use dnsproto::meta::{DNSType, RRSet, ResourceRecord};
 use lazy_static::lazy_static;
+use otterlib::errors::StorageError;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ops::Deref;
@@ -123,6 +123,13 @@ impl RBTreeNode {
         }
     }
 
+    pub fn insert_rr(&mut self, rr: ResourceRecord) -> Result<(), StorageError> {
+        let dname = rr.get_dname();
+        let vnode = self.find_or_insert(dname)?;
+        vnode.add_rr(rr)?;
+        Ok(())
+    }
+
     pub fn delete_rrset(&mut self, dtype: DNSType) -> Result<RRSet, StorageError> {
         match self.rr_sets.remove(&dtype) {
             Some(rrset) => Ok(rrset),
@@ -133,10 +140,16 @@ impl RBTreeNode {
     /// locate the dns name node from top zone root node. if the dns name is not found in this zone
     /// create a sub node based the label.
     /// should valid if the name is below to the zone data.
-    pub fn find_or_insert(&mut self, name: &DNSName) -> &mut RBTreeNode {
+    pub fn find_or_insert(&mut self, name: &DNSName) -> Result<&mut RBTreeNode, StorageError> {
+        if !name.is_part_of(&self.get_name()) {
+            return Err(StorageError::ZoneOutOfArea(
+                name.to_string(),
+                self.get_name().to_string(),
+            ));
+        }
         let mut labels_count = name.label_count();
         if labels_count == 0 {
-            return self;
+            return Ok(self);
         }
         let mut parent_node = None;
         let mut current = self;
@@ -148,7 +161,7 @@ impl RBTreeNode {
             /// subtree exist and has label node
             if let Some(node) = result {
                 if labels_count == 0 {
-                    return unsafe { node.as_ptr().as_mut().unwrap() };
+                    return Ok(unsafe { node.as_ptr().as_mut().unwrap() });
                 }
                 parent_node = Some(node.clone());
                 current = unsafe { node.as_ptr().as_mut().unwrap() };
@@ -165,7 +178,7 @@ impl RBTreeNode {
             if labels_count == 0 {
                 // subtree exist but has not label node
                 // create a new label node
-                return unsafe { node.as_ptr().as_mut().unwrap() };
+                return Ok(unsafe { node.as_ptr().as_mut().unwrap() });
             } else {
                 // create a path to next label, but if each label has a new rbtree will consume
                 // too much memory , so should build with a compressed way
@@ -173,7 +186,7 @@ impl RBTreeNode {
                 parent_node = Some(node);
             }
         }
-        current
+        Ok(current)
     }
     pub fn find_best(&self, name: &DNSName) -> &RBTreeNode {
         let mut labels_count = name.label_count();
@@ -213,7 +226,7 @@ impl RBTreeNode {
         for label in name.labels.iter().rev() {
             labels_count -= 1;
             if current.subtree.is_none() {
-                return Err(StorageError::DomainNotFoundError(None));
+                return Err(StorageError::DomainNotFoundError(name.to_string()));
             }
             let result = current
                 .subtree
@@ -240,7 +253,7 @@ impl RBTreeNode {
                 return Ok(unsafe { node.as_ptr().as_ref().unwrap() });
             }
             /// not found in subtree
-            return Err(StorageError::DomainNotFoundError(None));
+            return Err(StorageError::DomainNotFoundError(name.to_string()));
         }
         Ok(current)
     }
@@ -426,7 +439,7 @@ mod storage {
             ),
         ];
         for (name, rr) in dnsnames {
-            let node = zone.find_or_insert(&name);
+            let node = zone.find_or_insert(&name).unwrap();
             // let mut borrow_node = node.deref().borrow_mut();
             if let Err(_e) = node.add_rr(rr) {
                 panic!("create example zone fail");
@@ -468,9 +481,17 @@ mod storage {
     #[test]
     fn test_find_or_insert() {
         let mut zone = RBTreeNode::new_root();
-        let node = zone.find_or_insert(&DNSName::new("www.baidu.com").unwrap());
+        let node = zone
+            .find_or_insert(&DNSName::new("www.baidu.com").unwrap())
+            .unwrap();
         assert_eq!(node.label, Label::from_str("www").unwrap());
         assert_eq!(node.get_name(), DNSName::new("www.baidu.com").unwrap());
+
+        let insert_out_of_zone = node.find_or_insert(&DNSName::new("www.google.cc").unwrap());
+        assert_eq!(
+            insert_out_of_zone.unwrap_err(),
+            StorageError::ZoneOutOfArea("www.google.cc.".to_owned(), "www.baidu.com.".to_owned())
+        )
     }
 
     #[test]

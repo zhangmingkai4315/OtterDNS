@@ -11,11 +11,6 @@ mod soa;
 mod srv;
 mod txt;
 
-use super::errors::DNSProtoErr;
-use nom::lib::std::collections::HashMap;
-use std::fmt::Debug;
-
-use crate::errors::ParseZoneDataErr;
 use crate::label::Label;
 use crate::meta::DNSType;
 use crate::qtype::loc::DnsTypeLOC;
@@ -25,12 +20,15 @@ pub use a::DnsTypeA;
 pub use aaaa::DnsTypeAAAA;
 pub use cname::DnsTypeCNAME;
 pub use mx::DnsTypeMX;
+use nom::lib::std::collections::HashMap;
 use nom::lib::std::fmt::Display;
 pub use ns::DnsTypeNS;
 pub use opt::DnsTypeOpt;
+use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
 pub use ptr::DnsTypePTR;
 pub use soa::DnsTypeSOA;
 use std::any::Any;
+use std::fmt::Debug;
 use std::str::FromStr;
 
 type CompressionType<'a> = Option<(&'a mut HashMap<Vec<Label>, usize>, usize)>;
@@ -53,7 +51,7 @@ pub fn decode_message_data<'a>(
     original: &'a [u8],
     dtype: DNSType,
 ) -> Result<Box<dyn DNSWireFrame>, DNSProtoErr> {
-    // A NS CNAME TXT PTR SOA AAAA LOC SRV OPT
+    // A NS CNAME MX TXT PTR SOA AAAA LOC SRV OPT
     match dtype {
         DNSType::A => match DnsTypeA::decode(data, None) {
             Ok(val) => Ok(Box::new(val)),
@@ -64,6 +62,10 @@ pub fn decode_message_data<'a>(
             _ => Err(DNSProtoErr::PacketParseError),
         },
         DNSType::CNAME => match DnsTypeCNAME::decode(data, Some(original)) {
+            Ok(val) => Ok(Box::new(val)),
+            _ => Err(DNSProtoErr::PacketParseError),
+        },
+        DNSType::MX => match DnsTypeMX::decode(data, Some(original)) {
             Ok(val) => Ok(Box::new(val)),
             _ => Err(DNSProtoErr::PacketParseError),
         },
@@ -103,7 +105,7 @@ pub fn decode_dns_data_from_string(
     string: &str,
     dtype: DNSType,
 ) -> Result<Box<dyn DNSWireFrame>, ParseZoneDataErr> {
-    // A NS CNAME TXT PTR SOA AAAA LOC SRV OPT[unimpl]
+    // A NS CNAME MX TXT PTR SOA AAAA LOC SRV OPT[unimpl]
     match dtype {
         DNSType::A => match DnsTypeA::from_str(string) {
             Ok(dtype) => Ok(Box::new(dtype)),
@@ -114,6 +116,10 @@ pub fn decode_dns_data_from_string(
             Err(err) => Err(err),
         },
         DNSType::CNAME => match DnsTypeCNAME::from_str(string) {
+            Ok(dtype) => Ok(Box::new(dtype)),
+            Err(err) => Err(err),
+        },
+        DNSType::MX => match DnsTypeMX::from_str(string) {
             Ok(dtype) => Ok(Box::new(dtype)),
             Err(err) => Err(err),
         },

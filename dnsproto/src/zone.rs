@@ -1,23 +1,19 @@
-use crate::errors::*;
 use crate::meta::{DNSClass, ResourceRecord};
 use crate::utils::{is_fqdn, valid_domain};
+use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
 use regex::Regex;
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
 
-pub trait ZoneReader {
-    fn read_line(&self) -> &str;
-}
-
-struct ZoneStr<'a> {
+pub struct ZoneStr<'a> {
     data: Option<&'a str>,
     empty_line_checker: Regex,
 }
 
 impl<'a> ZoneStr<'a> {
     #[allow(dead_code)]
-    fn new(data: &'a str) -> ZoneStr {
+    pub fn new(data: &'a str) -> ZoneStr {
         ZoneStr {
             data: Some(data),
             empty_line_checker: Regex::new(r"^\s*$").unwrap(),
@@ -82,7 +78,7 @@ impl<'a> Iterator for ZoneStr<'a> {
     }
 }
 
-struct Zone<T>
+pub struct ZoneReader<T>
 where
     T: Iterator<Item = String>,
 {
@@ -96,19 +92,19 @@ where
     current_domain: Option<String>,
 }
 
-impl<T> Zone<T>
+impl<T> ZoneReader<T>
 where
     T: Iterator<Item = String>,
 {
     #[allow(dead_code)]
-    fn new(line_iterator: T, default_origin: Option<String>) -> Zone<T> {
+    pub fn new(line_iterator: T, default_origin: Option<String>) -> ZoneReader<T> {
         if let Some(ref origin) = default_origin {
             // must be fqdn
             if !is_fqdn(origin.as_str()) {
                 panic!("origin must be fqdn")
             }
         }
-        Zone {
+        ZoneReader {
             line_iterator,
             current_domain: None,
             current_class: None,
@@ -161,7 +157,7 @@ where
     }
 }
 
-impl<T> Iterator for Zone<T>
+impl<T> Iterator for ZoneReader<T>
 where
     T: Iterator<Item = String>,
 {
@@ -179,7 +175,7 @@ where
                     self.current_ttl,
                     self.current_class,
                     self.current_domain.as_deref(),
-                    self.current_origin.as_deref(),
+                    self.default_origin.as_deref(),
                 ) {
                     Ok(rr) => {
                         self.current_domain = Some(rr.name.to_string());
@@ -195,14 +191,14 @@ where
     }
 }
 
-struct ZoneFileParser {
+pub struct ZoneFileParser {
     lines: io::Result<io::Lines<io::BufReader<File>>>,
     empty_line_checker: Regex,
 }
 
 impl ZoneFileParser {
     #[allow(dead_code)]
-    fn new(path: &str) -> Result<ZoneFileParser, DNSProtoErr> {
+    pub fn new(path: &str) -> Result<ZoneFileParser, DNSProtoErr> {
         // check file exist
         match std::fs::metadata(path) {
             Ok(_) => Ok(ZoneFileParser {
@@ -280,9 +276,9 @@ where
 #[cfg(test)]
 mod zone {
     use crate::dnsname::DNSName;
-    use crate::errors::DNSProtoErr;
     use crate::meta::{DNSClass, DNSType};
-    use crate::zone::{Zone, ZoneStr};
+    use crate::zone::{ZoneReader, ZoneStr};
+    use otterlib::errors::DNSProtoErr;
 
     #[test]
     fn test_zone_str_iterator() {
@@ -429,7 +425,7 @@ www.a.shifen.com.	300	IN	A	61.135.169.121
             "ns      86400      IN  A     192.0.2.2             ; IPv4 address for ns.example.com
               IN  AAAA  2001:db8:10::2        ; IPv6 address for ns.example.com",
         );
-        let mut zone = Zone::new(zone_str, Some("google.com.".to_owned()));
+        let mut zone = ZoneReader::new(zone_str, Some("google.com.".to_owned()));
         match zone.next() {
             Some(Ok(v)) => {
                 assert_eq!(v.name, DNSName::new("ns.google.com.").unwrap());
@@ -452,7 +448,7 @@ www.a.shifen.com.	300	IN	A	61.135.169.121
             "ns          IN  A     192.0.2.2             ; IPv4 address for ns.example.com
               IN  AAAA  2001:db8:10::2        ; IPv6 address for ns.example.com",
         );
-        let mut zone = Zone::new(zone_str, Some("google.com.".to_owned()));
+        let mut zone = ZoneReader::new(zone_str, Some("google.com.".to_owned()));
         match zone.next() {
             Some(Err(DNSProtoErr::ParseZoneDataErr(_))) => assert!(true),
             _ => {
@@ -464,7 +460,7 @@ www.a.shifen.com.	300	IN	A	61.135.169.121
             "ns.    86400      IN  A     192.0.2.2             ; IPv4 address for ns.example.com
               IN  AAAA  2001:db8:10::2        ; IPv6 address for ns.example.com",
         );
-        let mut zone = Zone::new(zone_str, None);
+        let mut zone = ZoneReader::new(zone_str, None);
         match zone.next() {
             Some(Ok(v)) => {
                 assert_eq!(v.name, DNSName::new("ns.").unwrap());
@@ -502,7 +498,7 @@ otter.fun.   14400   IN  TXT	\"v=spf1 +a +mx +ip4:1.1.1.1 ~all\"
 default._domainkey  14400  IN   TXT   \"v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ;\"
 otter.fun.   14400   IN	TXT	google-site-verification=zxIkMo9ruPbMyGMy4KWbc0QkOoN9aF2iFPvDHc0o8Pg",
         );
-        let mut zone = Zone::new(zone_str, Some("otter.fun.".to_owned()));
+        let mut zone = ZoneReader::new(zone_str, Some("otter.fun.".to_owned()));
         if let Some(Ok(v)) = zone.next() {
             assert_eq!(v.name, DNSName::new("otter.fun.").unwrap());
             assert_eq!(v.qtype, DNSType::SOA);
@@ -594,10 +590,6 @@ otter.fun.   14400   IN	TXT	google-site-verification=zxIkMo9ruPbMyGMy4KWbc0QkOoN
             assert_eq!(v.qtype, DNSType::TXT);
             assert_eq!(v.qclass, DNSClass::IN);
             assert_eq!(v.ttl, 14400);
-            // assert_eq!(
-            //     v.data,
-            //     "google-site-verification=zxIkMo9ruPbMyGMy4KWbc0QkOoN9aF2iFPvDHc0o8Pg"
-            // );
         }
     }
 }

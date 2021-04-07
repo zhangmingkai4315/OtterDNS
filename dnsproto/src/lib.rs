@@ -13,7 +13,6 @@ extern crate thiserror;
 
 pub mod dnsname;
 pub mod edns;
-pub mod errors;
 pub mod label;
 pub mod message;
 pub mod meta;

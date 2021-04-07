@@ -2,13 +2,13 @@
 pub mod rb_storage;
 mod rbtree;
 #[macro_use]
-pub mod errors;
+pub mod sync;
 // mod example;
 
 use dnsproto::dnsname::DNSName;
 use dnsproto::meta::{DNSType, ResourceRecord};
 use dnsproto::qtype::{DNSWireFrame, DnsTypeSOA};
-use errors::StorageError;
+use otterlib::errors::StorageError;
 
 trait Storage {
     fn lookup(

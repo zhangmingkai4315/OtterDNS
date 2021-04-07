@@ -1,8 +1,8 @@
 use crate::dnsname::DNSName;
-use crate::errors::*;
 use crate::meta::{DNSClass, DNSType, ResourceRecord};
 use crate::qtype::decode_dns_data_from_string;
 use crate::utils::{is_fqdn, valid_domain};
+use otterlib::errors::ParseZoneDataErr;
 
 impl ResourceRecord {
     #[allow(clippy::too_many_arguments)]
@@ -243,10 +243,10 @@ fn gen_ttl_from_token(token: &str) -> Result<u32, ParseZoneDataErr> {
 #[cfg(test)]
 mod record {
     use crate::dnsname::DNSName;
-    use crate::errors::ParseZoneDataErr;
     use crate::meta::{DNSClass, DNSType, ResourceRecord};
     use crate::qtype::{DnsTypeA, DnsTypeNS};
     use crate::record::gen_ttl_from_token;
+    use otterlib::errors::ParseZoneDataErr;
     use std::convert::TryFrom;
 
     #[test]

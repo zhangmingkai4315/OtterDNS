@@ -1,12 +1,9 @@
-// use crate::dnsname::{parse_name, DNSName};
-use crate::errors::{DNSProtoErr, ParseZoneDataErr};
-// use crate::meta::DNSType;
-// use crate::qtype::{CompressionType, DNSWireFrame};
 use nom::character::complete::multispace0;
 use nom::number::complete::{be_u32, be_u8, double};
 // use std::any::Any;
 use crate::meta::DNSType;
 use crate::qtype::{CompressionType, DNSWireFrame};
+use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
 use std::any::Any;
 use std::fmt;
 use std::fmt::Formatter;

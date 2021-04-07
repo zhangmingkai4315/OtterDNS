@@ -1,8 +1,8 @@
-use crate::errors::DNSProtoErr;
 use crate::meta::DNSType;
 use crate::qtype::{CompressionType, DNSWireFrame};
 use byteorder::{BigEndian, WriteBytesExt};
 use nom::number::complete::{be_u16, be_u8};
+use otterlib::errors::DNSProtoErr;
 use std::any::Any;
 use std::fmt::{self, Formatter};
 use std::io::{Cursor, Write};

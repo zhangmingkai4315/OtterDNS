@@ -1,6 +1,5 @@
 // http://www.networksorcery.com/enp/protocol/dns.htm
 use crate::dnsname::DNSName;
-use crate::errors::DNSProtoErr;
 use crate::qtype::DNSWireFrame;
 use byteorder::{BigEndian, WriteBytesExt};
 use nom::lib::std::collections::HashMap;
@@ -402,6 +401,7 @@ impl Into<u8> for RCode {
 use crate::label::Label;
 use nom::lib::std::slice::Iter;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+use otterlib::errors::DNSProtoErr;
 
 /// https://tools.ietf.org/html/rfc1035#section-3.2.4
 /// specify the class of the dns record data

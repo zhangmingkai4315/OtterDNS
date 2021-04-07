@@ -1,6 +1,6 @@
-use crate::errors::{DNSProtoErr, ParseZoneDataErr};
 use crate::meta::DNSType;
 use crate::qtype::{CompressionType, DNSWireFrame};
+use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
 use std::any::Any;
 use std::net::Ipv6Addr;
 use std::str::FromStr;
