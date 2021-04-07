@@ -2,9 +2,9 @@ use crate::meta::DNSType;
 use crate::qtype::{CompressionType, DNSWireFrame};
 use nom::character::complete::{digit1, multispace0};
 use nom::number::complete::{be_u16, be_u8};
-use otterlib::errors::OtterError::DNSProtoError;
 use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
 use std::any::Any;
+use std::fmt::Write;
 use std::str::FromStr;
 use std::{fmt, fmt::Formatter};
 
@@ -21,7 +21,7 @@ pub struct DnsTypeDS {
     key_tag: u16,
     algorithm_type: AlgorithemType,
     digest_type: DigestType,
-    digest: String,
+    digest: Vec<u8>,
 }
 #[derive(Debug, Copy, Clone, PartialEq, IntoPrimitive)]
 #[repr(u8)]
@@ -116,6 +116,27 @@ named_args!(parse_ds<'a>(size: usize)<DnsTypeDS>,
     )
 );
 
+fn hex_u8_to_string(input: &[u8]) -> String {
+    let mut s = String::with_capacity(2 * input.len());
+    for &byte in input {
+        let _ = write!(&mut s, "{:02X}", byte);
+    }
+    s
+}
+
+fn string_to_hex_u8(input: &str) -> Result<Vec<u8>, ParseZoneDataErr> {
+    (0..input.len())
+        .step_by(2)
+        .map(|i| match u8::from_str_radix(&input[i..i + 2], 16) {
+            Ok(v) => Ok(v),
+            _ => Err(ParseZoneDataErr::GeneralErr(format!(
+                "ds digest string to hex u8 fail : {}",
+                input
+            ))),
+        })
+        .collect()
+}
+
 impl DnsTypeDS {
     pub fn new(
         key_tag: u16,
@@ -127,26 +148,20 @@ impl DnsTypeDS {
             key_tag,
             algorithm_type,
             digest_type,
-            digest,
+            digest: string_to_hex_u8(digest.as_str())?,
         })
     }
     pub fn new_from_raw(key_tag: u16, algorithm_type: u8, digest_type: u8, digest: &[u8]) -> Self {
-        let digest_string = {
-            match std::str::from_utf8(digest) {
-                Ok(digtest_val) => digtest_val.to_owned(),
-                _ => "".to_owned(),
-            }
-        };
         DnsTypeDS {
             key_tag,
             algorithm_type: AlgorithemType::from_u8(algorithm_type),
             digest_type: DigestType::from_u8(digest_type),
-            digest: digest_string,
+            digest: digest.to_vec(),
         }
     }
 
     // example : "1657 8 2 9D6BAE62219231C99FAA479716B6E4619330CE8206670AEA6C1673A055DC3AF2"
-    pub fn from_str(str: &str, _: Option<&str>) -> Result<Self, ParseZoneDataErr> {
+    pub fn from_str(str: &str) -> Result<Self, ParseZoneDataErr> {
         let (rest, key_tag) = digit1(str)?;
         let key_tag = u16::from_str(key_tag)?;
         let (rest, _) = multispace0(rest)?;
@@ -160,7 +175,7 @@ impl DnsTypeDS {
             key_tag,
             algorithm_type,
             digest_type,
-            digest.as_bytes(),
+            string_to_hex_u8(digest)?.as_slice(),
         ))
     }
 }
@@ -169,11 +184,11 @@ impl fmt::Display for DnsTypeDS {
     fn fmt(&self, format: &mut Formatter<'_>) -> fmt::Result {
         write!(
             format,
-            "{:?} {} {} {}",
+            "{} {} {} {}",
             self.key_tag,
-            self.algorithm_type.to_string(),
-            self.digest_type.to_string(),
-            &self.digest
+            self.algorithm_type as u8,
+            self.digest_type as u8,
+            hex_u8_to_string(self.digest.as_slice())
         )
     }
 }
@@ -194,7 +209,7 @@ impl DNSWireFrame for DnsTypeDS {
         data.extend_from_slice(&self.key_tag.to_be_bytes()[..]);
         data.push(self.algorithm_type.into());
         data.push(self.digest_type.into());
-        data.extend_from_slice(&self.digest.as_bytes());
+        data.extend_from_slice(&self.digest.as_slice());
         Ok(data)
     }
     fn as_any(&self) -> &dyn Any {
@@ -204,46 +219,57 @@ impl DNSWireFrame for DnsTypeDS {
 
 #[cfg(test)]
 mod test {
-    use crate::label::Label;
-    use crate::qtype::{DNSWireFrame, DnsTypeMX};
-    use std::collections::HashMap;
-    use std::str::FromStr;
+    use crate::qtype::ds::{AlgorithemType, DigestType, DnsTypeDS};
+    use crate::qtype::DNSWireFrame;
+    use otterlib::errors::ParseZoneDataErr;
+
+    fn get_example_ds() -> (&'static str, Result<DnsTypeDS, ParseZoneDataErr>) {
+        let ds_str = "30909 8 2 E2D3C916F6DEEAC73294E8268FB5885044A833FC5459588F4A9184CFC41A5766";
+        let ds_struct = DnsTypeDS::new(
+            30909,
+            AlgorithemType::RSASHA256,
+            DigestType::SHA256,
+            "E2D3C916F6DEEAC73294E8268FB5885044A833FC5459588F4A9184CFC41A5766".to_owned(),
+        );
+        (ds_str, ds_struct)
+    }
 
     #[test]
     fn test_dns_type_ds() {
-        // let bin_arr = [
-        //     0x00u8, 0x0f, 0x02, 0x6d, 0x78, 0x01, 0x6e, 0x06, 0x73, 0x68, 0x69, 0x66, 0x65, 0x6e,
-        //     0x03, 0x63, 0x6f, 0x6d, 0x00,
-        // ];
-        // assert_eq!(
-        //     DnsTypeMX::decode(&bin_arr, None).unwrap(),
-        //     DnsTypeMX::new(15, "mx.n.shifen.com.").unwrap()
-        // );
-        //
-        // assert_eq!(
-        //     DnsTypeMX::from_str("15 mx.n.shifen.com.", None).unwrap(),
-        //     DnsTypeMX::new(15, "mx.n.shifen.com.").unwrap()
-        // );
-        //
-        // assert_eq!(
-        //     DnsTypeMX::from_str("15 mx.n.shifen.com.", None)
-        //         .unwrap()
-        //         .encode(None)
-        //         .unwrap(),
-        //     &bin_arr,
-        // );
-        // let mut compression_map = HashMap::new();
-        // compression_map.insert(vec![Label::from_str("com").unwrap()], 12usize);
-        // let compressed_bin = [
-        //     0x00u8, 0x0f, 0x02, 0x6d, 0x78, 0x01, 0x6e, 0x06, 0x73, 0x68, 0x69, 0x66, 0x65, 0x6e,
-        //     0xc0, 0x0c,
-        // ];
-        // assert_eq!(
-        //     DnsTypeMX::from_str("15 mx.n.shifen.com.", None)
-        //         .unwrap()
-        //         .encode(Some((&mut compression_map, 0)))
-        //         .unwrap(),
-        //     &compressed_bin,
-        // );
+        let (ds_str, ds_struct) = get_example_ds();
+        if ds_struct.is_err() {
+            assert!(false, "ds new method got a unexpected failure");
+            return;
+        }
+        let ds_struct = ds_struct.unwrap();
+        match DnsTypeDS::from_str(ds_str) {
+            Ok(ds) => {
+                assert_eq!(ds, ds_struct);
+                assert_eq!(ds_str.to_owned(), ds_str.to_string())
+            }
+            Err(err) => assert!(
+                false,
+                format!("ds from_str method got a unexpected failure: {:?}", err)
+            ),
+        }
+    }
+
+    #[test]
+    fn test_dns_type_ds_binary_serialize() {
+        let (ds_str, ds_struct) = get_example_ds();
+        let ds_struct = ds_struct.unwrap();
+        let bin_arr = [
+            0x78, 0xbd, 0x08, 0x02, 0xe2, 0xd3, 0xc9, 0x16, 0xf6, 0xde, 0xea, 0xc7, 0x32, 0x94,
+            0xe8, 0x26, 0x8f, 0xb5, 0x88, 0x50, 0x44, 0xa8, 0x33, 0xfc, 0x54, 0x59, 0x58, 0x8f,
+            0x4a, 0x91, 0x84, 0xcf, 0xc4, 0x1a, 0x57, 0x66,
+        ];
+        assert_eq!(DnsTypeDS::decode(&bin_arr, None).unwrap(), ds_struct);
+        match ds_struct.encode(None) {
+            Ok(ds_vec) => {
+                assert_eq!(ds_vec.as_slice(), &bin_arr[..]);
+            }
+            _ => assert!(false, "encode ds fail"),
+        }
+        assert_eq!(ds_str, ds_struct.to_string());
     }
 }
