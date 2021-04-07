@@ -67,13 +67,12 @@ impl DnsTypeSOA {
             minimum,
         })
     }
+    // from_str from one line without ()
     pub fn from_str(str: &str, default_original: Option<&str>) -> Result<Self, ParseZoneDataErr> {
         let (rest, _) = multispace0(str)?;
         let (rest, primary) = take_while(is_not_space)(rest)?;
         let (rest, _) = multispace0(rest)?;
         let (rest, response) = take_while(is_not_space)(rest)?;
-        let (rest, _) = multispace0(rest)?;
-        let (rest, _) = tag("(")(rest)?;
         let (rest, _) = multispace0(rest)?;
         let (rest, serial) = digit1(rest)?;
         let serial = u32::from_str(serial)?;
@@ -87,10 +86,8 @@ impl DnsTypeSOA {
         let (rest, expire) = digit1(rest)?;
         let expire = u32::from_str(expire)?;
         let (rest, _) = multispace0(rest)?;
-        let (rest, minimum) = digit1(rest)?;
+        let (_, minimum) = digit1(rest)?;
         let minimum = u32::from_str(minimum)?;
-        let (rest, _) = multispace0(rest)?;
-        let (_, _) = tag(")")(rest)?;
         Ok(DnsTypeSOA {
             primary_name: DNSName::new(primary, default_original)?,
             response_email: DNSName::new(response, default_original)?,
@@ -174,7 +171,7 @@ mod test {
 
     #[test]
     fn test_parse_soa_from_str() {
-        let soa = "a.dns.cn. root.cnnic.cn. ( 2027954656 7200 3600 2419200 21600 )";
+        let soa = "a.dns.cn. root.cnnic.cn. 2027954656 7200 3600 2419200 21600 ";
         let dns_soa = DnsTypeSOA::from_str(soa, None);
         assert!(dns_soa.is_ok(), format!("{:?}", dns_soa.unwrap_err()));
         assert_eq!(
@@ -191,17 +188,17 @@ mod test {
             .unwrap()
         );
 
-        let err_soa = "a.dns.cn. root.cnnic.cn. ( 7200 3600 2419200 21600 )";
+        let err_soa = "a.dns.cn. root.cnnic.cn. 7200 3600 2419200 21600 ";
         let dns_soa = DnsTypeSOA::from_str(err_soa, None);
         assert!(dns_soa.is_err());
 
         let err_soa = "root.cnnic.cn. (2027954656 7200 3600 2419200 21600 )";
         let dns_soa = DnsTypeSOA::from_str(err_soa, None);
         assert!(dns_soa.is_err());
-        let err_soa = "a.dns.cn. root.cnnic.cn. 2027954656 7200 3600 2419200 21600 )";
+        let err_soa = "a.dns.cn. root.cnnic.cn. ( 2027954656 7200 3600 2419200 ";
         let dns_soa = DnsTypeSOA::from_str(err_soa, None);
         assert!(dns_soa.is_err());
-        let err_soa = "a.dns.cn. root.cnnic.cn. (2027954656 7200 3600 2419200 21600";
+        let err_soa = "a.dns.cn. root.cnnic.cn. 2027954656";
         let dns_soa = DnsTypeSOA::from_str(err_soa, None);
         assert!(dns_soa.is_err());
     }

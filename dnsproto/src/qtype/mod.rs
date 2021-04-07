@@ -107,6 +107,8 @@ pub fn decode_dns_data_from_string(
     default_original: Option<&str>,
 ) -> Result<Box<dyn DNSWireFrame>, ParseZoneDataErr> {
     // A NS CNAME MX TXT PTR SOA AAAA LOC SRV OPT[unimpl]
+    let string = string.replace(|c| c == '(' || c == ')', "");
+    let string = string.as_str();
     match dtype {
         DNSType::A => match DnsTypeA::from_str(string) {
             Ok(dtype) => Ok(Box::new(dtype)),

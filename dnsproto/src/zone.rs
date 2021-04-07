@@ -49,7 +49,7 @@ impl<'a> Iterator for ZoneStr<'a> {
                         new_line = None;
                     }
                 }
-                if let Some(line) = new_line.as_mut() {
+                if let Some(mut line) = new_line.as_mut() {
                     // Comments start with a semicolon ";" and go to the end of line.
                     if let Some(line_cutter) = line.find(';') {
                         *line = &line[..line_cutter];
@@ -58,8 +58,10 @@ impl<'a> Iterator for ZoneStr<'a> {
                     if line.is_empty() || self.empty_line_checker.is_match(line) {
                         break 'inner;
                     }
-                    multi_line = multi_line + line.matches('(').count() - line.matches(')').count();
-                    joined_line.push(<&str>::clone(line));
+                    let left_bracked = line.matches('(').count();
+                    let right_bracked = line.matches(')').count();
+                    multi_line = multi_line + left_bracked - right_bracked;
+                    joined_line.push(line.to_string());
                     if multi_line == 0 {
                         break 'outer;
                     } else {
@@ -74,7 +76,10 @@ impl<'a> Iterator for ZoneStr<'a> {
         if joined_line.is_empty() {
             return None;
         }
-        Some(joined_line.join(""))
+        let mut result: String = joined_line.join("");
+        result = result.replace("(", "");
+        result = result.replace(")", "");
+        Some(result)
     }
 }
 
@@ -354,7 +359,7 @@ ns            IN  A     192.0.2.2             ; IPv4 address for ns.example.com
 				)",
         );
         let mut iter = zone_str.into_iter();
-        assert_eq!(iter.next(), Some(".\t\t\t86391 IN SOA a.root-servers.net. nstld.verisign-grs.com. (\t\t\t\t2020091101 \t\t\t\t1800       \t\t\t\t900        \t\t\t\t604800     \t\t\t\t86400      \t\t\t\t)".to_owned()));
+        assert_eq!(iter.next(), Some(".\t\t\t86391 IN SOA a.root-servers.net. nstld.verisign-grs.com. \t\t\t\t2020091101 \t\t\t\t1800       \t\t\t\t900        \t\t\t\t604800     \t\t\t\t86400      \t\t\t\t".to_owned()));
         assert_eq!(iter.next(), None);
 
         let zone_str = ZoneStr::new(

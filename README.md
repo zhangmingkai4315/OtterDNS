@@ -24,5 +24,6 @@ OtterDNS 一个权威DNS解析软件
 - [RFC 1034](https://tools.ietf.org/html/rfc1034) 域名服务器查询响应及数据存储
 - [RFC 1035](https://tools.ietf.org/html/rfc1035) 基本的DNS协议，字段，区文件数据解析
 - [RFC 4343](https://tools.ietf.org/html/rfc4343) DNS字符标签格式声明
+- [RFC 4034](https://tools.ietf.org/html/rfc4343) DNSSEC记录定义
 - [RFC 2782](https://tools.ietf.org/html/rfc2782) SRV记录定义
 - [RFC 1876](https://tools.ietf.org/html/rfc1876) LOC记录定义
