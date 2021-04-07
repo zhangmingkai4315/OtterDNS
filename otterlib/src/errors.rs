@@ -14,8 +14,9 @@ pub enum SettingError {
 pub enum StorageError {
     #[error("domain not exist in storage")]
     DomainNotFoundError(String),
-    #[error("domain exist but query type not exist")]
-    DNSTypeNotFoundError,
+
+    #[error("domain :{0} exist but query type:{1} not exist")]
+    DNSTypeNotFoundError(String, String),
     #[error("storage not ready")]
     StorageNotReadyError,
     #[error("soa resource record not found")]

@@ -88,7 +88,6 @@ where
     default_origin: Option<String>,
     current_ttl: Option<u32>,
     current_class: Option<DNSClass>,
-    current_origin: Option<String>,
     current_domain: Option<String>,
 }
 
@@ -108,7 +107,6 @@ where
             line_iterator,
             current_domain: None,
             current_class: None,
-            current_origin: default_origin.clone(),
             current_ttl: None,
             default_origin,
         }

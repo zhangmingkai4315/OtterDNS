@@ -147,11 +147,6 @@ pub fn decode_dns_data_from_string(
             Ok(dtype) => Ok(Box::new(dtype)),
             Err(err) => Err(err),
         },
-        DNSType::SOA => match DnsTypeSOA::from_str(string) {
-            Ok(dtype) => Ok(Box::new(dtype)),
-            Err(err) => Err(err),
-        },
-
         _ => Err(ParseZoneDataErr::UnimplementedErr),
     }
 }

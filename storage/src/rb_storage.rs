@@ -119,7 +119,25 @@ impl RBTreeNode {
     pub fn find_rrset(&self, dtype: DNSType) -> Result<&RRSet, StorageError> {
         match self.rr_sets.get(&dtype) {
             Some(rrset) => Ok(rrset),
-            None => Err(StorageError::DNSTypeNotFoundError),
+            None => Err(StorageError::DNSTypeNotFoundError(
+                self.get_name().to_string(),
+                dtype.to_string(),
+            )),
+        }
+    }
+
+    pub fn search_rrset(
+        &mut self,
+        dname: &DNSName,
+        dtype: DNSType,
+    ) -> Result<&RRSet, StorageError> {
+        let node = self.find(dname)?;
+        match node.rr_sets.get(&dtype) {
+            Some(rrset) => Ok(rrset),
+            None => Err(StorageError::DNSTypeNotFoundError(
+                dname.to_string(),
+                dtype.to_string(),
+            )),
         }
     }
 
@@ -133,7 +151,10 @@ impl RBTreeNode {
     pub fn delete_rrset(&mut self, dtype: DNSType) -> Result<RRSet, StorageError> {
         match self.rr_sets.remove(&dtype) {
             Some(rrset) => Ok(rrset),
-            None => Err(StorageError::DNSTypeNotFoundError),
+            None => Err(StorageError::DNSTypeNotFoundError(
+                self.get_name().to_string(),
+                dtype.to_string(),
+            )),
         }
     }
 

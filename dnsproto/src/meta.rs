@@ -399,9 +399,11 @@ impl Into<u8> for RCode {
 }
 
 use crate::label::Label;
+use nom::lib::std::fmt::Formatter;
 use nom::lib::std::slice::Iter;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use otterlib::errors::DNSProtoErr;
+use std::fmt;
 
 /// https://tools.ietf.org/html/rfc1035#section-3.2.4
 /// specify the class of the dns record data
@@ -454,5 +456,11 @@ pub enum DNSType {
 impl Default for DNSType {
     fn default() -> Self {
         DNSType::A
+    }
+}
+
+impl fmt::Display for DNSType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
