@@ -204,8 +204,8 @@ impl ResourceRecord {
                 return Err(ParseZoneDataErr::NoDefaultTTLErr);
             }
         }
-        let dname = DNSName::new(domain_fqdn.as_str())?;
-        match decode_dns_data_from_string(r_data.as_str(), r_type) {
+        let dname = DNSName::new(domain_fqdn.as_str(), default_origin)?;
+        match decode_dns_data_from_string(r_data.as_str(), r_type, None) {
             Ok(data) => Ok(ResourceRecord {
                 name: dname,
                 qtype: r_type,
@@ -254,7 +254,7 @@ mod record {
         let s = "mail.  86400   IN  A     192.0.2.3 ; this is a comment";
         let raw_rr = ResourceRecord::from_zone_data(s, None, None, None, None).unwrap();
         let resourc = ResourceRecord {
-            name: DNSName::new("mail.").unwrap(),
+            name: DNSName::new("mail.", None).unwrap(),
             qtype: DNSType::A,
             qclass: DNSClass::IN,
             ttl: 86400,
@@ -274,7 +274,7 @@ mod record {
         let raw_rr =
             ResourceRecord::from_zone_data(s, None, None, None, Some("cnnic.cn.")).unwrap();
         let resourc = ResourceRecord {
-            name: DNSName::new("mail.cnnic.cn.").unwrap(),
+            name: DNSName::new("mail.cnnic.cn.", None).unwrap(),
             qtype: DNSType::A,
             qclass: DNSClass::IN,
             ttl: 86400,
@@ -294,7 +294,7 @@ mod record {
         let raw_rr =
             ResourceRecord::from_zone_data(s, Some(1000), None, None, Some("cnnic.cn.")).unwrap();
         let resourc = ResourceRecord {
-            name: DNSName::new("mail.").unwrap(),
+            name: DNSName::new("mail.", None).unwrap(),
             qtype: DNSType::A,
             qclass: DNSClass::IN,
             ttl: 86400,
@@ -316,7 +316,7 @@ mod record {
         assert_eq!(
             rr.unwrap(),
             ResourceRecord {
-                name: DNSName::new("mail.").unwrap(),
+                name: DNSName::new("mail.", None).unwrap(),
                 qtype: DNSType::A,
                 qclass: DNSClass::IN,
                 ttl: 86400,
@@ -330,7 +330,7 @@ mod record {
         assert_eq!(
             rr.unwrap(),
             ResourceRecord {
-                name: DNSName::new("mail.").unwrap(),
+                name: DNSName::new("mail.", None).unwrap(),
                 qtype: DNSType::A,
                 qclass: DNSClass::IN,
                 ttl: 1000,
@@ -360,7 +360,7 @@ mod record {
         assert_eq!(
             rr.unwrap(),
             ResourceRecord {
-                name: DNSName::new("IN.").unwrap(),
+                name: DNSName::new("IN.", None).unwrap(),
                 qtype: DNSType::A,
                 qclass: DNSClass::IN,
                 ttl: 1000,
@@ -374,7 +374,7 @@ mod record {
         assert_eq!(
             rr.unwrap(),
             ResourceRecord {
-                name: DNSName::new("mail.google.com.").unwrap(),
+                name: DNSName::new("mail.google.com.", None).unwrap(),
                 qtype: DNSType::NS,
                 qclass: DNSClass::IN,
                 ttl: 86400,

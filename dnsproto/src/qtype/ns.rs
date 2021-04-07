@@ -11,19 +11,18 @@ pub struct DnsTypeNS {
     pub(crate) name: DNSName,
 }
 
-impl FromStr for DnsTypeNS {
-    type Err = ParseZoneDataErr;
-    fn from_str(a_str: &str) -> Result<Self, Self::Err> {
-        Ok(DnsTypeNS {
-            name: DNSName::new(a_str)?,
-        })
-    }
-}
-
 impl DnsTypeNS {
     pub fn new(name: &str) -> Result<DnsTypeNS, DNSProtoErr> {
         Ok(DnsTypeNS {
-            name: DNSName::new(name)?,
+            name: DNSName::new(name, None)?,
+        })
+    }
+    pub(crate) fn from_str(
+        a_str: &str,
+        default_original: Option<&str>,
+    ) -> Result<Self, ParseZoneDataErr> {
+        Ok(DnsTypeNS {
+            name: DNSName::new(a_str, default_original)?,
         })
     }
 }
@@ -74,7 +73,7 @@ mod test {
             116, 0,
         ];
         let ns = DnsTypeNS {
-            name: DNSName::new("f.gtld-servers.net").unwrap(),
+            name: DNSName::new("f.gtld-servers.net.", None).unwrap(),
         };
         match ns.encode(None) {
             Ok(ns_data) => assert_eq!(ns_data, non_compression_vec),

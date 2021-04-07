@@ -222,7 +222,6 @@ where
     fn print_node(maybe_id: Option<usize>, depth: usize, nodes: &[Node<K, V>]) {
         let indent = "     ".repeat(depth);
         if let Some(id) = maybe_id {
-            println!("{} {:?}", indent, nodes[id]);
             Self::print_node(nodes[id].left, depth + 1, nodes);
             Self::print_node(nodes[id].right, depth + 1, nodes);
         } else {

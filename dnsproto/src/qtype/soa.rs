@@ -26,44 +26,6 @@ pub fn is_not_space(chr: char) -> bool {
     !chr.is_whitespace()
 }
 
-impl FromStr for DnsTypeSOA {
-    type Err = ParseZoneDataErr;
-    fn from_str(str: &str) -> Result<Self, Self::Err> {
-        let (rest, _) = multispace0(str)?;
-        let (rest, primary) = take_while(is_not_space)(rest)?;
-        let (rest, _) = multispace0(rest)?;
-        let (rest, response) = take_while(is_not_space)(rest)?;
-        let (rest, _) = multispace0(rest)?;
-        let (rest, _) = tag("(")(rest)?;
-        let (rest, _) = multispace0(rest)?;
-        let (rest, serial) = digit1(rest)?;
-        let serial = u32::from_str(serial)?;
-        let (rest, _) = multispace0(rest)?;
-        let (rest, refresh) = digit1(rest)?;
-        let refresh = u32::from_str(refresh)?;
-        let (rest, _) = multispace0(rest)?;
-        let (rest, retry) = digit1(rest)?;
-        let retry = u32::from_str(retry)?;
-        let (rest, _) = multispace0(rest)?;
-        let (rest, expire) = digit1(rest)?;
-        let expire = u32::from_str(expire)?;
-        let (rest, _) = multispace0(rest)?;
-        let (rest, minimum) = digit1(rest)?;
-        let minimum = u32::from_str(minimum)?;
-        let (rest, _) = multispace0(rest)?;
-        let (_, _) = tag(")")(rest)?;
-        Ok(DnsTypeSOA {
-            primary_name: DNSName::new(primary)?,
-            response_email: DNSName::new(response)?,
-            serial,
-            refresh,
-            retry,
-            expire,
-            minimum,
-        })
-    }
-}
-
 named_args!(parse_soa<'a>(original: &[u8])<DnsTypeSOA>,
     do_parse!(
         primary_name: call!(parse_name, original)>>
@@ -96,8 +58,42 @@ impl DnsTypeSOA {
         minimum: u32,
     ) -> Result<DnsTypeSOA, DNSProtoErr> {
         Ok(DnsTypeSOA {
-            primary_name: DNSName::new(primary_server)?,
-            response_email: DNSName::new(response_email)?,
+            primary_name: DNSName::new(primary_server, None)?,
+            response_email: DNSName::new(response_email, None)?,
+            serial,
+            refresh,
+            retry,
+            expire,
+            minimum,
+        })
+    }
+    pub fn from_str(str: &str, default_original: Option<&str>) -> Result<Self, ParseZoneDataErr> {
+        let (rest, _) = multispace0(str)?;
+        let (rest, primary) = take_while(is_not_space)(rest)?;
+        let (rest, _) = multispace0(rest)?;
+        let (rest, response) = take_while(is_not_space)(rest)?;
+        let (rest, _) = multispace0(rest)?;
+        let (rest, _) = tag("(")(rest)?;
+        let (rest, _) = multispace0(rest)?;
+        let (rest, serial) = digit1(rest)?;
+        let serial = u32::from_str(serial)?;
+        let (rest, _) = multispace0(rest)?;
+        let (rest, refresh) = digit1(rest)?;
+        let refresh = u32::from_str(refresh)?;
+        let (rest, _) = multispace0(rest)?;
+        let (rest, retry) = digit1(rest)?;
+        let retry = u32::from_str(retry)?;
+        let (rest, _) = multispace0(rest)?;
+        let (rest, expire) = digit1(rest)?;
+        let expire = u32::from_str(expire)?;
+        let (rest, _) = multispace0(rest)?;
+        let (rest, minimum) = digit1(rest)?;
+        let minimum = u32::from_str(minimum)?;
+        let (rest, _) = multispace0(rest)?;
+        let (_, _) = tag(")")(rest)?;
+        Ok(DnsTypeSOA {
+            primary_name: DNSName::new(primary, default_original)?,
+            response_email: DNSName::new(response, default_original)?,
             serial,
             refresh,
             retry,
@@ -179,7 +175,7 @@ mod test {
     #[test]
     fn test_parse_soa_from_str() {
         let soa = "a.dns.cn. root.cnnic.cn. ( 2027954656 7200 3600 2419200 21600 )";
-        let dns_soa = DnsTypeSOA::from_str(soa);
+        let dns_soa = DnsTypeSOA::from_str(soa, None);
         assert!(dns_soa.is_ok(), format!("{:?}", dns_soa.unwrap_err()));
         assert_eq!(
             dns_soa.unwrap(),
@@ -196,17 +192,17 @@ mod test {
         );
 
         let err_soa = "a.dns.cn. root.cnnic.cn. ( 7200 3600 2419200 21600 )";
-        let dns_soa = DnsTypeSOA::from_str(err_soa);
+        let dns_soa = DnsTypeSOA::from_str(err_soa, None);
         assert!(dns_soa.is_err());
 
         let err_soa = "root.cnnic.cn. (2027954656 7200 3600 2419200 21600 )";
-        let dns_soa = DnsTypeSOA::from_str(err_soa);
+        let dns_soa = DnsTypeSOA::from_str(err_soa, None);
         assert!(dns_soa.is_err());
         let err_soa = "a.dns.cn. root.cnnic.cn. 2027954656 7200 3600 2419200 21600 )";
-        let dns_soa = DnsTypeSOA::from_str(err_soa);
+        let dns_soa = DnsTypeSOA::from_str(err_soa, None);
         assert!(dns_soa.is_err());
         let err_soa = "a.dns.cn. root.cnnic.cn. (2027954656 7200 3600 2419200 21600";
-        let dns_soa = DnsTypeSOA::from_str(err_soa);
+        let dns_soa = DnsTypeSOA::from_str(err_soa, None);
         assert!(dns_soa.is_err());
     }
 
@@ -225,8 +221,8 @@ mod test {
             81, 128,
         ];
         let soa = DnsTypeSOA {
-            primary_name: DNSName::new("a.gtld-servers.net.").unwrap(),
-            response_email: DNSName::new("nstld.verisign-grs.com.").unwrap(),
+            primary_name: DNSName::new("a.gtld-servers.net.", None).unwrap(),
+            response_email: DNSName::new("nstld.verisign-grs.com.", None).unwrap(),
             serial: 1615797615,
             refresh: 1800,
             retry: 900,
@@ -235,7 +231,6 @@ mod test {
         };
         match soa.encode(None) {
             Ok(v) => {
-                println!("{:x?}", v);
                 assert_eq!(v, non_compression_vec, "soa encode not equal")
             }
             Err(err) => {

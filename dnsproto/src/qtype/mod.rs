@@ -104,6 +104,7 @@ pub fn decode_message_data<'a>(
 pub fn decode_dns_data_from_string(
     string: &str,
     dtype: DNSType,
+    default_original: Option<&str>,
 ) -> Result<Box<dyn DNSWireFrame>, ParseZoneDataErr> {
     // A NS CNAME MX TXT PTR SOA AAAA LOC SRV OPT[unimpl]
     match dtype {
@@ -111,15 +112,15 @@ pub fn decode_dns_data_from_string(
             Ok(dtype) => Ok(Box::new(dtype)),
             Err(err) => Err(err),
         },
-        DNSType::NS => match DnsTypeNS::from_str(string) {
+        DNSType::NS => match DnsTypeNS::from_str(string, default_original) {
             Ok(dtype) => Ok(Box::new(dtype)),
             Err(err) => Err(err),
         },
-        DNSType::CNAME => match DnsTypeCNAME::from_str(string) {
+        DNSType::CNAME => match DnsTypeCNAME::from_str(string, default_original) {
             Ok(dtype) => Ok(Box::new(dtype)),
             Err(err) => Err(err),
         },
-        DNSType::MX => match DnsTypeMX::from_str(string) {
+        DNSType::MX => match DnsTypeMX::from_str(string, default_original) {
             Ok(dtype) => Ok(Box::new(dtype)),
             Err(err) => Err(err),
         },
@@ -127,11 +128,11 @@ pub fn decode_dns_data_from_string(
             Ok(dtype) => Ok(Box::new(dtype)),
             Err(err) => Err(err),
         },
-        DNSType::PTR => match DnsTypePTR::from_str(string) {
+        DNSType::PTR => match DnsTypePTR::from_str(string, default_original) {
             Ok(dtype) => Ok(Box::new(dtype)),
             Err(err) => Err(err),
         },
-        DNSType::SOA => match DnsTypeSOA::from_str(string) {
+        DNSType::SOA => match DnsTypeSOA::from_str(string, default_original) {
             Ok(dtype) => Ok(Box::new(dtype)),
             Err(err) => Err(err),
         },
@@ -143,7 +144,7 @@ pub fn decode_dns_data_from_string(
             Ok(dtype) => Ok(Box::new(dtype)),
             Err(err) => Err(err),
         },
-        DNSType::SRV => match DnsTypeSRV::from_str(string) {
+        DNSType::SRV => match DnsTypeSRV::from_str(string, default_original) {
             Ok(dtype) => Ok(Box::new(dtype)),
             Err(err) => Err(err),
         },

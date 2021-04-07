@@ -6,9 +6,12 @@ use nom::{Err::Incomplete, IResult, Needed};
 use nom::lib::std::collections::HashMap;
 use nom::lib::std::fmt::Formatter;
 use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
+use std::borrow::Cow;
 use std::fmt::Display;
 use std::ops::Add;
 use std::str::FromStr;
+
+use crate::utils::{fqdn, is_fqdn};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct DNSName {
@@ -16,10 +19,23 @@ pub struct DNSName {
 }
 
 impl DNSName {
-    pub fn new(domain: &str) -> Result<DNSName, ParseZoneDataErr> {
+    pub fn new(domain: &str, default_original: Option<&str>) -> Result<DNSName, ParseZoneDataErr> {
+        let mut domain = Cow::from(domain);
         if domain.is_empty() || domain.eq(".") {
             return Ok(DNSName::default());
         }
+        if !is_fqdn(domain.as_ref()) {
+            match default_original {
+                Some(val) => *domain.to_mut() += val,
+                _ => {
+                    return Err(ParseZoneDataErr::ParseDNSFromStrError(format!(
+                        "domain: {} has no default original",
+                        domain.to_owned()
+                    )))
+                }
+            }
+        }
+        let domain = domain.as_ref();
         let mut inner_vec = vec![];
         let mut need_join = String::new();
         for label in domain.trim().split('.') {
@@ -246,8 +262,8 @@ mod dnsname {
 
     #[test]
     fn test_dns_name_method() {
-        let mut dname = DNSName::new("www.google.com.").unwrap();
-        let other = DNSName::new("google.com.").unwrap();
+        let mut dname = DNSName::new("www.google.com.", None).unwrap();
+        let other = DNSName::new("google.com.", None).unwrap();
         assert_eq!(dname.label_count(), 3);
         assert_eq!(other.label_count(), 2);
         assert_eq!(dname.is_part_of(&other), true);
@@ -267,11 +283,11 @@ mod dnsname {
         assert_eq!(dname.is_part_of(&other), true);
 
         assert_eq!(dname.is_empty(), false);
-        let dname = DNSName::new(".").unwrap();
+        let dname = DNSName::new(".", None).unwrap();
         assert_eq!(dname.is_empty(), true);
 
-        let mut google = DNSName::new("google.").unwrap();
-        let com = DNSName::new("com.").unwrap();
+        let mut google = DNSName::new("google.", None).unwrap();
+        let com = DNSName::new("com.", None).unwrap();
         google.append(&com);
         assert_eq!(google.is_empty(), false);
         assert_eq!(google.label_count(), 2);
@@ -388,7 +404,7 @@ mod dnsname {
             ("com", vec![3, 99, 111, 109, 0]),
         ];
         for case in cases.into_iter() {
-            match DNSName::new(case.0) {
+            match DNSName::new(case.0, None) {
                 Ok(name) => {
                     let result = name.to_binary(None);
                     assert_eq!(result, case.1, "binary array should equal success");
@@ -406,7 +422,7 @@ mod dnsname {
             ("www.baidu.com.", vec![192, 20]),
         ];
         for case in cases.into_iter() {
-            match DNSName::new(case.0) {
+            match DNSName::new(case.0, None) {
                 Ok(name) => {
                     let result = name.to_binary(Some((&mut compression, 20)));
                     assert_eq!(result, case.1, "binary array should equal success");
@@ -418,18 +434,18 @@ mod dnsname {
 
     #[test]
     fn test_make_relative() {
-        let mut dnsname = DNSName::new("www.baidu.com").unwrap();
-        let root = DNSName::new("baidu.com").unwrap();
+        let mut dnsname = DNSName::new("www.baidu.com.", None).unwrap();
+        let root = DNSName::new("baidu.com.", None).unwrap();
         assert_eq!(dnsname.make_relative(&root), true);
         assert_eq!(dnsname.labels, vec![Label::from_str("www").unwrap()]);
 
-        let mut dnsname = DNSName::new("www.baidu.com").unwrap();
-        let root = DNSName::new("www.baidu.com").unwrap();
+        let mut dnsname = DNSName::new("www.baidu.com.", None).unwrap();
+        let root = DNSName::new("www.baidu.com.", None).unwrap();
         assert_eq!(dnsname.make_relative(&root), true);
         assert_eq!(dnsname.labels.len(), 0);
 
-        let mut dnsname = DNSName::new("www.com").unwrap();
-        let root = DNSName::new("baidu.com").unwrap();
+        let mut dnsname = DNSName::new("www.com.", None).unwrap();
+        let root = DNSName::new("baidu.com.", None).unwrap();
         assert_eq!(dnsname.make_relative(&root), false);
         assert_eq!(
             dnsname.labels,
@@ -439,8 +455,8 @@ mod dnsname {
             ]
         );
 
-        let mut dnsname = DNSName::new("www.baidu.com").unwrap();
-        let root = DNSName::new("baidu.net").unwrap();
+        let mut dnsname = DNSName::new("www.baidu.com", None).unwrap();
+        let root = DNSName::new("baidu.net", None).unwrap();
         assert_eq!(dnsname.make_relative(&root), false);
         assert_eq!(
             dnsname.labels,

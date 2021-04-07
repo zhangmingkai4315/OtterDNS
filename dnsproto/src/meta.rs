@@ -135,7 +135,7 @@ pub struct Question {
 impl Question {
     pub fn new(domain: &str, q_type: DNSType, q_class: DNSClass) -> Result<Question, DNSProtoErr> {
         Ok(Question {
-            q_name: DNSName::new(domain)?,
+            q_name: DNSName::new(domain, None)?,
             q_type,
             q_class,
         })
@@ -195,6 +195,26 @@ pub struct ResourceRecord {
     pub(crate) data: Option<Box<dyn DNSWireFrame>>,
 }
 
+impl Display for ResourceRecord {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match &self.data {
+            Some(data) => {
+                write!(
+                    f,
+                    "{}		{}	{}	{}	{}",
+                    self.name,
+                    self.ttl,
+                    self.qclass,
+                    self.qtype,
+                    data.to_string()
+                )
+            }
+            _ => {
+                write!(f, "{}		{}	{}	{}", self.name, self.ttl, self.qclass, self.qtype)
+            }
+        }
+    }
+}
 impl PartialEq for ResourceRecord {
     fn eq(&self, other: &Self) -> bool {
         (self.name == other.name)
@@ -214,7 +234,7 @@ impl ResourceRecord {
         data: Option<Box<dyn DNSWireFrame>>,
     ) -> Result<ResourceRecord, DNSProtoErr> {
         Ok(ResourceRecord {
-            name: DNSName::new(domain)?,
+            name: DNSName::new(domain, None)?,
             qtype,
             qclass,
             ttl,
@@ -399,7 +419,7 @@ impl Into<u8> for RCode {
 }
 
 use crate::label::Label;
-use nom::lib::std::fmt::Formatter;
+use nom::lib::std::fmt::{Display, Formatter};
 use nom::lib::std::slice::Iter;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use otterlib::errors::DNSProtoErr;
@@ -423,6 +443,11 @@ pub enum DNSClass {
 impl Default for DNSClass {
     fn default() -> Self {
         DNSClass::IN
+    }
+}
+impl Display for DNSClass {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
 

@@ -9,16 +9,12 @@ use std::str::FromStr;
 #[derive(Debug, PartialEq)]
 pub struct DnsTypeCNAME(DnsTypeNS);
 
-impl FromStr for DnsTypeCNAME {
-    type Err = ParseZoneDataErr;
-    fn from_str(a_str: &str) -> Result<Self, Self::Err> {
-        Ok(DnsTypeCNAME(DnsTypeNS::from_str(a_str)?))
-    }
-}
-
 impl DnsTypeCNAME {
     pub fn new(name: &str) -> Result<Self, DNSProtoErr> {
         Ok(DnsTypeCNAME(DnsTypeNS::new(name)?))
+    }
+    pub fn from_str(a_str: &str, default_original: Option<&str>) -> Result<Self, ParseZoneDataErr> {
+        Ok(DnsTypeCNAME(DnsTypeNS::from_str(a_str, default_original)?))
     }
 }
 
@@ -67,7 +63,7 @@ mod test {
             1, 102, 12, 103, 116, 108, 100, 45, 115, 101, 114, 118, 101, 114, 115, 3, 110, 101,
             116, 0,
         ];
-        let cname = DnsTypeCNAME::new("f.gtld-servers.net").unwrap();
+        let cname = DnsTypeCNAME::new("f.gtld-servers.net.").unwrap();
         match cname.encode(None) {
             Ok(ns_data) => assert_eq!(ns_data, non_compression_vec),
             _ => {

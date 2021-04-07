@@ -26,7 +26,21 @@ impl DnsTypeMX {
     pub fn new(priority: u16, exchange: &str) -> Result<Self, DNSProtoErr> {
         Ok(DnsTypeMX {
             priority,
-            exchange: DNSName::new(exchange)?,
+            exchange: DNSName::new(exchange, None)?,
+        })
+    }
+
+    pub(crate) fn from_str(
+        str: &str,
+        default_original: Option<&str>,
+    ) -> Result<Self, ParseZoneDataErr> {
+        let (rest, priority) = digit1(str)?;
+        let priority = u16::from_str(priority)?;
+        let (rest, _) = multispace0(rest)?;
+        let (_, exchange) = not_space(rest)?;
+        Ok(DnsTypeMX {
+            priority,
+            exchange: DNSName::new(exchange, default_original)?,
         })
     }
 }
@@ -65,20 +79,6 @@ impl DNSWireFrame for DnsTypeMX {
     }
     fn as_any(&self) -> &dyn Any {
         self
-    }
-}
-
-impl FromStr for DnsTypeMX {
-    type Err = ParseZoneDataErr;
-    fn from_str(str: &str) -> Result<Self, Self::Err> {
-        let (rest, priority) = digit1(str)?;
-        let priority = u16::from_str(priority)?;
-        let (rest, _) = multispace0(rest)?;
-        let (_, exchange) = not_space(rest)?;
-        Ok(DnsTypeMX {
-            priority,
-            exchange: DNSName::new(exchange)?,
-        })
     }
 }
 

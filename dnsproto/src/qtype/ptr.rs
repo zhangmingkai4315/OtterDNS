@@ -9,16 +9,15 @@ use std::str::FromStr;
 #[derive(Debug, PartialEq)]
 pub struct DnsTypePTR(DnsTypeNS);
 
-impl FromStr for DnsTypePTR {
-    type Err = ParseZoneDataErr;
-    fn from_str(a_str: &str) -> Result<Self, Self::Err> {
-        Ok(DnsTypePTR(DnsTypeNS::from_str(a_str)?))
-    }
-}
-
 impl DnsTypePTR {
     pub fn new(name: &str) -> Result<Self, DNSProtoErr> {
         Ok(DnsTypePTR(DnsTypeNS::new(name)?))
+    }
+    pub(crate) fn from_str(
+        a_str: &str,
+        default_original: Option<&str>,
+    ) -> Result<Self, ParseZoneDataErr> {
+        Ok(DnsTypePTR(DnsTypeNS::from_str(a_str, default_original)?))
     }
 }
 

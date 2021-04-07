@@ -27,30 +27,6 @@ pub struct DnsTypeSRV {
     target: DNSName,
 }
 
-impl FromStr for DnsTypeSRV {
-    type Err = ParseZoneDataErr;
-    fn from_str(str: &str) -> Result<Self, Self::Err> {
-        let (rest, _) = multispace0(str)?;
-        let (rest, priority) = digit1(rest)?;
-        let priority = u16::from_str(priority)?;
-        let (rest, _) = multispace0(rest)?;
-        let (rest, weight) = digit1(rest)?;
-        let weight = u16::from_str(weight)?;
-        let (rest, _) = multispace0(rest)?;
-        let (rest, port) = digit1(rest)?;
-        let port = u16::from_str(port)?;
-        let (rest, _) = multispace0(rest)?;
-        let (_, target) = take_while(is_not_space)(rest)?;
-
-        Ok(DnsTypeSRV {
-            priority,
-            weight,
-            port,
-            target: DNSName::new(target)?,
-        })
-    }
-}
-
 named_args!(parse_srv<'a>(original: &[u8])<DnsTypeSRV>,
     do_parse!(
         priority: be_u16>>
@@ -78,7 +54,27 @@ impl DnsTypeSRV {
             priority,
             weight,
             port,
-            target: DNSName::new(target)?,
+            target: DNSName::new(target, None)?,
+        })
+    }
+    pub fn from_str(str: &str, default_original: Option<&str>) -> Result<Self, ParseZoneDataErr> {
+        let (rest, _) = multispace0(str)?;
+        let (rest, priority) = digit1(rest)?;
+        let priority = u16::from_str(priority)?;
+        let (rest, _) = multispace0(rest)?;
+        let (rest, weight) = digit1(rest)?;
+        let weight = u16::from_str(weight)?;
+        let (rest, _) = multispace0(rest)?;
+        let (rest, port) = digit1(rest)?;
+        let port = u16::from_str(port)?;
+        let (rest, _) = multispace0(rest)?;
+        let (_, target) = take_while(is_not_space)(rest)?;
+
+        Ok(DnsTypeSRV {
+            priority,
+            weight,
+            port,
+            target: DNSName::new(target, default_original)?,
         })
     }
 }
@@ -146,7 +142,7 @@ mod test {
             0x00, 0x0a, 0x00, 0x01, 0x1f, 0x90, 0x03, 0x66, 0x74, 0x70, 0x0c, 0x7a, 0x68, 0x61,
             0x6e, 0x67, 0x6d, 0x69, 0x6e, 0x67, 0x6b, 0x61, 0x69, 0x02, 0x63, 0x6e, 0x00,
         ];
-        let srv_record = DnsTypeSRV::from_str("10 1 8080 ftp.zhangmingkai.cn.");
+        let srv_record = DnsTypeSRV::from_str("10 1 8080 ftp.zhangmingkai.cn.", None);
         assert_eq!(srv_record.is_ok(), true);
         let srv_record = srv_record.unwrap();
         let from_bin = DnsTypeSRV::decode(srv_bin.as_slice(), None);
@@ -162,7 +158,7 @@ mod test {
             0x00, 0x0a, 0x00, 0x01, 0x1f, 0x90, 0x03, 0x66, 0x74, 0x70, 0x0c, 0x7a, 0x68, 0x61,
             0x6e, 0x67, 0x6d, 0x69, 0x6e, 0x67, 0x6b, 0x61, 0x69, 0x02, 0x63, 0x6e, 0x00,
         ];
-        let srv_record = DnsTypeSRV::from_str("10 1 8080 ftp.zhangmingkai.cn.");
+        let srv_record = DnsTypeSRV::from_str("10 1 8080 ftp.zhangmingkai.cn.", None);
         assert_eq!(srv_record.is_ok(), true);
         let srv_record = srv_record.unwrap();
         let encoded = srv_record.encode(None);

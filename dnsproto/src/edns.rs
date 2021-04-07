@@ -28,7 +28,7 @@ impl Default for EDNS {
 impl EDNS {
     pub fn new() -> Self {
         EDNS {
-            name: DNSName::new(".").unwrap(),
+            name: DNSName::new(".", None).unwrap(),
             qtype: DNSType::OPT,
             payload_size: 1243,
             extension: 0,

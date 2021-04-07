@@ -60,29 +60,37 @@ mod test {
             ("main3-noexist.example.com.", DNSType::A, false),
         ];
         let test_zone_file = "./test/example.zone";
-        if let Ok(mut zone) = load_zone_from_disk(test_zone_file, None) {
-            for item in search_items.iter() {
-                // zone.find()
-                match zone.search_rrset(&DNSName::new(item.0).unwrap(), item.1) {
-                    Ok(_) => {
-                        assert_eq!(
-                            item.2,
-                            true,
-                            "domain: {} and type: {} should not exist but found",
-                            item.0,
-                            item.1.to_string(),
-                        );
-                    }
-                    Err(_) => {
-                        assert_eq!(
-                            item.2,
-                            false,
-                            "domain: {} and type: {} should exist but not found",
-                            item.0,
-                            item.1.to_string(),
-                        );
+        match load_zone_from_disk(test_zone_file, None) {
+            Ok(mut zone) => {
+                for item in search_items.iter() {
+                    // zone.find()
+                    match zone.search_rrset(&DNSName::new(item.0, None).unwrap(), item.1) {
+                        Ok(rrset) => {
+                            for rr in rrset.content() {
+                                println!("{}", rr.to_string());
+                            }
+                            assert_eq!(
+                                item.2,
+                                true,
+                                "domain: {} and type: {} should not exist but found",
+                                item.0,
+                                item.1.to_string(),
+                            );
+                        }
+                        Err(_) => {
+                            assert_eq!(
+                                item.2,
+                                false,
+                                "domain: {} and type: {} should exist but not found",
+                                item.0,
+                                item.1.to_string(),
+                            );
+                        }
                     }
                 }
+            }
+            Err(err) => {
+                assert!(false, err.to_string())
             }
         }
     }

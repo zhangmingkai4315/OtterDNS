@@ -313,6 +313,11 @@ impl RBTreeNode {
             DNSType::CNAME => {
                 if self.has_non_type(DNSType::NSEC) {
                     return Err(StorageError::AddCNAMEConflictError);
+                } else {
+                    self.rr_sets
+                        .entry(rr.get_type())
+                        .or_insert_with(Default::default)
+                        .add(rr);
                 }
             }
             _ => {
@@ -404,11 +409,11 @@ mod storage {
         .unwrap();
         let dnsnames = vec![
             (
-                DNSName::new("baidu.com").unwrap(),
+                DNSName::new("baidu.com.", None).unwrap(),
                 ResourceRecord::new("baidu.com.", DNSType::A, DNSClass::IN, 1000, None).unwrap(),
             ),
             (
-                DNSName::new("baidu.com").unwrap(),
+                DNSName::new("baidu.com.", None).unwrap(),
                 ResourceRecord::new(
                     "baidu.com.",
                     DNSType::SOA,
@@ -430,20 +435,20 @@ mod storage {
                 .unwrap(),
             ),
             (
-                DNSName::new("www.google.com.").unwrap(),
+                DNSName::new("www.google.com.", None).unwrap(),
                 ResourceRecord::new("www.google.com.", DNSType::A, DNSClass::IN, 1000, None)
                     .unwrap(),
             ),
             (
-                DNSName::new("google.com.").unwrap(),
+                DNSName::new("google.com.", None).unwrap(),
                 ResourceRecord::new("google.com.", DNSType::NS, DNSClass::IN, 1000, None).unwrap(),
             ),
             (
-                DNSName::new("*.baidu.com").unwrap(),
+                DNSName::new("*.baidu.com.", None).unwrap(),
                 ResourceRecord::new("*.baidu.com.", DNSType::A, DNSClass::IN, 1234, None).unwrap(),
             ),
             (
-                DNSName::new("test\\.dns.baidu.com").unwrap(),
+                DNSName::new("test\\.dns.baidu.com.", None).unwrap(),
                 ResourceRecord::new(
                     "test\\.dns.baidu.com.",
                     DNSType::A,
@@ -454,7 +459,7 @@ mod storage {
                 .unwrap(),
             ),
             (
-                DNSName::new("www.google.com.").unwrap(),
+                DNSName::new("www.google.com.", None).unwrap(),
                 ResourceRecord::new("www.google.com.", DNSType::NS, DNSClass::IN, 1000, None)
                     .unwrap(),
             ),
@@ -503,12 +508,16 @@ mod storage {
     fn test_find_or_insert() {
         let mut zone = RBTreeNode::new_root();
         let node = zone
-            .find_or_insert(&DNSName::new("www.baidu.com").unwrap())
+            .find_or_insert(&DNSName::new("www.baidu.com.", None).unwrap())
             .unwrap();
         assert_eq!(node.label, Label::from_str("www").unwrap());
-        assert_eq!(node.get_name(), DNSName::new("www.baidu.com").unwrap());
+        assert_eq!(
+            node.get_name(),
+            DNSName::new("www.baidu.com.", None).unwrap()
+        );
 
-        let insert_out_of_zone = node.find_or_insert(&DNSName::new("www.google.cc").unwrap());
+        let insert_out_of_zone =
+            node.find_or_insert(&DNSName::new("www.google.cc.", None).unwrap());
         assert_eq!(
             insert_out_of_zone.unwrap_err(),
             StorageError::ZoneOutOfArea("www.google.cc.".to_owned(), "www.baidu.com.".to_owned())
@@ -557,13 +566,13 @@ mod storage {
     #[test]
     fn test_rbnode_insert() {
         let zone = example_zone_v2();
-        let dname = DNSName::new("baidu.com").unwrap();
+        let dname = DNSName::new("baidu.com.", None).unwrap();
         match zone.find(&dname) {
             Ok(node) => assert_eq!(node.rr_sets.len(), 2),
             _ => assert!(false),
         }
 
-        let dname = DNSName::new("ftp.baidu.com").unwrap();
+        let dname = DNSName::new("ftp.baidu.com.", None).unwrap();
         match zone.find(&dname) {
             // find wirdcard match
             Ok(node) => {
@@ -624,13 +633,13 @@ mod storage {
     #[test]
     fn test_find_best() {
         let zone = example_zone_v2();
-        let best = zone.find_best(&DNSName::new("www.baidu.com").unwrap());
+        let best = zone.find_best(&DNSName::new("www.baidu.com.", None).unwrap());
         assert_eq!(best.get_name().to_string(), "baidu.com.");
-        let best = zone.find_best(&DNSName::new("www.google.com.").unwrap());
+        let best = zone.find_best(&DNSName::new("www.google.com.", None).unwrap());
         assert_eq!(best.get_name().to_string(), "www.google.com.");
 
         let zone = RBTreeNode::new_root();
-        let best = zone.find_best(&DNSName::new("www.baidu.com").unwrap());
+        let best = zone.find_best(&DNSName::new("www.baidu.com.", None).unwrap());
         assert_eq!(best.get_name().to_string(), ".");
     }
 
