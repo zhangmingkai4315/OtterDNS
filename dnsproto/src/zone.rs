@@ -49,7 +49,7 @@ impl<'a> Iterator for ZoneStr<'a> {
                         new_line = None;
                     }
                 }
-                if let Some(mut line) = new_line.as_mut() {
+                if let Some(line) = new_line.as_mut() {
                     // Comments start with a semicolon ";" and go to the end of line.
                     if let Some(line_cutter) = line.find(';') {
                         *line = &line[..line_cutter];

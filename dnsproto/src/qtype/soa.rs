@@ -1,7 +1,7 @@
 use crate::dnsname::{parse_name, DNSName};
 use crate::meta::DNSType;
 use crate::qtype::{CompressionType, DNSWireFrame};
-use nom::bytes::complete::{tag, take_while};
+use nom::bytes::complete::take_while;
 use nom::character::complete::digit1;
 use nom::character::complete::multispace0;
 use nom::number::complete::be_u32;

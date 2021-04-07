@@ -95,7 +95,7 @@ pub enum ParseZoneDataErr {
     #[error("domain is not a valid fqdn: `{0}`")]
     ValidFQDNError(String),
 
-    #[error("general fail: `{0}`")]
+    #[error("fail: `{0}`")]
     GeneralErr(String),
 
     #[error(transparent)]
@@ -113,7 +113,11 @@ pub enum ParseZoneDataErr {
     #[error("unimplemented")]
     UnimplementedErr,
 }
-
+impl From<String> for ParseZoneDataErr {
+    fn from(err_str: String) -> Self {
+        ParseZoneDataErr::GeneralErr(err_str)
+    }
+}
 impl<I: std::fmt::Debug> From<nom::Err<(I, nom::error::ErrorKind)>> for ParseZoneDataErr {
     fn from(err_nom: nom::Err<(I, nom::error::ErrorKind)>) -> Self {
         match err_nom {
@@ -129,7 +133,11 @@ impl<I: std::fmt::Debug> From<nom::Err<(I, nom::error::ErrorKind)>> for ParseZon
         }
     }
 }
-
+// impl From<ParseZoneDataErr> for nom::Err<nom::error::Error<&[u8]>>{
+//     fn from(err: ParseZoneDataErr) -> Self {
+//         nom::Err::Error(nom::error::Error::new())
+//     }
+// }
 impl From<ParseIntError> for ParseZoneDataErr {
     fn from(error: ParseIntError) -> Self {
         ParseZoneDataErr::ParseDNSFromStrError(error.to_string())

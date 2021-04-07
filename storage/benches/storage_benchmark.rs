@@ -16,7 +16,7 @@ fn rbstorage_find_name(c: &mut Criterion) {
     )
     .unwrap();
     zone.insert(rr);
-    let name = DNSName::new("baidu.com").unwrap();
+    let name = DNSName::new("baidu.com.", None).unwrap();
     c.bench_function("storage_search", |b| {
         b.iter(|| match zone.find(&name) {
             Ok(_) => {}

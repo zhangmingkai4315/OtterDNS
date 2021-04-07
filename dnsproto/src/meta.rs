@@ -449,9 +449,8 @@ impl Display for DNSClass {
     }
 }
 
-#[derive(Debug, PartialEq, Copy, Clone, IntoPrimitive, FromPrimitive, Eq, Hash)]
+#[derive(Debug, PartialEq, Copy, Clone, IntoPrimitive, FromPrimitive, Eq, Hash, EnumString)]
 #[repr(u16)]
-#[derive(EnumString)]
 pub enum DNSType {
     #[num_enum(default)]
     A = 1,
