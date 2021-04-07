@@ -542,7 +542,7 @@ mod message {
     #[test]
     fn test_encode_question() {
         let question = Question {
-            q_name: DNSName::new("com").unwrap(),
+            q_name: DNSName::new("com.", None).unwrap(),
             q_type: DNSType::NS,
             q_class: DNSClass::IN,
         };
@@ -559,7 +559,7 @@ mod message {
         }
 
         let question = Question {
-            q_name: DNSName::new("google.com").unwrap(),
+            q_name: DNSName::new("google.com.", None).unwrap(),
             q_type: DNSType::NS,
             q_class: DNSClass::IN,
         };
@@ -583,12 +583,12 @@ mod message {
     fn test_encode_answer() {
         use crate::qtype::DnsTypeNS;
         let nsdata = DnsTypeNS {
-            name: DNSName::new("b.gtld-servers.net").unwrap(),
+            name: DNSName::new("b.gtld-servers.net.", None).unwrap(),
         };
 
         let answer = ResourceRecord {
             ttl: 256,
-            name: DNSName::new("com").unwrap(),
+            name: DNSName::new("com.", None).unwrap(),
             qtype: DNSType::NS,
             qclass: DNSClass::IN,
             data: Some(Box::new(nsdata)),

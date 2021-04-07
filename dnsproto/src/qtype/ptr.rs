@@ -4,7 +4,6 @@ use crate::qtype::{CompressionType, DNSWireFrame, DnsTypeNS};
 use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
 use std::any::Any;
 use std::fmt::{self, Formatter};
-use std::str::FromStr;
 
 #[derive(Debug, PartialEq)]
 pub struct DnsTypePTR(DnsTypeNS);
@@ -67,7 +66,7 @@ mod test {
             1, 102, 12, 103, 116, 108, 100, 45, 115, 101, 114, 118, 101, 114, 115, 3, 110, 101,
             116, 0,
         ];
-        let ptr_record = DnsTypePTR::new("f.gtld-servers.net").unwrap();
+        let ptr_record = DnsTypePTR::new("f.gtld-servers.net.").unwrap();
         match ptr_record.encode(None) {
             Ok(ptr_record_u8) => assert_eq!(ptr_record_u8, non_compression_vec),
             _ => {

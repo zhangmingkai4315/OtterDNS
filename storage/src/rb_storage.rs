@@ -422,7 +422,7 @@ mod storage {
                     Some(Box::new(
                         DnsTypeSOA::new(
                             "dns.baidu.com.",
-                            "sa.baidu.com",
+                            "sa.baidu.com.",
                             2012144258,
                             300,
                             300,
@@ -536,7 +536,8 @@ mod storage {
         if let Err(_) = node.add_rr(rr) {
             assert!(false)
         }
-        let rr = ResourceRecord::new("*", DNSType::A, DNSClass::IN, 1000, None).unwrap();
+        let rr =
+            ResourceRecord::new("*.google.com.", DNSType::A, DNSClass::IN, 1000, None).unwrap();
         if let Err(_) = node.add_rr(rr) {
             assert!(false)
         }

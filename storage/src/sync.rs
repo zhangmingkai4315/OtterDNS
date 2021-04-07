@@ -41,16 +41,16 @@ mod test {
             ("www.example.com.", DNSType::CNAME, true),
             ("wwwtest.example.com.", DNSType::CNAME, true),
             ("mail.example.com.", DNSType::A, true),
-            ("main2.example.com.", DNSType::A, true),
-            ("main3.example.com.", DNSType::A, true),
+            ("mail2.example.com.", DNSType::A, true),
+            ("mail3.example.com.", DNSType::A, true),
             // not exist type
             ("example.com.", DNSType::TXT, false),
             ("ns.example.com.", DNSType::TXT, false),
             ("www.example.com.", DNSType::TXT, false),
             ("wwwtest.example.com.", DNSType::TXT, false),
             ("mail.example.com.", DNSType::TXT, false),
-            ("main2.example.com.", DNSType::TXT, false),
-            ("main3.example.com.", DNSType::TXT, false),
+            ("mail2.example.com.", DNSType::TXT, false),
+            ("mail3.example.com.", DNSType::TXT, false),
             // not exist domain
             ("ns-noexist.example.com.", DNSType::AAAA, false),
             ("www-noexist.example.com.", DNSType::CNAME, false),
@@ -65,10 +65,7 @@ mod test {
                 for item in search_items.iter() {
                     // zone.find()
                     match zone.search_rrset(&DNSName::new(item.0, None).unwrap(), item.1) {
-                        Ok(rrset) => {
-                            for rr in rrset.content() {
-                                println!("{}", rr.to_string());
-                            }
+                        Ok(_) => {
                             assert_eq!(
                                 item.2,
                                 true,

@@ -205,7 +205,7 @@ impl ResourceRecord {
             }
         }
         let dname = DNSName::new(domain_fqdn.as_str(), default_origin)?;
-        match decode_dns_data_from_string(r_data.as_str(), r_type, None) {
+        match decode_dns_data_from_string(r_data.as_str(), r_type, default_origin) {
             Ok(data) => Ok(ResourceRecord {
                 name: dname,
                 qtype: r_type,

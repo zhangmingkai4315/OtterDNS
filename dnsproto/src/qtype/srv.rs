@@ -132,9 +132,9 @@ impl DNSWireFrame for DnsTypeSRV {
 
 #[cfg(test)]
 mod test {
+    use crate::meta::DNSType;
     use crate::qtype::srv::DnsTypeSRV;
     use crate::qtype::DNSWireFrame;
-    use std::str::FromStr;
 
     #[test]
     fn test_srv_decode() {
@@ -164,5 +164,13 @@ mod test {
         let encoded = srv_record.encode(None);
         assert_eq!(encoded.is_ok(), true);
         assert_eq!(encoded.unwrap(), srv_bin);
+    }
+
+    #[test]
+    fn test_create_srv_record() {
+        let srv = DnsTypeSRV::new(10, 1, 8080, "ftp.zhangmingkai.cn.");
+        assert_eq!(srv.is_ok(), true);
+        let srv = srv.unwrap();
+        assert_eq!(srv.get_type(), DNSType::SRV);
     }
 }

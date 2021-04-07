@@ -196,23 +196,21 @@ pub struct ResourceRecord {
 }
 
 impl Display for ResourceRecord {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match &self.data {
-            Some(data) => {
-                write!(
-                    f,
-                    "{}		{}	{}	{}	{}",
-                    self.name,
-                    self.ttl,
-                    self.qclass,
-                    self.qtype,
-                    data.to_string()
-                )
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "{}		{}	{}	{}	{}",
+            self.name,
+            self.ttl,
+            self.qclass,
+            self.qtype,
+            {
+                match &self.data {
+                    Some(data) => data.to_string(),
+                    _ => "".to_string(),
+                }
             }
-            _ => {
-                write!(f, "{}		{}	{}	{}", self.name, self.ttl, self.qclass, self.qtype)
-            }
-        }
+        )
     }
 }
 impl PartialEq for ResourceRecord {
@@ -446,8 +444,8 @@ impl Default for DNSClass {
     }
 }
 impl Display for DNSClass {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{:?}", self)
     }
 }
 
@@ -485,7 +483,7 @@ impl Default for DNSType {
 }
 
 impl fmt::Display for DNSType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{:?}", self)
     }
 }

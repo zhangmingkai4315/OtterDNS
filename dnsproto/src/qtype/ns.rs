@@ -4,7 +4,6 @@ use crate::qtype::{CompressionType, DNSWireFrame};
 use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
 use std::any::Any;
 use std::fmt::{self, Formatter};
-use std::str::FromStr;
 
 #[derive(Debug, PartialEq)]
 pub struct DnsTypeNS {

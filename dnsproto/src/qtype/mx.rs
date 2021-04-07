@@ -30,10 +30,7 @@ impl DnsTypeMX {
         })
     }
 
-    pub(crate) fn from_str(
-        str: &str,
-        default_original: Option<&str>,
-    ) -> Result<Self, ParseZoneDataErr> {
+    pub fn from_str(str: &str, default_original: Option<&str>) -> Result<Self, ParseZoneDataErr> {
         let (rest, priority) = digit1(str)?;
         let priority = u16::from_str(priority)?;
         let (rest, _) = multispace0(rest)?;
@@ -112,13 +109,12 @@ mod test {
         );
 
         assert_eq!(
-            "15 mx.n.shifen.com.".parse::<DnsTypeMX>().unwrap(),
+            DnsTypeMX::from_str("15 mx.n.shifen.com.", None).unwrap(),
             DnsTypeMX::new(15, "mx.n.shifen.com.").unwrap()
         );
 
         assert_eq!(
-            "15 mx.n.shifen.com."
-                .parse::<DnsTypeMX>()
+            DnsTypeMX::from_str("15 mx.n.shifen.com.", None)
                 .unwrap()
                 .encode(None)
                 .unwrap(),
@@ -131,8 +127,7 @@ mod test {
             0xc0, 0x0c,
         ];
         assert_eq!(
-            "15 mx.n.shifen.com."
-                .parse::<DnsTypeMX>()
+            DnsTypeMX::from_str("15 mx.n.shifen.com.", None)
                 .unwrap()
                 .encode(Some((&mut compression_map, 0)))
                 .unwrap(),

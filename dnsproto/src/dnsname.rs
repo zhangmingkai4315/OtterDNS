@@ -11,7 +11,7 @@ use std::fmt::Display;
 use std::ops::Add;
 use std::str::FromStr;
 
-use crate::utils::{fqdn, is_fqdn};
+use crate::utils::is_fqdn;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct DNSName {
@@ -19,6 +19,8 @@ pub struct DNSName {
 }
 
 impl DNSName {
+    // new a DNSName from domain str, if domain is fqdn then default_original can be set to None,
+    // else must set default_original , otherwise a parse error will return .
     pub fn new(domain: &str, default_original: Option<&str>) -> Result<DNSName, ParseZoneDataErr> {
         let mut domain = Cow::from(domain);
         if domain.is_empty() || domain.eq(".") {
@@ -395,13 +397,13 @@ mod dnsname {
                 ],
             ),
             (
-                "www.baidu.com",
+                "www.baidu.com.",
                 vec![
                     3, 119, 119, 119, 5, 98, 97, 105, 100, 117, 3, 99, 111, 109, 0,
                 ],
             ),
             (".", vec![0]),
-            ("com", vec![3, 99, 111, 109, 0]),
+            ("com.", vec![3, 99, 111, 109, 0]),
         ];
         for case in cases.into_iter() {
             match DNSName::new(case.0, None) {
@@ -455,8 +457,8 @@ mod dnsname {
             ]
         );
 
-        let mut dnsname = DNSName::new("www.baidu.com", None).unwrap();
-        let root = DNSName::new("baidu.net", None).unwrap();
+        let mut dnsname = DNSName::new("www.baidu.com.", None).unwrap();
+        let root = DNSName::new("baidu.net.", None).unwrap();
         assert_eq!(dnsname.make_relative(&root), false);
         assert_eq!(
             dnsname.labels,

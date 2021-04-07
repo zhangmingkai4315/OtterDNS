@@ -355,8 +355,8 @@ fn translate_loc_additiona_to_u8(val: &str) -> Result<u8, ParseZoneDataErr> {
     let val = val.trim_end_matches(|c| c == 'm' || c == 'M');
     let val = val.split('.').collect::<Vec<&str>>();
     let mut val_size = val.len();
-    let mut e: u8;
-    let m: u8;
+    let mut e_: u8;
+    let m_: u8;
     let mut metre = 0;
     let mut cmeter = 0;
     let mut result: i32;
@@ -387,23 +387,23 @@ fn translate_loc_additiona_to_u8(val: &str) -> Result<u8, ParseZoneDataErr> {
         }
     }
     if metre > 0 {
-        e = 2;
+        e_ = 2;
         result = metre;
     } else {
-        e = 0;
+        e_ = 0;
         result = cmeter;
     }
     while result >= 10 {
-        e += 1;
+        e_ += 1;
         result /= 10;
     }
-    if e > 9 {
+    if e_ > 9 {
         return Err(ParseZoneDataErr::ParseDNSFromStrError(
             "parse loc out of range".to_owned(),
         ));
     }
-    m = result as u8;
-    Ok(e & 0x0f | m << 4 & 0xf0)
+    m_ = result as u8;
+    Ok(e_ & 0x0f | m_ << 4 & 0xf0)
 }
 
 #[cfg(test)]

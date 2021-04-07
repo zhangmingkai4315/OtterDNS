@@ -426,7 +426,7 @@ www.a.shifen.com.	300	IN	A	61.135.169.121
         let mut zone = ZoneReader::new(zone_str, Some("google.com.".to_owned()));
         match zone.next() {
             Some(Ok(v)) => {
-                assert_eq!(v.name, DNSName::new("ns.google.com.").unwrap());
+                assert_eq!(v.name, DNSName::new("ns.google.com.", None).unwrap());
                 assert_eq!(v.qclass, DNSClass::IN);
                 assert_eq!(v.qtype, DNSType::A);
                 assert_eq!(
@@ -461,7 +461,7 @@ www.a.shifen.com.	300	IN	A	61.135.169.121
         let mut zone = ZoneReader::new(zone_str, None);
         match zone.next() {
             Some(Ok(v)) => {
-                assert_eq!(v.name, DNSName::new("ns.").unwrap());
+                assert_eq!(v.name, DNSName::new("ns.", None).unwrap());
                 assert_eq!(v.qclass, DNSClass::IN);
                 assert_eq!(v.qtype, DNSType::A);
                 assert_eq!(
@@ -498,7 +498,7 @@ otter.fun.   14400   IN	TXT	google-site-verification=zxIkMo9ruPbMyGMy4KWbc0QkOoN
         );
         let mut zone = ZoneReader::new(zone_str, Some("otter.fun.".to_owned()));
         if let Some(Ok(v)) = zone.next() {
-            assert_eq!(v.name, DNSName::new("otter.fun.").unwrap());
+            assert_eq!(v.name, DNSName::new("otter.fun.", None).unwrap());
             assert_eq!(v.qtype, DNSType::SOA);
             assert_eq!(v.qclass, DNSClass::IN);
             assert_eq!(v.ttl, 86400);
@@ -508,28 +508,28 @@ otter.fun.   14400   IN	TXT	google-site-verification=zxIkMo9ruPbMyGMy4KWbc0QkOoN
             );
         }
         if let Some(Ok(v)) = zone.next() {
-            assert_eq!(v.name, DNSName::new("otter.fun.").unwrap());
+            assert_eq!(v.name, DNSName::new("otter.fun.", None).unwrap());
             assert_eq!(v.qtype, DNSType::NS);
             assert_eq!(v.qclass, DNSClass::IN);
             assert_eq!(v.ttl, 86400);
             assert_eq!((v.data.unwrap().as_ref()).to_string(), "ns1.domain.com.");
         }
         if let Some(Ok(v)) = zone.next() {
-            assert_eq!(v.name, DNSName::new("otter.fun.").unwrap());
+            assert_eq!(v.name, DNSName::new("otter.fun.", None).unwrap());
             assert_eq!(v.qtype, DNSType::NS);
             assert_eq!(v.qclass, DNSClass::IN);
             assert_eq!(v.ttl, 86400);
             assert_eq!((v.data.unwrap().as_ref()).to_string(), "ns2.domain.com.");
         }
         if let Some(Ok(v)) = zone.next() {
-            assert_eq!(v.name, DNSName::new("otter.fun.").unwrap());
+            assert_eq!(v.name, DNSName::new("otter.fun.", None).unwrap());
             assert_eq!(v.qtype, DNSType::A);
             assert_eq!(v.ttl, 14400);
             assert_eq!(v.qclass, DNSClass::IN);
             assert_eq!((v.data.unwrap().as_ref()).to_string(), "1.1.1.1");
         }
         if let Some(Ok(v)) = zone.next() {
-            assert_eq!(v.name, DNSName::new("otter.fun.").unwrap());
+            assert_eq!(v.name, DNSName::new("otter.fun.", None).unwrap());
             assert_eq!(v.qtype, DNSType::MX);
             assert_eq!(v.qclass, DNSClass::IN);
             assert_eq!(v.ttl, 14400);
@@ -538,9 +538,8 @@ otter.fun.   14400   IN	TXT	google-site-verification=zxIkMo9ruPbMyGMy4KWbc0QkOoN
         }
         assert_eq!(zone.current_class, Some(DNSClass::IN));
         assert_eq!(zone.current_ttl, Some(14400));
-        assert_eq!(zone.current_origin, Some("otter.fun.".to_owned()));
         if let Some(Ok(v)) = zone.next() {
-            assert_eq!(v.name, DNSName::new("mail.otter.fun.").unwrap());
+            assert_eq!(v.name, DNSName::new("mail.otter.fun.", None).unwrap());
             assert_eq!(v.qtype, DNSType::CNAME);
             assert_eq!(v.ttl, 14400);
             assert_eq!(v.qclass, DNSClass::IN);
@@ -548,7 +547,7 @@ otter.fun.   14400   IN	TXT	google-site-verification=zxIkMo9ruPbMyGMy4KWbc0QkOoN
             // assert_eq!((v.data.unwrap().as_ref()).to_string(),"0 g33k.fun.");
         }
         if let Some(Ok(v)) = zone.next() {
-            assert_eq!(v.name, DNSName::new("www.otter.fun.").unwrap());
+            assert_eq!(v.name, DNSName::new("www.otter.fun.", None).unwrap());
             assert_eq!(v.qtype, DNSType::CNAME);
             assert_eq!(v.ttl, 14400);
             assert_eq!(v.qclass, DNSClass::IN);
@@ -556,7 +555,7 @@ otter.fun.   14400   IN	TXT	google-site-verification=zxIkMo9ruPbMyGMy4KWbc0QkOoN
             // assert_eq!((v.data.unwrap().as_ref()).to_string(),"0 g33k.fun.");
         }
         if let Some(Ok(v)) = zone.next() {
-            assert_eq!(v.name, DNSName::new("ftp.otter.fun.").unwrap());
+            assert_eq!(v.name, DNSName::new("ftp.otter.fun.", None).unwrap());
             assert_eq!(v.qtype, DNSType::A);
             assert_eq!(v.ttl, 14400);
             assert_eq!(v.qclass, DNSClass::IN);
@@ -564,7 +563,7 @@ otter.fun.   14400   IN	TXT	google-site-verification=zxIkMo9ruPbMyGMy4KWbc0QkOoN
         }
 
         if let Some(Ok(v)) = zone.next() {
-            assert_eq!(v.name, DNSName::new("otter.fun.").unwrap());
+            assert_eq!(v.name, DNSName::new("otter.fun.", None).unwrap());
             assert_eq!(v.qtype, DNSType::TXT);
             assert_eq!(v.qclass, DNSClass::IN);
             assert_eq!(v.ttl, 14400);
@@ -573,7 +572,7 @@ otter.fun.   14400   IN	TXT	google-site-verification=zxIkMo9ruPbMyGMy4KWbc0QkOoN
         if let Some(Ok(v)) = zone.next() {
             assert_eq!(
                 v.name,
-                DNSName::new("default._domainkey.otter.fun.").unwrap()
+                DNSName::new("default._domainkey.otter.fun.", None).unwrap()
             );
             assert_eq!(v.qtype, DNSType::TXT);
             assert_eq!(v.qclass, DNSClass::IN);
@@ -584,7 +583,7 @@ otter.fun.   14400   IN	TXT	google-site-verification=zxIkMo9ruPbMyGMy4KWbc0QkOoN
             // );
         }
         if let Some(Ok(v)) = zone.next() {
-            assert_eq!(v.name, DNSName::new("otter.fun.").unwrap());
+            assert_eq!(v.name, DNSName::new("otter.fun.", None).unwrap());
             assert_eq!(v.qtype, DNSType::TXT);
             assert_eq!(v.qclass, DNSClass::IN);
             assert_eq!(v.ttl, 14400);
