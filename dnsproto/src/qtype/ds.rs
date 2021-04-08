@@ -196,7 +196,7 @@ impl DNSWireFrame for DnsTypeDS {
     fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
         match parse_ds(data, data.len()) {
             Ok((_, mx)) => Ok(mx),
-            Err(_err) => return Err(DNSProtoErr::PacketParseError),
+            Err(_err) => Err(DNSProtoErr::PacketParseError),
         }
     }
 
@@ -235,7 +235,7 @@ mod test {
     }
 
     #[test]
-    fn test_dns_type_ds() {
+    fn dns_ds_from_str() {
         let (ds_str, ds_struct) = get_example_ds();
         if ds_struct.is_err() {
             assert!(false, "ds new method got a unexpected failure");
@@ -255,7 +255,7 @@ mod test {
     }
 
     #[test]
-    fn test_dns_type_ds_binary_serialize() {
+    fn ds_binary_serialize() {
         let (ds_str, ds_struct) = get_example_ds();
         let ds_struct = ds_struct.unwrap();
         let bin_arr = [
