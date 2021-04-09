@@ -69,8 +69,8 @@ impl AlgorithemType {
 }
 
 impl fmt::Display for AlgorithemType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "{:?}", self)
     }
 }
 #[derive(Debug, Copy, Clone, PartialEq, IntoPrimitive)]
@@ -96,8 +96,8 @@ impl DigestType {
     }
 }
 impl fmt::Display for DigestType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "{:?}", self)
     }
 }
 named_args!(parse_ds<'a>(size: usize)<DnsTypeDS>,
