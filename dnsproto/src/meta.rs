@@ -453,6 +453,7 @@ impl Display for DNSClass {
 #[repr(u16)]
 pub enum DNSType {
     #[num_enum(default)]
+    Unknown = 0,
     A = 1,
     NS = 2,
     CNAME = 5,

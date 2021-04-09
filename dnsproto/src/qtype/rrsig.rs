@@ -2,7 +2,6 @@ use crate::dnsname::{parse_name, DNSName};
 use crate::meta::DNSType;
 use crate::qtype::soa::is_not_space;
 use crate::qtype::{CompressionType, DNSWireFrame};
-use chrono::TimeZone;
 use nom::bytes::complete::take_while;
 use nom::character::complete::{digit1, multispace0};
 use nom::combinator::rest;
@@ -114,8 +113,12 @@ impl DnsTypeRRSIG {
         let (rest, algorithm_type) = digit1(rest)?;
         let algorithm_type = u8::from_str(algorithm_type)?;
         let (rest, _) = multispace0(rest)?;
+        let (rest, labels) = digit1(rest)?;
+        let labels = u8::from_str(labels)?;
+        let (rest, _) = multispace0(rest)?;
         let (rest, original_ttl) = digit1(rest)?;
         let original_ttl = u32::from_str(original_ttl)?;
+
         let (rest, _) = multispace0(rest)?;
         let (rest, expiration) = digit1(rest)?;
         let (rest, _) = multispace0(rest)?;
@@ -136,7 +139,7 @@ impl DnsTypeRRSIG {
             Ok(decode) => Ok(DnsTypeRRSIG::new(
                 rrsig_type,
                 algorithm_type,
-                name.labels.len() as u8,
+                labels,
                 original_ttl,
                 expiration,
                 inception,
@@ -171,7 +174,7 @@ impl fmt::Display for DnsTypeRRSIG {
         write!(
             format,
             "{} {} {} {} {} {} {} {} {}",
-            self.rrsig_type,
+            DNSType::try_from(self.rrsig_type).unwrap_or(DNSType::Unknown),
             self.algorithm_type,
             self.labels,
             self.original_ttl,
@@ -217,16 +220,17 @@ impl DNSWireFrame for DnsTypeRRSIG {
 #[cfg(test)]
 mod test {
     use crate::dnsname::DNSName;
+    use crate::meta::DNSType;
     use crate::qtype::ds::AlgorithemType;
     use crate::qtype::rrsig::DnsTypeRRSIG;
     use crate::qtype::DNSWireFrame;
 
     fn get_example_rrsig() -> (String, DnsTypeRRSIG) {
-        let rrsig_str = "8 0 86400 20210422050000 20210409040000 14631 . ";
+        let rrsig_str = "SOA 8 0 86400 20210422050000 20210409040000 14631 . ";
         let rrsig_signatrue = "W45Xjg7WewB+rNjMHDTpHlmvwT+L3VamaProC1FMIUFGZRcnFd41GSkKc2i2kgtcVjxIuYiw6kVgd7MXxaEsgW6wIexCq8H1JuDJIl/lDRZOPfzy2IxEvqCFV01beVFnbWAMYOAa6u3W/DB2+uJ7+GNJPzN7vLAsNpFzFvxo5jxY47I+WU0pFFxYlWoQ29Xzq2MBkwU8pPRovlN1nexk8I+Uwcw6fmULLXg4U3U4+UK76Vhb0IMRFZFa44n3RjGwIu3lG+5Z16Fo3y8Xo+XA8ojtwvXpz1hfaKd8f/CMzs9dLSJp5TA15DQ9KAaqKepZmgJvajt/wYUMpTeX4N0kuA==";
 
         let rrsig_struct = DnsTypeRRSIG::new(
-            8,
+            DNSType::SOA as u16,
             AlgorithemType::RSASHA256.into(),
             0,
             86400,
