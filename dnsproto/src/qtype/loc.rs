@@ -134,7 +134,7 @@ impl FromStr for DnsTypeLOC {
             ver_precision: additional_u8[2],
             lat: translate_loc_lat_to_u32(lat, lat_label)?,
             lon: translate_loc_lng_to_u32(lng, lng_label)?,
-            alt: alt,
+            alt,
         })
     }
 }

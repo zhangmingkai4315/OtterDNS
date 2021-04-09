@@ -117,18 +117,18 @@ named_args!(parse_ds<'a>(size: usize)<DnsTypeDS>,
 );
 
 fn hex_u8_to_string(input: &[u8]) -> String {
-    let mut s = String::with_capacity(2 * input.len());
+    let mut result = String::with_capacity(2 * input.len());
     for &byte in input {
-        let _ = write!(&mut s, "{:02X}", byte);
+        let _ = write!(&mut result, "{:02X}", byte);
     }
-    s
+    result
 }
 
 fn string_to_hex_u8(input: &str) -> Result<Vec<u8>, ParseZoneDataErr> {
     (0..input.len())
         .step_by(2)
         .map(|i| match u8::from_str_radix(&input[i..i + 2], 16) {
-            Ok(v) => Ok(v),
+            Ok(val) => Ok(val),
             _ => Err(ParseZoneDataErr::GeneralErr(format!(
                 "ds digest string to hex u8 fail : {}",
                 input

@@ -9,6 +9,7 @@ mod mx;
 mod ns;
 mod opt;
 mod ptr;
+mod rrsig;
 mod soa;
 mod srv;
 mod txt;

@@ -194,7 +194,7 @@ impl Default for DNSName {
         DNSName { labels: Vec::new() }
     }
 }
-
+// update to return how many byte processed
 pub fn parse_name<'a>(input: &'a [u8], original: &'_ [u8]) -> IResult<&'a [u8], DNSName> {
     let original_len = original.len();
     let mut shift: usize = 0;
