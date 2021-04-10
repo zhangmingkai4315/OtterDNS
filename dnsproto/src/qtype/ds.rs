@@ -69,8 +69,8 @@ impl AlgorithemType {
 }
 
 impl fmt::Display for AlgorithemType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "{:?}", self)
     }
 }
 #[derive(Debug, Copy, Clone, PartialEq, IntoPrimitive)]
@@ -96,8 +96,8 @@ impl DigestType {
     }
 }
 impl fmt::Display for DigestType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "{:?}", self)
     }
 }
 named_args!(parse_ds<'a>(size: usize)<DnsTypeDS>,
@@ -117,18 +117,18 @@ named_args!(parse_ds<'a>(size: usize)<DnsTypeDS>,
 );
 
 fn hex_u8_to_string(input: &[u8]) -> String {
-    let mut s = String::with_capacity(2 * input.len());
+    let mut result = String::with_capacity(2 * input.len());
     for &byte in input {
-        let _ = write!(&mut s, "{:02X}", byte);
+        let _ = write!(&mut result, "{:02X}", byte);
     }
-    s
+    result
 }
 
 fn string_to_hex_u8(input: &str) -> Result<Vec<u8>, ParseZoneDataErr> {
     (0..input.len())
         .step_by(2)
         .map(|i| match u8::from_str_radix(&input[i..i + 2], 16) {
-            Ok(v) => Ok(v),
+            Ok(val) => Ok(val),
             _ => Err(ParseZoneDataErr::GeneralErr(format!(
                 "ds digest string to hex u8 fail : {}",
                 input
@@ -196,7 +196,7 @@ impl DNSWireFrame for DnsTypeDS {
     fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
         match parse_ds(data, data.len()) {
             Ok((_, mx)) => Ok(mx),
-            Err(_err) => return Err(DNSProtoErr::PacketParseError),
+            Err(_err) => Err(DNSProtoErr::PacketParseError),
         }
     }
 
@@ -235,7 +235,7 @@ mod test {
     }
 
     #[test]
-    fn test_dns_type_ds() {
+    fn dns_ds_from_str() {
         let (ds_str, ds_struct) = get_example_ds();
         if ds_struct.is_err() {
             assert!(false, "ds new method got a unexpected failure");
@@ -255,7 +255,7 @@ mod test {
     }
 
     #[test]
-    fn test_dns_type_ds_binary_serialize() {
+    fn ds_binary_serialize() {
         let (ds_str, ds_struct) = get_example_ds();
         let ds_struct = ds_struct.unwrap();
         let bin_arr = [

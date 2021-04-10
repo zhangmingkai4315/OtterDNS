@@ -453,6 +453,7 @@ impl Display for DNSClass {
 #[repr(u16)]
 pub enum DNSType {
     #[num_enum(default)]
+    Unknown = 0,
     A = 1,
     NS = 2,
     CNAME = 5,
@@ -484,5 +485,34 @@ impl Default for DNSType {
 impl fmt::Display for DNSType {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         write!(formatter, "{:?}", self)
+    }
+}
+
+impl DNSType {
+    pub(crate) fn from_str(type_str: &str) -> Option<DNSType> {
+        let str = type_str.to_uppercase();
+        match str.as_str() {
+            "A" => Some(DNSType::A),
+            "NS" => Some(DNSType::NS),
+            "CNAME" => Some(DNSType::CNAME),
+            "SOA" => Some(DNSType::SOA),
+            "PTR" => Some(DNSType::PTR),
+            "HINFO" => Some(DNSType::HINFO),
+            "MX" => Some(DNSType::MX),
+            "TXT" => Some(DNSType::TXT),
+            "AAAA" => Some(DNSType::AAAA),
+            "LOC" => Some(DNSType::LOC),
+            "SRV" => Some(DNSType::SRV),
+            "OPT" => Some(DNSType::OPT),
+            "DS" => Some(DNSType::DS),
+            "RRSIG" => Some(DNSType::RRSIG),
+            "NSEC" => Some(DNSType::NSEC),
+            "DNSKEY" => Some(DNSType::DNSKEY),
+            "NSEC3" => Some(DNSType::NSEC3),
+            "NSEC3PARAM" => Some(DNSType::NSEC3PARAM),
+            "AXFR " => Some(DNSType::AXFR),
+            "ANY" => Some(DNSType::Any),
+            _ => None,
+        }
     }
 }

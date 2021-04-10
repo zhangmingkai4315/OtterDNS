@@ -8,6 +8,8 @@ extern crate regex;
 extern crate num_enum;
 #[macro_use]
 extern crate nom;
+extern crate base64;
+
 extern crate rand;
 extern crate thiserror;
 

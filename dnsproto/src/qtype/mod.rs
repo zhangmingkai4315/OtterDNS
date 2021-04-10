@@ -1,6 +1,7 @@
 mod a;
 mod aaaa;
 mod cname;
+mod dnskey;
 mod ds;
 mod helper;
 mod loc;
@@ -9,6 +10,7 @@ mod ns;
 mod nsec;
 mod opt;
 mod ptr;
+mod rrsig;
 mod soa;
 mod srv;
 mod txt;
