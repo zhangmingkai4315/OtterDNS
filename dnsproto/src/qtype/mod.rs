@@ -6,6 +6,7 @@ mod helper;
 mod loc;
 mod mx;
 mod ns;
+mod nsec;
 mod opt;
 mod ptr;
 mod soa;
