@@ -10,8 +10,99 @@
 
 // NSEC	aaa. NS SOA RRSIG NSEC DNSKEY
 
+use crate::dnsname::DNSName;
+use crate::meta::DNSType;
+use crate::qtype::{CompressionType, DNSWireFrame, DnsTypeMX, DnsTypeNS};
 use itertools::enumerate;
 use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
+use std::any::Any;
+use std::convert::TryFrom;
+use std::fmt;
+use std::fmt::Formatter;
+
+#[derive(Debug, PartialEq)]
+pub struct DnsTypeNSEC {
+    next_domain: DNSName,
+    bitmaps: Vec<u8>,
+}
+
+impl DnsTypeNSEC {
+    pub fn new(domain: &str, type_arr: Vec<DNSType>) -> Result<Self, DNSProtoErr> {
+        Ok(DnsTypeNSEC {
+            next_domain: DNSName::new(domain, None)?,
+            bitmaps: encode_nsec_from_types(type_arr)?,
+        })
+    }
+    // NSEC	aaa. NS SOA RRSIG NSEC DNSKEY
+    // pub fn from_str(str: &str, default_original: Option<&str>) -> Result<Self, ParseZoneDataErr> {
+    //     let (rest, priority) = digit1(str)?;
+    //     let priority = u16::from_str(priority)?;
+    //     let (rest, _) = multispace0(rest)?;
+    //     let (_, exchange) = not_space(rest)?;
+    //     Ok(DnsTypeMX {
+    //         priority,
+    //         exchange: DNSName::new(exchange, default_original)?,
+    //     })
+    // }
+}
+
+impl fmt::Display for DnsTypeNSEC {
+    fn fmt(&self, format: &mut Formatter<'_>) -> fmt::Result {
+        let type_arr = decode_nsec_from_bits(self.bitmaps.as_slice());
+        let type_str = {
+            match type_arr {
+                Ok(val) => val
+                    .iter()
+                    .map(|v| DNSType::try_from(v).to_string())
+                    .collect(),
+                Err(err) => format!("decode fail: {:?}", err),
+            }
+        };
+        write!(format, "{} {}", self.next_domain, type_str)
+    }
+}
+impl DNSWireFrame for DnsTypeNSEC {
+    fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
+        match parse_nsec(data, original.unwrap_or(&[])) {
+            Ok((_, nsec)) => Ok(nsec),
+            Err(_err) => Err(DNSProtoErr::PacketParseError),
+        }
+    }
+
+    fn get_type(&self) -> DNSType {
+        DNSType::NSEC
+    }
+
+    // fn encode(&self, compression: CompressionType) -> Result<Vec<u8>, DNSProtoErr> {
+    //     let mut data = vec![];
+    //     data.extend_from_slice(&self.priority.to_be_bytes()[..]);
+    //     match compression {
+    //         Some((compression_map, size)) => {
+    //             let exchange = self.exchange.to_binary(Some((compression_map, size)));
+    //             data.extend_from_slice(exchange.as_slice());
+    //         }
+    //         _ => {
+    //             let exchange = self.exchange.to_binary(None);
+    //             data.extend_from_slice(exchange.as_slice());
+    //         }
+    //     }
+    //     Ok(data)
+    // }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+named_args!(parse_nsec<'a>(original: &[u8])<DnsTypeNSEC>,
+    do_parse!(
+        priority: be_u16>>
+        exchange: call!(parse_name, original)>>
+        (DnsTypeNSEC{
+            exchange,
+            priority,
+        }
+    )
+));
 
 fn decode_nsec_from_bits(input: &[u8]) -> Result<Vec<u16>, ParseZoneDataErr> {
     let mut result = Vec::new();
@@ -66,7 +157,7 @@ fn decode_nsec_from_bits(input: &[u8]) -> Result<Vec<u16>, ParseZoneDataErr> {
     }
     Ok(result)
 }
-fn encode_nsec_from_types(bitmap: Vec<u16>) -> Result<Vec<u8>, ParseZoneDataErr> {
+fn encode_nsec_from_types(bitmap: Vec<DNSType>) -> Result<Vec<u8>, ParseZoneDataErr> {
     if bitmap.is_empty() {
         Ok(vec![])
     }
@@ -75,6 +166,7 @@ fn encode_nsec_from_types(bitmap: Vec<u16>) -> Result<Vec<u8>, ParseZoneDataErr>
     let mut last_length = 0u16;
     let mut result = vec![];
     for current in bitmap.iter() {
+        let current = current as u16;
         let window = current / 256;
         let length = (current - window * 256) / 8 + 1;
         if window > last_window && last_length != 0 {
@@ -99,3 +191,6 @@ fn encode_nsec_from_types(bitmap: Vec<u16>) -> Result<Vec<u8>, ParseZoneDataErr>
     offset += last_window + 2;
     Ok(result)
 }
+
+#[cfg(test)]
+mod test {}
