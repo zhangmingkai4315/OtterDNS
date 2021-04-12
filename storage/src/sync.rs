@@ -24,7 +24,6 @@ fn load_zone_from_disk(
 
 #[cfg(test)]
 mod test {
-    use crate::rb_storage::RBTreeNode;
     use crate::sync::load_zone_from_disk;
     use dnsproto::dnsname::DNSName;
     use dnsproto::meta::DNSType;
@@ -99,7 +98,7 @@ mod test {
         match load_zone_from_disk(test_zone_file, None) {
             Ok(zone) => {
                 for item in zone {
-                    println!("{}", item.borrow().get_name().to_string())
+                    println!("{}", item.borrow().to_string())
                 }
             }
             Err(err) => {

@@ -8,8 +8,11 @@ use dnsproto::label::Label;
 use dnsproto::meta::{DNSType, RRSet, ResourceRecord};
 use lazy_static::lazy_static;
 use otterlib::errors::StorageError;
+use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::fmt;
+use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
 use std::str::FromStr;
@@ -74,6 +77,15 @@ impl Iterator for ZoneIterator {
                 return None;
             }
         }
+    }
+}
+
+impl Display for RBTreeNode {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        for (_, rrset) in &self.rr_sets {
+            write!(formatter, "{}", rrset.to_string());
+        }
+        write!(formatter, "")
     }
 }
 

@@ -302,6 +302,18 @@ pub struct RRSet {
     ttl: u32,
 }
 
+impl Display for RRSet {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        for item in self.content.iter() {
+            write!(formatter, "{}\n", item.to_string()).unwrap_or_default();
+        }
+        for item in self.signatures.iter() {
+            write!(formatter, "{}\n", item.to_string()).unwrap_or_default();
+        }
+        write!(formatter, "")
+    }
+}
+
 impl RRSet {
     pub fn set_ttl(&mut self, ttl: u32) {
         self.ttl = ttl;
@@ -417,6 +429,7 @@ impl Into<u8> for RCode {
 }
 
 use crate::label::Label;
+use itertools::Itertools;
 use nom::lib::std::fmt::{Display, Formatter};
 use nom::lib::std::slice::Iter;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
