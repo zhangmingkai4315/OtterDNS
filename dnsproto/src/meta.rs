@@ -429,7 +429,6 @@ impl Into<u8> for RCode {
 }
 
 use crate::label::Label;
-use itertools::Itertools;
 use nom::lib::std::fmt::{Display, Formatter};
 use nom::lib::std::slice::Iter;
 use num_enum::{IntoPrimitive, TryFromPrimitive};

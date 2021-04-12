@@ -8,6 +8,7 @@ mod loc;
 mod mx;
 mod ns;
 mod nsec;
+mod nsec3;
 mod opt;
 mod ptr;
 mod rrsig;

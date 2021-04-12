@@ -27,3 +27,4 @@ OtterDNS 一个权威DNS解析软件
 - [RFC 4034](https://tools.ietf.org/html/rfc4343) DNSSEC记录定义
 - [RFC 2782](https://tools.ietf.org/html/rfc2782) SRV记录定义
 - [RFC 1876](https://tools.ietf.org/html/rfc1876) LOC记录定义
+- [RFC 5155](https://tools.ietf.org/html/rfc5155) DNSSEC NSEC3

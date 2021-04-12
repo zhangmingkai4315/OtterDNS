@@ -1,10 +1,10 @@
 use crate::meta::DNSType;
+use crate::qtype::helper::{hex_u8_to_string, string_to_hex_u8};
 use crate::qtype::{CompressionType, DNSWireFrame};
 use nom::character::complete::{digit1, multispace0};
 use nom::number::complete::{be_u16, be_u8};
 use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
 use std::any::Any;
-use std::fmt::Write;
 use std::str::FromStr;
 use std::{fmt, fmt::Formatter};
 
@@ -115,27 +115,6 @@ named_args!(parse_ds<'a>(size: usize)<DnsTypeDS>,
 
     )
 );
-
-fn hex_u8_to_string(input: &[u8]) -> String {
-    let mut result = String::with_capacity(2 * input.len());
-    for &byte in input {
-        let _ = write!(&mut result, "{:02X}", byte);
-    }
-    result
-}
-
-fn string_to_hex_u8(input: &str) -> Result<Vec<u8>, ParseZoneDataErr> {
-    (0..input.len())
-        .step_by(2)
-        .map(|i| match u8::from_str_radix(&input[i..i + 2], 16) {
-            Ok(val) => Ok(val),
-            _ => Err(ParseZoneDataErr::GeneralErr(format!(
-                "ds digest string to hex u8 fail : {}",
-                input
-            ))),
-        })
-        .collect()
-}
 
 impl DnsTypeDS {
     pub fn new(
