@@ -489,7 +489,7 @@ impl fmt::Display for DNSType {
 }
 
 impl DNSType {
-    pub(crate) fn from_str(type_str: &str) -> Option<DNSType> {
+    pub fn from_str(type_str: &str) -> Option<DNSType> {
         let str = type_str.to_uppercase();
         match str.as_str() {
             "A" => Some(DNSType::A),
@@ -510,8 +510,33 @@ impl DNSType {
             "DNSKEY" => Some(DNSType::DNSKEY),
             "NSEC3" => Some(DNSType::NSEC3),
             "NSEC3PARAM" => Some(DNSType::NSEC3PARAM),
-            "AXFR " => Some(DNSType::AXFR),
+            "AXFR" => Some(DNSType::AXFR),
             "ANY" => Some(DNSType::Any),
+            _ => None,
+        }
+    }
+    pub fn from_u16(number: u16) -> Option<DNSType> {
+        match number {
+            1 => Some(DNSType::A),
+            2 => Some(DNSType::NS),
+            5 => Some(DNSType::CNAME),
+            6 => Some(DNSType::SOA),
+            12 => Some(DNSType::PTR),
+            13 => Some(DNSType::HINFO),
+            15 => Some(DNSType::MX),
+            16 => Some(DNSType::TXT),
+            28 => Some(DNSType::AAAA),
+            29 => Some(DNSType::LOC),
+            33 => Some(DNSType::SRV),
+            41 => Some(DNSType::OPT),
+            43 => Some(DNSType::DS),
+            46 => Some(DNSType::RRSIG),
+            47 => Some(DNSType::NSEC),
+            48 => Some(DNSType::DNSKEY),
+            50 => Some(DNSType::NSEC3),
+            51 => Some(DNSType::NSEC3PARAM),
+            252 => Some(DNSType::AXFR),
+            255 => Some(DNSType::Any),
             _ => None,
         }
     }

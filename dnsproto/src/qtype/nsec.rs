@@ -10,13 +10,13 @@
 
 // NSEC	aaa. NS SOA RRSIG NSEC DNSKEY
 
-use crate::dnsname::DNSName;
+use crate::dnsname::{parse_name, DNSName};
 use crate::meta::DNSType;
-use crate::qtype::{CompressionType, DNSWireFrame, DnsTypeMX, DnsTypeNS};
+use crate::qtype::{CompressionType, DNSWireFrame};
 use itertools::enumerate;
+use nom::combinator::rest;
 use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
 use std::any::Any;
-use std::convert::TryFrom;
 use std::fmt;
 use std::fmt::Formatter;
 
@@ -53,7 +53,11 @@ impl fmt::Display for DnsTypeNSEC {
             match type_arr {
                 Ok(val) => val
                     .iter()
-                    .map(|v| DNSType::try_from(v).to_string())
+                    .map(|v| {
+                        DNSType::from_u16(*v)
+                            .unwrap_or(DNSType::Unknown)
+                            .to_string()
+                    })
                     .collect(),
                 Err(err) => format!("decode fail: {:?}", err),
             }
@@ -73,21 +77,22 @@ impl DNSWireFrame for DnsTypeNSEC {
         DNSType::NSEC
     }
 
-    // fn encode(&self, compression: CompressionType) -> Result<Vec<u8>, DNSProtoErr> {
-    //     let mut data = vec![];
-    //     data.extend_from_slice(&self.priority.to_be_bytes()[..]);
-    //     match compression {
-    //         Some((compression_map, size)) => {
-    //             let exchange = self.exchange.to_binary(Some((compression_map, size)));
-    //             data.extend_from_slice(exchange.as_slice());
-    //         }
-    //         _ => {
-    //             let exchange = self.exchange.to_binary(None);
-    //             data.extend_from_slice(exchange.as_slice());
-    //         }
-    //     }
-    //     Ok(data)
-    // }
+    fn encode(&self, compression: CompressionType) -> Result<Vec<u8>, DNSProtoErr> {
+        let mut data = vec![];
+
+        match compression {
+            Some((compression_map, size)) => {
+                let exchange = self.next_domain.to_binary(Some((compression_map, size)));
+                data.extend_from_slice(exchange.as_slice());
+            }
+            _ => {
+                let exchange = self.next_domain.to_binary(None);
+                data.extend_from_slice(exchange.as_slice());
+            }
+        }
+        data.extend_from_slice(self.bitmaps.as_slice());
+        Ok(data)
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -95,11 +100,11 @@ impl DNSWireFrame for DnsTypeNSEC {
 
 named_args!(parse_nsec<'a>(original: &[u8])<DnsTypeNSEC>,
     do_parse!(
-        priority: be_u16>>
-        exchange: call!(parse_name, original)>>
+        next_domain: call!(parse_name, original)>>
+        bitmaps: call!(rest)>>
         (DnsTypeNSEC{
-            exchange,
-            priority,
+            next_domain,
+            bitmaps: bitmaps.to_vec(),
         }
     )
 ));
@@ -108,7 +113,7 @@ fn decode_nsec_from_bits(input: &[u8]) -> Result<Vec<u16>, ParseZoneDataErr> {
     let mut result = Vec::new();
     let message_size = input.len();
     let mut offset = 0;
-    let mut length = 0;
+    let mut length: usize = 0;
     let mut window = 0;
     let mut last_window = -1;
     while offset < message_size {
@@ -118,8 +123,8 @@ fn decode_nsec_from_bits(input: &[u8]) -> Result<Vec<u16>, ParseZoneDataErr> {
             ));
         }
         window = input[offset];
-        length = input[offset + 1];
-        if window <= last_window {
+        length = input[offset + 1] as usize;
+        if window as isize <= last_window {
             return Err(ParseZoneDataErr::GeneralErr(
                 "nsec block unpack out of order".to_string(),
             ));
@@ -140,6 +145,7 @@ fn decode_nsec_from_bits(input: &[u8]) -> Result<Vec<u16>, ParseZoneDataErr> {
             ));
         }
         for (index, block) in enumerate(input[offset..offset + length].iter()) {
+            let index = index as u16;
             match block {
                 block if block & 0x80 == 0x80 => result.push(window as u16 * 256 + index * 8 + 0),
                 block if block & 0x40 == 0x40 => result.push(window as u16 * 256 + index * 8 + 1),
@@ -153,20 +159,20 @@ fn decode_nsec_from_bits(input: &[u8]) -> Result<Vec<u16>, ParseZoneDataErr> {
             }
         }
         offset += length;
-        last_window = window;
+        last_window = window as isize;
     }
     Ok(result)
 }
 fn encode_nsec_from_types(bitmap: Vec<DNSType>) -> Result<Vec<u8>, ParseZoneDataErr> {
     if bitmap.is_empty() {
-        Ok(vec![])
+        return Ok(vec![]);
     }
     let mut offset = 0;
     let mut last_window = 0u16;
     let mut last_length = 0u16;
     let mut result = vec![];
     for current in bitmap.iter() {
-        let current = current as u16;
+        let current = *current as u16;
         let window = current / 256;
         let length = (current - window * 256) / 8 + 1;
         if window > last_window && last_length != 0 {
@@ -182,9 +188,9 @@ fn encode_nsec_from_types(bitmap: Vec<DNSType>) -> Result<Vec<u8>, ParseZoneData
         if expected_length > result.len() {
             result.resize(expected_length, 0);
         }
-        result[offset] = window as u8;
-        result[offset + 1] = length as u8;
-        result[offset + 1 + length] |= 1 << (7 - current % 8);
+        result[offset as usize] = window as u8;
+        result[(offset + 1) as usize] = length as u8;
+        result[(offset + 1 + length) as usize] |= 1 << (7 - current % 8);
         last_length = length;
         last_window = window;
     }
