@@ -15,6 +15,7 @@ use itertools::enumerate;
 use nom::bytes::complete::take_while;
 use nom::character::complete::multispace0;
 use nom::combinator::rest;
+use nom::Err;
 use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
 use std::any::Any;
 use std::fmt::{self, Formatter};
@@ -34,8 +35,7 @@ impl DnsTypeNSEC {
     }
     // aaa. NS SOA RRSIG NSEC DNSKEY
     pub fn from_str(str: &str, default_original: Option<&str>) -> Result<Self, ParseZoneDataErr> {
-        let (rest, _) = multispace0(str)?;
-        let (rest, next_domain) = take_while(is_not_space)(rest)?;
+        let (rest, next_domain) = take_while(is_not_space)(str)?;
         let (rest, _) = multispace0(rest)?;
         let dnstypes = rest
             .split(' ')
@@ -239,6 +239,21 @@ mod test {
             0x03, 0x61, 0x61, 0x61, 0x00, 0x00, 0x07, 0x22, 0x00, 0x00, 0x00, 0x00, 0x03, 0x80,
         ];
         (nsec_bitstream, nsec_str.to_owned(), nsec_struct.unwrap())
+    }
+
+    #[test]
+    fn dns_nsec_parser_str() {
+        let arr = vec![
+            "tui. NS DS RRSIG NSEC",
+            "tv. NS DS RRSIG NSEC",
+            "xn--5su34j936bgsg. NS DS RRSIG NSEC",
+            "xn--b4w605ferd. NS DS RRSIG NSEC",
+            "xn--w4rs40l. NS DS RRSIG NSEC",
+        ];
+        for item in arr.iter() {
+            let result = DnsTypeNSEC::from_str(item, None);
+            assert_eq!(result.is_ok(), true);
+        }
     }
 
     #[test]

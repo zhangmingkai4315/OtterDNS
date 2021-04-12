@@ -24,12 +24,14 @@ fn load_zone_from_disk(
 
 #[cfg(test)]
 mod test {
+    use crate::rb_storage::RBTreeNode;
     use crate::sync::load_zone_from_disk;
     use dnsproto::dnsname::DNSName;
     use dnsproto::meta::DNSType;
+    use otterlib::errors::OtterError;
 
     #[test]
-    fn test_load_zone_from_disk() {
+    fn load_small_zone_from_disk() {
         let search_items = [
             ("example.com.", DNSType::SOA, true),
             ("example.com.", DNSType::NS, true),
@@ -88,6 +90,20 @@ mod test {
             }
             Err(err) => {
                 assert!(false, err.to_string())
+            }
+        }
+    }
+    #[test]
+    fn load_root_zone_from_disk() {
+        let test_zone_file = "./test/root.zone";
+        match load_zone_from_disk(test_zone_file, None) {
+            Ok(zone) => {
+                for item in zone {
+                    println!("{}", item.borrow().get_name().to_string())
+                }
+            }
+            Err(err) => {
+                assert!(false, format!("load root zone fail: {:?}", err))
             }
         }
     }

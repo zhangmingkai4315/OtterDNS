@@ -51,8 +51,8 @@ pub enum DNSProtoErr {
     #[error("read zone file: `{path:?}` error: {err:?}")]
     IOError { path: String, err: String },
 
-    #[error("unimplemented error")]
-    UnImplementedError,
+    #[error("unimplemented error: {0}")]
+    UnImplementedError(String),
 }
 
 impl From<std::io::Error> for DNSProtoErr {
@@ -110,8 +110,8 @@ pub enum ParseZoneDataErr {
     #[error("parse dns from str incomplete error: `{0}`")]
     ParseDNSFromStrIncompleteError(String),
 
-    #[error("unimplemented")]
-    UnimplementedErr,
+    #[error("unimplemented: {0}")]
+    UnimplementedErr(String),
 }
 impl From<String> for ParseZoneDataErr {
     fn from(err_str: String) -> Self {

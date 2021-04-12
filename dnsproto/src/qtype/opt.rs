@@ -209,7 +209,10 @@ impl DnsTypeOpt {
                 }
                 _ => Err(DNSProtoErr::PacketParseError),
             },
-            _ => Err(DNSProtoErr::UnImplementedError),
+            _ => Err(DNSProtoErr::UnImplementedError(format!(
+                "unknown opt code: {:?}",
+                self.code
+            ))),
         }
     }
 }
