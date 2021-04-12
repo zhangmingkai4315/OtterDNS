@@ -110,12 +110,10 @@ impl DnsTypeDNSKEY {
                 algorithm_type,
                 decode.as_slice(),
             )),
-            Err(err) => {
-                return Err(ParseZoneDataErr::GeneralErr(format!(
-                    "decode dnskey base64 fail:{}",
-                    err.to_string()
-                )));
-            }
+            Err(err) => Err(ParseZoneDataErr::GeneralErr(format!(
+                "decode dnskey base64 fail:{}",
+                err.to_string()
+            ))),
         }
     }
 }
@@ -136,7 +134,7 @@ impl DNSWireFrame for DnsTypeDNSKEY {
     fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
         match parse_dnskey(data, data.len()) {
             Ok((_, mx)) => Ok(mx),
-            Err(_err) => return Err(DNSProtoErr::PacketParseError),
+            Err(_err) => Err(DNSProtoErr::PacketParseError),
         }
     }
 
@@ -147,7 +145,7 @@ impl DNSWireFrame for DnsTypeDNSKEY {
     fn encode(&self, _: CompressionType) -> Result<Vec<u8>, DNSProtoErr> {
         let mut data = vec![];
         data.extend_from_slice(&self.flags.to_be_bytes()[..]);
-        data.push(self.protocol_type.into());
+        data.push(self.protocol_type);
         data.push(self.algorithem_type.into());
         data.extend_from_slice(&self.public_key.as_slice());
         Ok(data)

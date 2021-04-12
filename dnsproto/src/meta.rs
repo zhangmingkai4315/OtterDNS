@@ -489,6 +489,7 @@ impl fmt::Display for DNSType {
 }
 
 impl DNSType {
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(type_str: &str) -> Option<DNSType> {
         let str = type_str.to_uppercase();
         match str.as_str() {

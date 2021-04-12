@@ -7,9 +7,6 @@
 // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 // /                       Type Bit Maps                           /
 // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-// NSEC	aaa. NS SOA RRSIG NSEC DNSKEY
-
 use crate::dnsname::{parse_name, DNSName};
 use crate::meta::DNSType;
 use crate::qtype::soa::is_not_space;
@@ -20,8 +17,7 @@ use nom::character::complete::multispace0;
 use nom::combinator::rest;
 use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
 use std::any::Any;
-use std::fmt;
-use std::fmt::Formatter;
+use std::fmt::{self, Formatter};
 
 #[derive(Debug, PartialEq)]
 pub struct DnsTypeNSEC {
@@ -42,7 +38,7 @@ impl DnsTypeNSEC {
         let (rest, next_domain) = take_while(is_not_space)(rest)?;
         let (rest, _) = multispace0(rest)?;
         let dnstypes = rest
-            .split(" ")
+            .split(' ')
             .into_iter()
             .map(|dtype| DNSType::from_str(dtype).unwrap_or(DNSType::Unknown))
             .collect();
@@ -133,7 +129,7 @@ fn decode_nsec_from_bits(input: &[u8]) -> Result<Vec<u16>, ParseZoneDataErr> {
         }
         window = input[offset];
         length = input[offset + 1] as usize;
-        offset = offset + 2;
+        offset += 2;
         if window as isize <= last_window {
             return Err(ParseZoneDataErr::GeneralErr(
                 "nsec block unpack out of order".to_string(),
@@ -157,7 +153,7 @@ fn decode_nsec_from_bits(input: &[u8]) -> Result<Vec<u16>, ParseZoneDataErr> {
         for (index, block) in enumerate(input[offset..offset + length].iter()) {
             let index = index as u16;
             if block & 0x80 == 0x80 {
-                result.push(window as u16 * 256 + index * 8 + 0)
+                result.push(window as u16 * 256 + index * 8)
             }
             if block & 0x40 == 0x40 {
                 result.push(window as u16 * 256 + index * 8 + 1)

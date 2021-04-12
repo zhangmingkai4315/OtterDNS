@@ -71,6 +71,7 @@ named_args!(parse_rrsig<'a>(original: Option<&[u8]>, size: usize)<DnsTypeRRSIG>,
 );
 
 impl DnsTypeRRSIG {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         rrsig_type: u16,
         algorithm_type: u8,
@@ -202,8 +203,8 @@ impl DNSWireFrame for DnsTypeRRSIG {
         let mut data = vec![];
 
         data.extend_from_slice(&self.rrsig_type.to_be_bytes()[..]);
-        data.push(self.algorithm_type.into());
-        data.push(self.labels.into());
+        data.push(self.algorithm_type);
+        data.push(self.labels);
         data.extend_from_slice(&self.original_ttl.to_be_bytes()[..]);
         data.extend_from_slice(&self.expiration.to_be_bytes()[..]);
         data.extend_from_slice(&self.inception.to_be_bytes()[..]);
