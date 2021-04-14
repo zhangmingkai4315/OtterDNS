@@ -9,7 +9,9 @@
 // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 use crate::dnsname::{parse_name, DNSName};
 use crate::meta::DNSType;
-use crate::qtype::helper::{encode_nsec_bitmap_from_types, nsec_bitmaps_to_string};
+use crate::qtype::helper::{
+    encode_nsec_bitmap_from_str, encode_nsec_bitmap_from_types, nsec_bitmaps_to_string,
+};
 use crate::qtype::soa::is_not_space;
 use crate::qtype::{CompressionType, DNSWireFrame};
 use nom::bytes::complete::take_while;
@@ -36,12 +38,7 @@ impl DnsTypeNSEC {
     pub fn from_str(str: &str, default_original: Option<&str>) -> Result<Self, DNSProtoErr> {
         let (rest, next_domain) = take_while(is_not_space)(str)?;
         let (rest, _) = multispace0(rest)?;
-        let dnstypes = rest
-            .split(' ')
-            .into_iter()
-            .map(|dtype| DNSType::from_str(dtype).unwrap_or(DNSType::Unknown))
-            .collect();
-        let bitmaps = encode_nsec_bitmap_from_types(dnstypes)?;
+        let bitmaps = encode_nsec_bitmap_from_str(rest)?;
         Ok(DnsTypeNSEC {
             next_domain: DNSName::new(next_domain, default_original)?,
             bitmaps,

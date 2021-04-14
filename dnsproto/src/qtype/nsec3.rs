@@ -13,11 +13,12 @@
 use crate::meta::DNSType;
 use crate::qtype::ds::DigestType;
 use crate::qtype::helper::{
-    encode_nsec_bitmap_from_types, hex_u8_to_string, nsec_bitmaps_to_string, string_to_hex_u8,
+    encode_nsec_bitmap_from_str, encode_nsec_bitmap_from_types, hex_u8_to_string,
+    nsec_bitmaps_to_string, string_to_hex_u8,
 };
 use crate::qtype::soa::is_not_space;
 use crate::qtype::{CompressionType, DNSWireFrame};
-use data_encoding::BASE32;
+use data_encoding::{BASE32, BASE32_NOPAD};
 use nom::bytes::complete::take_while;
 use nom::character::complete::{digit1, multispace0};
 use nom::combinator::rest;
@@ -38,13 +39,55 @@ pub struct DnsTypeNSEC3 {
     bitmaps: Vec<u8>,
 }
 
+fn encode_nsec3_hash(hash: &str) -> Result<Vec<u8>, DNSProtoErr> {
+    match BASE32_NOPAD.decode(hash.as_bytes()) {
+        Ok(v) => Ok(v),
+        Err(err) => Err(DNSProtoErr::GeneralErr(format!(
+            "decode nsec3 hash fail: {:?}",
+            err
+        ))),
+    }
+    // let hash_size = BASE32.decode_len(hash.len());
+    // match hash_size {
+    //     Ok(size) => {
+    //         let mut hash_output = vec![0; size];
+    //         let hash_len = BASE32.decode_mut(hash.as_bytes(), &mut hash_output);
+    //         match hash_len {
+    //             Ok(hash_len) => Ok(hash_output[0..hash_len].to_vec()),
+    //             Err(err) => Err(DNSProtoErr::GeneralErr(format!(
+    //                 "decode nsec3 hash fail: {:?}",
+    //                 err
+    //             ))),
+    //         }
+    //     }
+    //     Err(err) => Err(DNSProtoErr::GeneralErr(format!(
+    //         "decode nsec3 hash fail: {:?}",
+    //         err
+    //     ))),
+    // }
+}
+
+fn decode_nsec3_hash(hash: &[u8]) -> Result<String, DNSProtoErr> {
+    Ok(BASE32_NOPAD.encode(hash))
+    // let mut buffer = vec![0; hash_size];
+    // let output = &mut buffer[0..BASE32.encode_len(hash.len())];
+    // BASE32.encode_mut(hash, output);
+    // match std::str::from_utf8(output) {
+    //     Ok(v) => Ok(v.to_string()),
+    //     Err(e) => Err(DNSProtoErr::GeneralErr(format!(
+    //         "decode nsec3 hash err: {}",
+    //         e.to_string()
+    //     ))),
+    // }
+}
+
 impl DnsTypeNSEC3 {
     pub fn new(
         hash_algorithem: DigestType,
         flag: u8,
         iterations: u16,
         salt: &str,
-        hash: &str,
+        hash: Vec<u8>,
         type_arr: Vec<DNSType>,
     ) -> Result<Self, DNSProtoErr> {
         Ok(DnsTypeNSEC3 {
@@ -52,7 +95,7 @@ impl DnsTypeNSEC3 {
             flag,
             iterations,
             salt: string_to_hex_u8(salt)?,
-            hash: hash.as_bytes().to_vec(),
+            hash,
             bitmaps: encode_nsec_bitmap_from_types(type_arr)?,
         })
     }
@@ -77,20 +120,14 @@ impl DnsTypeNSEC3 {
         let (rest, _) = multispace0(rest)?;
         let (rest, hash) = take_while(is_not_space)(rest)?;
         let (rest, _) = multispace0(rest)?;
-
-        let dnstypes = rest
-            .split(' ')
-            .into_iter()
-            .map(|dtype| DNSType::from_str(dtype).unwrap_or(DNSType::Unknown))
-            .collect();
-
+        let rest = rest.trim();
         Ok(DnsTypeNSEC3 {
             hash_algorithem,
             flag,
             iterations,
             salt: string_to_hex_u8(salt)?,
             hash: hash.as_bytes().to_vec(),
-            bitmaps: encode_nsec_bitmap_from_types(dnstypes)?,
+            bitmaps: encode_nsec_bitmap_from_str(rest)?,
         })
     }
 }
@@ -170,23 +207,28 @@ named_args!(parse_nsec3<'a>(original: &[u8])<DnsTypeNSEC3>,
 mod test {
     use crate::meta::DNSType;
     use crate::qtype::ds::DigestType;
-    use crate::qtype::nsec3::DnsTypeNSEC3;
+    use crate::qtype::helper::decode_nsec_from_bits;
+    use crate::qtype::nsec3::{decode_nsec3_hash, encode_nsec3_hash, DnsTypeNSEC3};
     use crate::qtype::DNSWireFrame;
 
     fn get_example_nsec3() -> (Vec<u8>, String, DnsTypeNSEC3) {
-        let nsec3_str = "1 0 5 4CD7B054F876956C 1KH27L1DSQOR2RO6I202GTCTPDHKCB93  A NS SOA MX TXT AAAA RRSIG DNSKEY NSEC3PARAM";
+        let nsec3_str = "1 0 5 4CD7B054F876956C 1KH27L1DSQOR2RO6I202GTCTPDHKCB93 A NS SOA MX TXT AAAA RRSIG DNSKEY NSEC3PARAM";
         let nsec3_struct = DnsTypeNSEC3::new(
             DigestType::SHA1,
             0,
             5,
             "4CD7B054F876956C",
-            "1KH27L1DSQOR2RO6I202GTCTPDHKCB93",
+            b"1KH27L1DSQOR2RO6I202GTCTPDHKCB93".to_vec(),
             vec![
+                DNSType::A,
                 DNSType::NS,
                 DNSType::SOA,
+                DNSType::MX,
+                DNSType::TXT,
+                DNSType::AAAA,
                 DNSType::RRSIG,
-                DNSType::NSEC,
                 DNSType::DNSKEY,
+                DNSType::NSEC3PARAM,
             ],
         );
         let nsec3_bitstream = vec![
@@ -223,5 +265,16 @@ mod test {
             _ => assert!(false, "encode nsec fail"),
         }
         assert_eq!(nsec_str, nsec_struct.to_string());
+    }
+
+    #[test]
+    fn test_decode_nsec3_hash() {
+        let input = [
+            0x0d, 0x22, 0x23, 0xd4, 0x2d, 0xe6, 0xb1, 0xb1, 0x6f, 0x06, 0x90, 0x80, 0x28, 0x75,
+            0x9d, 0xcb, 0x63, 0x46, 0x2d, 0x23,
+        ];
+
+        let r = decode_nsec3_hash(&input);
+        assert_eq!(r.unwrap(), String::new());
     }
 }
