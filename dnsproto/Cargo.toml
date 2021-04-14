@@ -20,6 +20,7 @@ base64 = "0.13.0"
 chrono = "0.4"
 otterlib = {path = "../otterlib"}
 data-encoding = "2.3.2"
+ring = "0.16.20"
 
 [dev-dependencies]
 criterion = "0.3"

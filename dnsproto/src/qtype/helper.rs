@@ -1,3 +1,4 @@
+use crate::dnsname::DNSName;
 use crate::meta::DNSType;
 use crate::qtype::ds::DigestType;
 use itertools::enumerate;
@@ -151,10 +152,50 @@ pub fn encode_nsec_from_types(bitmap: Vec<DNSType>) -> Result<Vec<u8>, ParseZone
     Ok(result)
 }
 
-pub fn hash_dname(name: &str, ds: DigestType, iter: u16, salt: &str) -> Result<&str, DNSProtoErr> {
-    // if ds != DigestType::SHA1 {
-    //     Err(DNSProtoErr::UnImplementedError(
-    //         "unsupported hash algorithem".to_string(),
-    //     ))
-    // }
+pub fn hash_dname(
+    name: &str,
+    ds: DigestType,
+    iter: u16,
+    salt: &[u8],
+) -> Result<Vec<u8>, DNSProtoErr> {
+    match ds {
+        DigestType::SHA1 => {
+            let name = DNSName::new(name, None)?;
+            let name_binary = name.to_binary(None);
+            let mut buffer = name_binary;
+            for _ in 0..iter {
+                let mut context =
+                    ring::digest::Context::new(&ring::digest::SHA1_FOR_LEGACY_USE_ONLY);
+                context.update(buffer.as_slice());
+                context.update(salt);
+                buffer = context.finish().as_ref().to_vec();
+            }
+            Ok(buffer.to_vec())
+        }
+        _ => Err(DNSProtoErr::UnImplementedError(
+            "unknown hash algorithem for nsec3".to_owned(),
+        )),
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::qtype::ds::DigestType;
+    use crate::qtype::helper::hash_dname;
+
+    #[test]
+    fn test_hash_dname() {
+        let salt: Vec<u8> = vec![0x4c, 0xd7, 0xb0, 0x54, 0xf8, 0x76, 0x95, 0x6c];
+        let result = hash_dname("google.com.", DigestType::SHA1, 5, salt.as_slice());
+        assert_eq!(result.is_ok(), true);
+        let result = result.unwrap();
+        assert_eq!(
+            result,
+            vec![
+                98, 146, 27, 123, 115, 74, 243, 32, 48, 234, 185, 42, 165, 37, 200, 84, 124, 185,
+                235, 187
+            ]
+            .as_slice()
+        );
+    }
 }
