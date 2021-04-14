@@ -18,7 +18,7 @@ use crate::qtype::helper::{
 };
 use crate::qtype::soa::is_not_space;
 use crate::qtype::{CompressionType, DNSWireFrame};
-use data_encoding::{BASE32, BASE32_NOPAD};
+use data_encoding::BASE32_DNSSEC;
 use nom::bytes::complete::take_while;
 use nom::character::complete::{digit1, multispace0};
 use nom::combinator::rest;
@@ -39,46 +39,18 @@ pub struct DnsTypeNSEC3 {
     bitmaps: Vec<u8>,
 }
 
-fn encode_nsec3_hash(hash: &str) -> Result<Vec<u8>, DNSProtoErr> {
-    match BASE32_NOPAD.decode(hash.as_bytes()) {
+fn encode_nsec3_hash_from_str(hash: &str) -> Result<Vec<u8>, DNSProtoErr> {
+    match BASE32_DNSSEC.decode(hash.as_bytes()) {
         Ok(v) => Ok(v),
         Err(err) => Err(DNSProtoErr::GeneralErr(format!(
             "decode nsec3 hash fail: {:?}",
             err
         ))),
     }
-    // let hash_size = BASE32.decode_len(hash.len());
-    // match hash_size {
-    //     Ok(size) => {
-    //         let mut hash_output = vec![0; size];
-    //         let hash_len = BASE32.decode_mut(hash.as_bytes(), &mut hash_output);
-    //         match hash_len {
-    //             Ok(hash_len) => Ok(hash_output[0..hash_len].to_vec()),
-    //             Err(err) => Err(DNSProtoErr::GeneralErr(format!(
-    //                 "decode nsec3 hash fail: {:?}",
-    //                 err
-    //             ))),
-    //         }
-    //     }
-    //     Err(err) => Err(DNSProtoErr::GeneralErr(format!(
-    //         "decode nsec3 hash fail: {:?}",
-    //         err
-    //     ))),
-    // }
 }
 
-fn decode_nsec3_hash(hash: &[u8]) -> Result<String, DNSProtoErr> {
-    Ok(BASE32_NOPAD.encode(hash))
-    // let mut buffer = vec![0; hash_size];
-    // let output = &mut buffer[0..BASE32.encode_len(hash.len())];
-    // BASE32.encode_mut(hash, output);
-    // match std::str::from_utf8(output) {
-    //     Ok(v) => Ok(v.to_string()),
-    //     Err(e) => Err(DNSProtoErr::GeneralErr(format!(
-    //         "decode nsec3 hash err: {}",
-    //         e.to_string()
-    //     ))),
-    // }
+fn decode_nsec3_hash_to_string(hash: &[u8]) -> String {
+    BASE32_DNSSEC.encode(hash).to_uppercase()
 }
 
 impl DnsTypeNSEC3 {
@@ -126,7 +98,7 @@ impl DnsTypeNSEC3 {
             flag,
             iterations,
             salt: string_to_hex_u8(salt)?,
-            hash: hash.as_bytes().to_vec(),
+            hash: encode_nsec3_hash_from_str(hash)?,
             bitmaps: encode_nsec_bitmap_from_str(rest)?,
         })
     }
@@ -148,7 +120,7 @@ impl fmt::Display for DnsTypeNSEC3 {
             self.flag,
             self.iterations,
             hex_u8_to_string(self.salt.as_slice()),
-            BASE32.encode(self.hash.as_slice()),
+            decode_nsec3_hash_to_string(self.hash.as_slice()),
             type_str
         )
     }
@@ -207,8 +179,9 @@ named_args!(parse_nsec3<'a>(original: &[u8])<DnsTypeNSEC3>,
 mod test {
     use crate::meta::DNSType;
     use crate::qtype::ds::DigestType;
-    use crate::qtype::helper::decode_nsec_from_bits;
-    use crate::qtype::nsec3::{decode_nsec3_hash, encode_nsec3_hash, DnsTypeNSEC3};
+    use crate::qtype::nsec3::{
+        decode_nsec3_hash_to_string, encode_nsec3_hash_from_str, DnsTypeNSEC3,
+    };
     use crate::qtype::DNSWireFrame;
 
     fn get_example_nsec3() -> (Vec<u8>, String, DnsTypeNSEC3) {
@@ -218,7 +191,7 @@ mod test {
             0,
             5,
             "4CD7B054F876956C",
-            b"1KH27L1DSQOR2RO6I202GTCTPDHKCB93".to_vec(),
+            encode_nsec3_hash_from_str("1KH27L1DSQOR2RO6I202GTCTPDHKCB93").unwrap(),
             vec![
                 DNSType::A,
                 DNSType::NS,
@@ -268,13 +241,19 @@ mod test {
     }
 
     #[test]
-    fn test_decode_nsec3_hash() {
+    fn test_nsec3_hash_codec() {
+        let str = "1KH27L1DSQOR2RO6I202GTCTPDHKCB93";
+
+        let result = encode_nsec3_hash_from_str(str);
+        assert_eq!(result.is_ok(), true);
+
         let input = [
             0x0d, 0x22, 0x23, 0xd4, 0x2d, 0xe6, 0xb1, 0xb1, 0x6f, 0x06, 0x90, 0x80, 0x28, 0x75,
             0x9d, 0xcb, 0x63, 0x46, 0x2d, 0x23,
         ];
+        assert_eq!(result.unwrap(), input);
 
-        let r = decode_nsec3_hash(&input);
-        assert_eq!(r.unwrap(), String::new());
+        let result = decode_nsec3_hash_to_string(&input);
+        assert_eq!(result, str);
     }
 }
