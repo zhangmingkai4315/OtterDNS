@@ -1,6 +1,6 @@
 use crate::meta::{DNSClass, ResourceRecord};
 use crate::utils::{is_fqdn, valid_domain};
-use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
+use otterlib::errors::DNSProtoErr;
 use regex::Regex;
 use std::fs::File;
 use std::io::{self, BufRead};
@@ -133,9 +133,7 @@ where
                 if let Ok(token) = spliter.next().unwrap().parse::<u32>() {
                     self.update_ttl(token);
                 } else {
-                    return Err(DNSProtoErr::ParseZoneDataErr(
-                        ParseZoneDataErr::ValidTTLErr(line),
-                    ));
+                    return Err(DNSProtoErr::ValidTTLErr(line));
                 }
             }
             Some(token) if token.to_uppercase().eq("$ORIGIN") => {
@@ -143,16 +141,15 @@ where
                 if is_fqdn(origin) && valid_domain(origin) {
                     self.default_origin = Some(origin.to_owned());
                 } else {
-                    return Err(DNSProtoErr::ParseZoneDataErr(
-                        ParseZoneDataErr::ValidTTLErr(origin.to_owned()),
-                    ));
+                    return Err(DNSProtoErr::ValidTTLErr(origin.to_owned()));
                 }
             }
             Some(val) if val.to_uppercase().eq("$INCLUDE") => unimplemented!(),
             // started with $ but unknown
             _ => {
-                return Err(DNSProtoErr::ParseZoneDataErr(ParseZoneDataErr::GeneralErr(
-                    format!("unknown directive: {}", line),
+                return Err(DNSProtoErr::GeneralErr(format!(
+                    "unknown directive: {}",
+                    line
                 )));
             }
         }
@@ -186,7 +183,7 @@ where
                         self.current_ttl = Some(rr.ttl);
                         Some(Ok(rr))
                     }
-                    Err(err) => Some(Err(DNSProtoErr::ParseZoneDataErr(err))),
+                    Err(err) => Some(Err(err)),
                 };
             }
         }
@@ -281,7 +278,6 @@ mod zone {
     use crate::dnsname::DNSName;
     use crate::meta::{DNSClass, DNSType};
     use crate::zone::{ZoneReader, ZoneStr};
-    use otterlib::errors::DNSProtoErr;
 
     #[test]
     fn test_zone_str_iterator() {
@@ -453,7 +449,7 @@ www.a.shifen.com.	300	IN	A	61.135.169.121
         );
         let mut zone = ZoneReader::new(zone_str, Some("google.com.".to_owned()));
         match zone.next() {
-            Some(Err(DNSProtoErr::ParseZoneDataErr(_))) => assert!(true),
+            Some(Err(_)) => assert!(true),
             _ => {
                 assert!(false);
             }

@@ -4,7 +4,7 @@ use crate::qtype::helper::not_space;
 use crate::qtype::{CompressionType, DNSWireFrame};
 use nom::character::complete::{digit1, multispace0};
 use nom::number::complete::be_u16;
-use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
+use otterlib::errors::DNSProtoErr;
 use std::any::Any;
 use std::str::FromStr;
 use std::{fmt, fmt::Formatter};
@@ -30,7 +30,7 @@ impl DnsTypeMX {
         })
     }
 
-    pub fn from_str(str: &str, default_original: Option<&str>) -> Result<Self, ParseZoneDataErr> {
+    pub fn from_str(str: &str, default_original: Option<&str>) -> Result<Self, DNSProtoErr> {
         let (rest, priority) = digit1(str)?;
         let priority = u16::from_str(priority)?;
         let (rest, _) = multispace0(rest)?;

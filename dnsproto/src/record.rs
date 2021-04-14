@@ -2,7 +2,7 @@ use crate::dnsname::DNSName;
 use crate::meta::{DNSClass, DNSType, ResourceRecord};
 use crate::qtype::decode_dns_data_from_string;
 use crate::utils::{is_fqdn, valid_domain};
-use otterlib::errors::ParseZoneDataErr;
+use otterlib::errors::DNSProtoErr;
 
 impl ResourceRecord {
     #[allow(clippy::too_many_arguments)]
@@ -12,7 +12,7 @@ impl ResourceRecord {
         default_class: Option<DNSClass>,
         default_domain: Option<&str>,
         default_origin: Option<&str>,
-    ) -> Result<Self, ParseZoneDataErr> {
+    ) -> Result<Self, DNSProtoErr> {
         let mut is_ttl_set;
         let is_domain_set;
         let is_class_set;
@@ -36,7 +36,7 @@ impl ResourceRecord {
         let mut s_iter = rr_str.split_whitespace();
         let token = s_iter.next();
         if token.is_none() {
-            return Err(ParseZoneDataErr::EmptyStrErr);
+            return Err(DNSProtoErr::EmptyStrErr);
         }
         let mut token = token.unwrap();
         // if already set ,then parse for ttl, class or type.
@@ -53,7 +53,7 @@ impl ResourceRecord {
             match s_iter.next() {
                 Some(token_str) => token = token_str,
                 // next required is domain type but got nothing
-                _ => return Err(ParseZoneDataErr::NoDomainTypeErr),
+                _ => return Err(DNSProtoErr::NoDomainTypeErr),
             }
         }
 
@@ -61,7 +61,7 @@ impl ResourceRecord {
             if let Some(default_domain_str) = default_domain {
                 name = default_domain_str;
             } else {
-                return Err(ParseZoneDataErr::NoDefaultDomainErr);
+                return Err(DNSProtoErr::NoDefaultDomainErr);
             }
         }
         let domain_fqdn: String;
@@ -69,13 +69,13 @@ impl ResourceRecord {
             if let Some(origin) = default_origin {
                 domain_fqdn = format!("{}.{}", name.to_owned(), origin.to_owned());
             } else {
-                return Err(ParseZoneDataErr::NoOriginDomainErr);
+                return Err(DNSProtoErr::NoOriginDomainErr);
             }
         } else {
             domain_fqdn = name.to_owned();
         }
         if !valid_domain(name) {
-            return Err(ParseZoneDataErr::ValidDomainErr(name.to_owned()));
+            return Err(DNSProtoErr::ValidDomainErr(name.to_owned()));
         }
         // token must be ttl or class or type
         // after this code, at least we don't need care about ttl.
@@ -122,7 +122,7 @@ impl ResourceRecord {
                             // token is domain type now
                             rtype = token;
                         } else {
-                            return Err(ParseZoneDataErr::NoDomainTypeErr);
+                            return Err(DNSProtoErr::NoDomainTypeErr);
                         }
                     } else if token == "CH" || token == "ch" {
                         r_class = DNSClass::CH;
@@ -131,14 +131,14 @@ impl ResourceRecord {
                             // token is domain type now
                             rtype = token;
                         } else {
-                            return Err(ParseZoneDataErr::NoDomainTypeErr);
+                            return Err(DNSProtoErr::NoDomainTypeErr);
                         }
                     } else {
                         // current token is type
                         rtype = token;
                     }
                 } else {
-                    return Err(ParseZoneDataErr::NoDomainTypeErr);
+                    return Err(DNSProtoErr::NoDomainTypeErr);
                 }
             } else {
                 // this token is domain type
@@ -150,7 +150,7 @@ impl ResourceRecord {
                 // token is domain type now
                 rtype = token;
             } else {
-                return Err(ParseZoneDataErr::NoDomainTypeErr);
+                return Err(DNSProtoErr::NoDomainTypeErr);
             }
         }
 
@@ -159,7 +159,7 @@ impl ResourceRecord {
         if let Ok(rtype) = rtype.to_uppercase().parse::<DNSType>() {
             r_type = rtype;
         } else {
-            return Err(ParseZoneDataErr::ValidTypeErr(format!(
+            return Err(DNSProtoErr::ValidTypeErr(format!(
                 "{} can not be recognised",
                 rtype
             )));
@@ -178,13 +178,13 @@ impl ResourceRecord {
                             fqdn = format!("{}.{}", default_domain_str, orign);
                             rest_rdata_vec.push(fqdn);
                         } else {
-                            return Err(ParseZoneDataErr::NoOriginDomainErr);
+                            return Err(DNSProtoErr::NoOriginDomainErr);
                         }
                     } else {
                         rest_rdata_vec.push(default_domain_str.to_owned())
                     }
                 } else {
-                    return Err(ParseZoneDataErr::NoDefaultDomainErr);
+                    return Err(DNSProtoErr::NoDefaultDomainErr);
                 }
                 begin_item_processed = true;
             } else {
@@ -201,7 +201,7 @@ impl ResourceRecord {
             if let Some(t) = default_ttl {
                 ttl = t;
             } else {
-                return Err(ParseZoneDataErr::NoDefaultTTLErr);
+                return Err(DNSProtoErr::NoDefaultTTLErr);
             }
         }
         let dname = DNSName::new(domain_fqdn.as_str(), default_origin)?;
@@ -218,7 +218,7 @@ impl ResourceRecord {
     }
 }
 
-fn gen_ttl_from_token(token: &str) -> Result<u32, ParseZoneDataErr> {
+fn gen_ttl_from_token(token: &str) -> Result<u32, DNSProtoErr> {
     let mut ttl: u32 = 0;
     let mut temp: u32 = 0;
     for i in token.chars() {
@@ -233,7 +233,7 @@ fn gen_ttl_from_token(token: &str) -> Result<u32, ParseZoneDataErr> {
                 temp += u32::from(i) - 48;
                 continue;
             }
-            _ => return Err(ParseZoneDataErr::ParseDNSFromStrError(token.to_owned())),
+            _ => return Err(DNSProtoErr::ParseDNSFromStrError(token.to_owned())),
         }
         temp = 0;
     }
@@ -246,7 +246,7 @@ mod record {
     use crate::meta::{DNSClass, DNSType, ResourceRecord};
     use crate::qtype::{DnsTypeA, DnsTypeNS};
     use crate::record::gen_ttl_from_token;
-    use otterlib::errors::ParseZoneDataErr;
+    use otterlib::errors::DNSProtoErr;
     use std::convert::TryFrom;
 
     #[test]
@@ -311,7 +311,7 @@ mod record {
         }
 
         let s = " 86400 IN  A     192.0.2.3";
-        let rr: Result<ResourceRecord, ParseZoneDataErr> =
+        let rr: Result<ResourceRecord, DNSProtoErr> =
             ResourceRecord::from_zone_data(s, Some(1000), None, Some("mail."), None);
         assert_eq!(
             rr.unwrap(),
@@ -325,7 +325,7 @@ mod record {
         );
 
         let s = " IN  A     192.0.2.3";
-        let rr: Result<ResourceRecord, ParseZoneDataErr> =
+        let rr: Result<ResourceRecord, DNSProtoErr> =
             ResourceRecord::from_zone_data(s, Some(1000), None, Some("mail."), None);
         assert_eq!(
             rr.unwrap(),
@@ -339,7 +339,7 @@ mod record {
         );
         // TODO:
         // let s = "  IN  SOA    localhost. root.localhost.  1999010100 ( 10800 900 604800 86400 ) ";
-        // let rr: Result<ResourceRecord, ParseZoneDataErr> =
+        // let rr: Result<ResourceRecord, DNSProtoErr> =
         //     ResourceRecord::from_zone_data(s, Some(1000), None, Some("mail"), Some("google.com."));
         // assert_eq!(
         //     rr.unwrap(),
@@ -355,7 +355,7 @@ mod record {
         //     }
         // );
         let s = "IN.  A     192.0.2.3";
-        let rr: Result<ResourceRecord, ParseZoneDataErr> =
+        let rr: Result<ResourceRecord, DNSProtoErr> =
             ResourceRecord::from_zone_data(s, Some(1000), None, None, None);
         assert_eq!(
             rr.unwrap(),
@@ -369,7 +369,7 @@ mod record {
         );
 
         let s = "@  86400  IN  NS    @";
-        let rr: Result<ResourceRecord, ParseZoneDataErr> =
+        let rr: Result<ResourceRecord, DNSProtoErr> =
             ResourceRecord::from_zone_data(s, Some(1000), None, Some("mail"), Some("google.com."));
         assert_eq!(
             rr.unwrap(),

@@ -5,7 +5,7 @@ use nom::bytes::complete::take_while;
 use nom::character::complete::digit1;
 use nom::character::complete::multispace0;
 use nom::number::complete::be_u32;
-use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
+use otterlib::errors::DNSProtoErr;
 use std::any::Any;
 use std::fmt;
 use std::fmt::Formatter;
@@ -68,7 +68,7 @@ impl DnsTypeSOA {
         })
     }
     // from_str from one line without ()
-    pub fn from_str(str: &str, default_original: Option<&str>) -> Result<Self, ParseZoneDataErr> {
+    pub fn from_str(str: &str, default_original: Option<&str>) -> Result<Self, DNSProtoErr> {
         let (rest, _) = multispace0(str)?;
         let (rest, primary) = take_while(is_not_space)(rest)?;
         let (rest, _) = multispace0(rest)?;

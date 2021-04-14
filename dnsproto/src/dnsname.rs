@@ -5,7 +5,7 @@ use nom::{Err::Incomplete, IResult, Needed};
 // use crate::types::{DNSFrameEncoder, get_dns_struct_from_raw};
 use nom::lib::std::collections::HashMap;
 use nom::lib::std::fmt::Formatter;
-use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
+use otterlib::errors::DNSProtoErr;
 use std::borrow::Cow;
 use std::fmt::Display;
 use std::ops::Add;
@@ -21,7 +21,7 @@ pub struct DNSName {
 impl DNSName {
     // new a DNSName from domain str, if domain is fqdn then default_original can be set to None,
     // else must set default_original , otherwise a parse error will return .
-    pub fn new(domain: &str, default_original: Option<&str>) -> Result<DNSName, ParseZoneDataErr> {
+    pub fn new(domain: &str, default_original: Option<&str>) -> Result<DNSName, DNSProtoErr> {
         let mut domain = Cow::from(domain);
         if domain.is_empty() || domain.eq(".") {
             return Ok(DNSName::default());
@@ -30,7 +30,7 @@ impl DNSName {
             match default_original {
                 Some(val) => *domain.to_mut() += val,
                 _ => {
-                    return Err(ParseZoneDataErr::ParseDNSFromStrError(format!(
+                    return Err(DNSProtoErr::ParseDNSFromStrError(format!(
                         "domain: {} has no default original",
                         domain.to_owned()
                     )))

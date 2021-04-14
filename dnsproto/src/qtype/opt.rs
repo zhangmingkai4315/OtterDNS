@@ -252,11 +252,11 @@ mod test {
 }
 
 // impl FromStr for DnsTypeA {
-//     type Err = ParseZoneDataErr;
+//     type Err = DNSProtoErr;
 //     fn from_str(a_str: &str) -> Result<Self, Self::Err> {
 //         match a_str.parse::<Ipv4Addr>() {
 //             Ok(v4_addr) => Ok(DnsTypeA(v4_addr)),
-//             Err(err) => Err(ParseZoneDataErr::AddrParseError(err)),
+//             Err(err) => Err(DNSProtoErr::AddrParseError(err)),
 //         }
 //     }
 // }

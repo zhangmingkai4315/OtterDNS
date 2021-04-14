@@ -6,7 +6,7 @@ use nom::bytes::complete::take_while;
 use nom::character::complete::{digit1, multispace0};
 use nom::combinator::rest;
 use nom::number::complete::{be_u16, be_u32, be_u8};
-use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
+use otterlib::errors::DNSProtoErr;
 use std::any::Any;
 use std::convert::TryFrom;
 use std::str::FromStr;
@@ -98,15 +98,11 @@ impl DnsTypeRRSIG {
 
     // example : "SOA 8 0 86400 20210422050000 20210409040000 14631 . W45Xjg7WewB+rNjMHDTpHlmvwT+L3VamaProC1FMIUFGZRcnFd41GSkK c2i2kgtcVjxIuYiw6kVgd7MXxaEsgW6wIexCq8H1JuDJIl/lDRZOPfzy 2IxEvqCFV01beVFnbWAMYOAa6u3W/DB2+uJ7+GNJPzN7vLAsNpFzFvxo 5jxY47I+WU0pFFxYlWoQ29Xzq2MBkwU8pPRovlN1nexk8I+Uwcw6fmUL LXg4U3U4+UK76Vhb0IMRFZFa44n3RjGwIu3lG+5Z16Fo3y8Xo+XA8ojt
     //            wvXpz1hfaKd8f/CMzs9dLSJp5TA15DQ9KAaqKepZmgJvajt/wYUMpTeX 4N0kuA=="
-    pub fn from_str(str: &str) -> Result<Self, ParseZoneDataErr> {
+    pub fn from_str(str: &str) -> Result<Self, DNSProtoErr> {
         let (rest, rrsig_type) = take_while(is_not_space)(str)?;
         let rrsig_type = match DNSType::from_str(rrsig_type) {
             Some(value) => value,
-            _ => {
-                return Err(ParseZoneDataErr::GeneralErr(
-                    "unknown rrsig type".to_owned(),
-                ))
-            }
+            _ => return Err(DNSProtoErr::GeneralErr("unknown rrsig type".to_owned())),
         };
         let rrsig_type = rrsig_type as u16;
 
@@ -148,7 +144,7 @@ impl DnsTypeRRSIG {
                 name,
                 decode,
             )),
-            Err(err) => Err(ParseZoneDataErr::GeneralErr(format!(
+            Err(err) => Err(DNSProtoErr::GeneralErr(format!(
                 "decode rrsig base64 fail:{}",
                 err.to_string()
             ))),
@@ -164,10 +160,10 @@ fn time_to_string(time_val: u32) -> String {
     newdate.to_string()
 }
 
-fn time_string_to_u32(time_val: &str) -> Result<u32, ParseZoneDataErr> {
+fn time_string_to_u32(time_val: &str) -> Result<u32, DNSProtoErr> {
     match chrono::NaiveDateTime::parse_from_str(time_val, "%Y%m%d%H%M%S") {
         Ok(native) => Ok(native.timestamp() as u32),
-        _ => Err(ParseZoneDataErr::GeneralErr("parse time error".to_owned())),
+        _ => Err(DNSProtoErr::GeneralErr("parse time error".to_owned())),
     }
 }
 impl fmt::Display for DnsTypeRRSIG {

@@ -1,7 +1,7 @@
 use crate::dnsname::parse_name;
 use crate::meta::DNSType;
 use crate::qtype::{CompressionType, DNSWireFrame, DnsTypeNS};
-use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
+use otterlib::errors::DNSProtoErr;
 use std::any::Any;
 use std::fmt::{self, Formatter};
 
@@ -15,7 +15,7 @@ impl DnsTypePTR {
     pub(crate) fn from_str(
         a_str: &str,
         default_original: Option<&str>,
-    ) -> Result<Self, ParseZoneDataErr> {
+    ) -> Result<Self, DNSProtoErr> {
         Ok(DnsTypePTR(DnsTypeNS::from_str(a_str, default_original)?))
     }
 }

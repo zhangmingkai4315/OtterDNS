@@ -4,7 +4,7 @@ use itertools::EitherOrBoth::{Both, Left, Right};
 use itertools::Itertools;
 use nom::lib::std::fmt::Formatter;
 use nom::AsChar;
-use otterlib::errors::ParseZoneDataErr;
+use otterlib::errors::DNSProtoErr;
 use std::cmp::Ordering;
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
@@ -26,14 +26,14 @@ impl Hash for Label {
 }
 
 impl FromStr for Label {
-    type Err = ParseZoneDataErr;
+    type Err = DNSProtoErr;
     fn from_str(input: &str) -> Result<Self, Self::Err> {
         if !valid_label(input) {
-            return Err(ParseZoneDataErr::ParseDNSFromStrError(input.to_owned()));
+            return Err(DNSProtoErr::ParseDNSFromStrError(input.to_owned()));
         }
         match format_rfc4343_label(input) {
             Some(val) => Ok(Label(val)),
-            _ => Err(ParseZoneDataErr::ParseDNSFromStrError(input.to_string())),
+            _ => Err(DNSProtoErr::ParseDNSFromStrError(input.to_string())),
         }
     }
 }

@@ -3,7 +3,7 @@ use crate::qtype::helper::{hex_u8_to_string, string_to_hex_u8};
 use crate::qtype::{CompressionType, DNSWireFrame};
 use nom::character::complete::{digit1, multispace0};
 use nom::number::complete::{be_u16, be_u8};
-use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
+use otterlib::errors::DNSProtoErr;
 use std::any::Any;
 use std::str::FromStr;
 use std::{fmt, fmt::Formatter};
@@ -122,7 +122,7 @@ impl DnsTypeDS {
         algorithm_type: AlgorithemType,
         digest_type: DigestType,
         digest: String,
-    ) -> Result<Self, ParseZoneDataErr> {
+    ) -> Result<Self, DNSProtoErr> {
         Ok(DnsTypeDS {
             key_tag,
             algorithm_type,
@@ -140,7 +140,7 @@ impl DnsTypeDS {
     }
 
     // example : "1657 8 2 9D6BAE62219231C99FAA479716B6E4619330CE8206670AEA6C1673A055DC3AF2"
-    pub fn from_str(str: &str) -> Result<Self, ParseZoneDataErr> {
+    pub fn from_str(str: &str) -> Result<Self, DNSProtoErr> {
         let (rest, key_tag) = digit1(str)?;
         let key_tag = u16::from_str(key_tag)?;
         let (rest, _) = multispace0(rest)?;
@@ -200,9 +200,9 @@ impl DNSWireFrame for DnsTypeDS {
 mod test {
     use crate::qtype::ds::{AlgorithemType, DigestType, DnsTypeDS};
     use crate::qtype::DNSWireFrame;
-    use otterlib::errors::ParseZoneDataErr;
+    use otterlib::errors::DNSProtoErr;
 
-    fn get_example_ds() -> (&'static str, Result<DnsTypeDS, ParseZoneDataErr>) {
+    fn get_example_ds() -> (&'static str, Result<DnsTypeDS, DNSProtoErr>) {
         let ds_str = "30909 8 2 E2D3C916F6DEEAC73294E8268FB5885044A833FC5459588F4A9184CFC41A5766";
         let ds_struct = DnsTypeDS::new(
             30909,

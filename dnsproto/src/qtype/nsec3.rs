@@ -13,7 +13,7 @@
 use crate::meta::DNSType;
 use crate::qtype::ds::DigestType;
 use crate::qtype::helper::{
-    encode_nsec_from_types, hex_u8_to_string, nsec_bits_to_string, string_to_hex_u8,
+    encode_nsec_bitmap_from_types, hex_u8_to_string, nsec_bitmaps_to_string, string_to_hex_u8,
 };
 use crate::qtype::soa::is_not_space;
 use crate::qtype::{CompressionType, DNSWireFrame};
@@ -22,7 +22,7 @@ use nom::bytes::complete::take_while;
 use nom::character::complete::{digit1, multispace0};
 use nom::combinator::rest;
 use nom::number::complete::{be_u16, be_u8};
-use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
+use otterlib::errors::DNSProtoErr;
 use std::any::Any;
 use std::fmt;
 use std::fmt::Formatter;
@@ -53,11 +53,11 @@ impl DnsTypeNSEC3 {
             iterations,
             salt: string_to_hex_u8(salt)?,
             hash: hash.as_bytes().to_vec(),
-            bitmaps: encode_nsec_from_types(type_arr)?,
+            bitmaps: encode_nsec_bitmap_from_types(type_arr)?,
         })
     }
     // 1 0 5 4CD7B054F876956C 1KH27L1DSQOR2RO6I202GTCTPDHKCB93  A NS SOA MX TXT AAAA RRSIG DNSKEY NSEC3PARAM
-    pub fn from_str(str: &str, _: Option<&str>) -> Result<Self, ParseZoneDataErr> {
+    pub fn from_str(str: &str, _: Option<&str>) -> Result<Self, DNSProtoErr> {
         let (rest, _) = multispace0(str)?;
         let (rest, hash_algorithem) = digit1(rest)?;
         let hash_algorithem = u8::from_str(hash_algorithem)?;
@@ -83,20 +83,14 @@ impl DnsTypeNSEC3 {
             .into_iter()
             .map(|dtype| DNSType::from_str(dtype).unwrap_or(DNSType::Unknown))
             .collect();
-        // base32 decode
-
-        let mut hash_output = vec![0; BASE32.decode_len(hash.len()).unwrap()];
-        let hash_len = BASE32
-            .decode_mut(hash.as_bytes(), &mut hash_output)
-            .unwrap();
 
         Ok(DnsTypeNSEC3 {
             hash_algorithem,
             flag,
             iterations,
             salt: string_to_hex_u8(salt)?,
-            hash: hash_output[0..hash_len].to_vec(),
-            bitmaps: encode_nsec_from_types(dnstypes)?,
+            hash: hash.as_bytes().to_vec(),
+            bitmaps: encode_nsec_bitmap_from_types(dnstypes)?,
         })
     }
 }
@@ -104,7 +98,7 @@ impl DnsTypeNSEC3 {
 impl fmt::Display for DnsTypeNSEC3 {
     fn fmt(&self, format: &mut Formatter<'_>) -> fmt::Result {
         let type_str = {
-            match nsec_bits_to_string(self.bitmaps.as_slice()) {
+            match nsec_bitmaps_to_string(self.bitmaps.as_slice()) {
                 Ok(nsec_result) => nsec_result,
                 Err(err) => format!("decode fail: {:?}", err),
             }

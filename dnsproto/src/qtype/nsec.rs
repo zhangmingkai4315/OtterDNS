@@ -9,13 +9,13 @@
 // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 use crate::dnsname::{parse_name, DNSName};
 use crate::meta::DNSType;
-use crate::qtype::helper::{encode_nsec_from_types, nsec_bits_to_string};
+use crate::qtype::helper::{encode_nsec_bitmap_from_types, nsec_bitmaps_to_string};
 use crate::qtype::soa::is_not_space;
 use crate::qtype::{CompressionType, DNSWireFrame};
 use nom::bytes::complete::take_while;
 use nom::character::complete::multispace0;
 use nom::combinator::rest;
-use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
+use otterlib::errors::DNSProtoErr;
 use std::any::Any;
 use std::fmt::{self, Formatter};
 
@@ -29,11 +29,11 @@ impl DnsTypeNSEC {
     pub fn new(domain: &str, type_arr: Vec<DNSType>) -> Result<Self, DNSProtoErr> {
         Ok(DnsTypeNSEC {
             next_domain: DNSName::new(domain, None)?,
-            bitmaps: encode_nsec_from_types(type_arr)?,
+            bitmaps: encode_nsec_bitmap_from_types(type_arr)?,
         })
     }
     // aaa. NS SOA RRSIG NSEC DNSKEY
-    pub fn from_str(str: &str, default_original: Option<&str>) -> Result<Self, ParseZoneDataErr> {
+    pub fn from_str(str: &str, default_original: Option<&str>) -> Result<Self, DNSProtoErr> {
         let (rest, next_domain) = take_while(is_not_space)(str)?;
         let (rest, _) = multispace0(rest)?;
         let dnstypes = rest
@@ -41,7 +41,7 @@ impl DnsTypeNSEC {
             .into_iter()
             .map(|dtype| DNSType::from_str(dtype).unwrap_or(DNSType::Unknown))
             .collect();
-        let bitmaps = encode_nsec_from_types(dnstypes)?;
+        let bitmaps = encode_nsec_bitmap_from_types(dnstypes)?;
         Ok(DnsTypeNSEC {
             next_domain: DNSName::new(next_domain, default_original)?,
             bitmaps,
@@ -52,7 +52,7 @@ impl DnsTypeNSEC {
 impl fmt::Display for DnsTypeNSEC {
     fn fmt(&self, format: &mut Formatter<'_>) -> fmt::Result {
         let type_str = {
-            match nsec_bits_to_string(self.bitmaps.as_slice()) {
+            match nsec_bitmaps_to_string(self.bitmaps.as_slice()) {
                 Ok(nsec_result) => nsec_result,
                 Err(err) => format!("decode fail: {:?}", err),
             }

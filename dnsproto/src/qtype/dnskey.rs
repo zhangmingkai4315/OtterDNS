@@ -3,7 +3,7 @@ use crate::qtype::ds::AlgorithemType;
 use crate::qtype::{CompressionType, DNSWireFrame};
 use nom::character::complete::{digit1, multispace0};
 use nom::number::complete::{be_u16, be_u8};
-use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
+use otterlib::errors::DNSProtoErr;
 use std::any::Any;
 use std::str::FromStr;
 use std::{fmt, fmt::Formatter};
@@ -46,7 +46,7 @@ impl DnsTypeDNSKEY {
         flags: u16,
         algorithem_type: AlgorithemType,
         public_key: String, // base64
-    ) -> Result<Self, ParseZoneDataErr> {
+    ) -> Result<Self, DNSProtoErr> {
         match base64::decode(public_key.as_str()) {
             Ok(decoded) => Ok(DnsTypeDNSKEY {
                 flags,
@@ -54,7 +54,7 @@ impl DnsTypeDNSKEY {
                 algorithem_type,
                 public_key: decoded,
             }),
-            Err(err) => Err(ParseZoneDataErr::GeneralErr(format!(
+            Err(err) => Err(DNSProtoErr::GeneralErr(format!(
                 "public_key can't be decode to bytes: {}",
                 err.to_string(),
             ))),
@@ -79,7 +79,7 @@ impl DnsTypeDNSKEY {
     //            tZm1NH3cmgfnMUJpD60bsrDUqs7XwftmNkdkHa4ltQbM3UNPyfTaNBQYoH3wpOpSjdk3tyDRnreBO6Idrw
     //            +DGf/rve4sL3qiSaXfYIkcwAwozxR34iHU5dbCDs8S6FmZYhoSVKVgNSUkudxhd9/6RrZkYRgvwRsQXl3U
     //            wsacU1DsXcORqIC+7NlQ6M2OJVU="
-    pub fn from_str(str: &str) -> Result<Self, ParseZoneDataErr> {
+    pub fn from_str(str: &str) -> Result<Self, DNSProtoErr> {
         let str = str.trim();
         let (rest, flags) = digit1(str)?;
         let flags = u16::from_str(flags)?;
@@ -91,14 +91,14 @@ impl DnsTypeDNSKEY {
         let algorithm_type = u8::from_str(algorithm_type)?;
         let (pk, _) = multispace0(rest)?;
         if protocol_type != 3 {
-            return Err(ParseZoneDataErr::GeneralErr(format!(
+            return Err(DNSProtoErr::GeneralErr(format!(
                 "unknown protocol number: {} for dnskey",
                 protocol_type
             )));
         }
         let algorithem = AlgorithemType::from_u8(algorithm_type);
         if algorithem == AlgorithemType::Unknown {
-            return Err(ParseZoneDataErr::GeneralErr(format!(
+            return Err(DNSProtoErr::GeneralErr(format!(
                 "unknown algorithm_type number: {} for dnskey",
                 algorithm_type
             )));
@@ -110,7 +110,7 @@ impl DnsTypeDNSKEY {
                 algorithm_type,
                 decode.as_slice(),
             )),
-            Err(err) => Err(ParseZoneDataErr::GeneralErr(format!(
+            Err(err) => Err(DNSProtoErr::GeneralErr(format!(
                 "decode dnskey base64 fail:{}",
                 err.to_string()
             ))),

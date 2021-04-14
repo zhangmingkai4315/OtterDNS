@@ -1,6 +1,6 @@
 use crate::meta::DNSType;
 use crate::qtype::{CompressionType, DNSWireFrame};
-use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
+use otterlib::errors::DNSProtoErr;
 use std::any::Any;
 use std::fmt::{self, Formatter};
 use std::str::FromStr;
@@ -11,7 +11,7 @@ pub struct DnsTypeTXT {
 }
 
 impl FromStr for DnsTypeTXT {
-    type Err = ParseZoneDataErr;
+    type Err = DNSProtoErr;
     fn from_str(text: &str) -> Result<Self, Self::Err> {
         Ok(DnsTypeTXT {
             text: text.to_string(),

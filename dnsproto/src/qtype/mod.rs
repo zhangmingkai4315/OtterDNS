@@ -33,7 +33,7 @@ use nom::lib::std::collections::HashMap;
 use nom::lib::std::fmt::Display;
 pub use ns::DnsTypeNS;
 pub use opt::DnsTypeOpt;
-use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
+use otterlib::errors::DNSProtoErr;
 pub use ptr::DnsTypePTR;
 pub use soa::DnsTypeSOA;
 use std::any::Any;
@@ -133,7 +133,7 @@ pub fn decode_dns_data_from_string(
     original_string: &str,
     dtype: DNSType,
     default_original: Option<&str>,
-) -> Result<Box<dyn DNSWireFrame>, ParseZoneDataErr> {
+) -> Result<Box<dyn DNSWireFrame>, DNSProtoErr> {
     // A NS CNAME MX TXT PTR SOA AAAA LOC SRV OPT[unimpl] DS DNSKEY NSEC
     let original_string = original_string.replace(|c| c == '(' || c == ')', "");
     let original_string = original_string.trim_matches(|c| c == ' ' || c == '\"');
@@ -194,7 +194,7 @@ pub fn decode_dns_data_from_string(
             Ok(dtype) => Ok(Box::new(dtype)),
             Err(err) => Err(err),
         },
-        _ => Err(ParseZoneDataErr::UnimplementedErr(format!(
+        _ => Err(DNSProtoErr::UnImplementedError(format!(
             "dns type {} unknown",
             dtype
         ))),

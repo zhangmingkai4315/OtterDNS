@@ -4,12 +4,12 @@ use crate::qtype::ds::DigestType;
 use itertools::enumerate;
 use nom::bytes::complete::is_not;
 use nom::error::Error;
-use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
+use otterlib::errors::DNSProtoErr;
 use std::fmt::Write;
 
-pub fn not_space(str: &str) -> Result<(&str, &str), ParseZoneDataErr> {
+pub fn not_space(str: &str) -> Result<(&str, &str), DNSProtoErr> {
     match is_not::<_, _, Error<&str>>(" \t\r\n")(str) {
-        Err(err) => Err(ParseZoneDataErr::ParseDNSFromStrError(err.to_string())),
+        Err(err) => Err(DNSProtoErr::ParseDNSFromStrError(err.to_string())),
         Ok(val) => Ok(val),
     }
 }
@@ -22,12 +22,12 @@ pub fn hex_u8_to_string(input: &[u8]) -> String {
     result
 }
 
-pub fn string_to_hex_u8(input: &str) -> Result<Vec<u8>, ParseZoneDataErr> {
+pub fn string_to_hex_u8(input: &str) -> Result<Vec<u8>, DNSProtoErr> {
     (0..input.len())
         .step_by(2)
         .map(|i| match u8::from_str_radix(&input[i..i + 2], 16) {
             Ok(val) => Ok(val),
-            _ => Err(ParseZoneDataErr::GeneralErr(format!(
+            _ => Err(DNSProtoErr::GeneralErr(format!(
                 "ds digest string to hex u8 fail : {}",
                 input
             ))),
@@ -35,7 +35,7 @@ pub fn string_to_hex_u8(input: &str) -> Result<Vec<u8>, ParseZoneDataErr> {
         .collect()
 }
 
-pub fn nsec_bits_to_string(input: &[u8]) -> Result<String, ParseZoneDataErr> {
+pub fn nsec_bitmaps_to_string(input: &[u8]) -> Result<String, DNSProtoErr> {
     decode_nsec_from_bits(input).map(|result| {
         result
             .iter()
@@ -49,7 +49,7 @@ pub fn nsec_bits_to_string(input: &[u8]) -> Result<String, ParseZoneDataErr> {
     })
 }
 
-pub fn decode_nsec_from_bits(input: &[u8]) -> Result<Vec<u16>, ParseZoneDataErr> {
+pub fn decode_nsec_from_bits(input: &[u8]) -> Result<Vec<u16>, DNSProtoErr> {
     let mut result = Vec::new();
     let message_size = input.len();
     let mut offset = 0;
@@ -58,7 +58,7 @@ pub fn decode_nsec_from_bits(input: &[u8]) -> Result<Vec<u16>, ParseZoneDataErr>
     let mut last_window = -1;
     while offset < message_size {
         if offset + 2 > message_size {
-            return Err(ParseZoneDataErr::GeneralErr(
+            return Err(DNSProtoErr::GeneralErr(
                 "nsec block unpack overflow".to_string(),
             ));
         }
@@ -66,22 +66,18 @@ pub fn decode_nsec_from_bits(input: &[u8]) -> Result<Vec<u16>, ParseZoneDataErr>
         length = input[offset + 1] as usize;
         offset += 2;
         if window as isize <= last_window {
-            return Err(ParseZoneDataErr::GeneralErr(
+            return Err(DNSProtoErr::GeneralErr(
                 "nsec block unpack out of order".to_string(),
             ));
         }
         if length == 0 {
-            return Err(ParseZoneDataErr::GeneralErr(
-                "nsec block is empty".to_string(),
-            ));
+            return Err(DNSProtoErr::GeneralErr("nsec block is empty".to_string()));
         }
         if length > 32 {
-            return Err(ParseZoneDataErr::GeneralErr(
-                "nsec block too long".to_string(),
-            ));
+            return Err(DNSProtoErr::GeneralErr("nsec block too long".to_string()));
         }
         if offset + length > message_size {
-            return Err(ParseZoneDataErr::GeneralErr(
+            return Err(DNSProtoErr::GeneralErr(
                 "nsec block unpack overflow".to_string(),
             ));
         }
@@ -117,7 +113,19 @@ pub fn decode_nsec_from_bits(input: &[u8]) -> Result<Vec<u16>, ParseZoneDataErr>
     }
     Ok(result)
 }
-pub fn encode_nsec_from_types(bitmap: Vec<DNSType>) -> Result<Vec<u8>, ParseZoneDataErr> {
+
+pub fn encode_nsec_bitmap_from_str(input: &str) -> Result<Vec<u8>, DNSProtoErr> {
+    let mut dtype_items = vec![];
+    for type_item in input.split(" ") {
+        match DNSType::from_str(type_item) {
+            Some(dtype) => dtype_items.push(dtype),
+            _ => return Err(DNSProtoErr::ValidTypeErr(type_item.to_owned())),
+        }
+    }
+    encode_nsec_bitmap_from_types(dtype_items)
+}
+
+pub fn encode_nsec_bitmap_from_types(bitmap: Vec<DNSType>) -> Result<Vec<u8>, DNSProtoErr> {
     if bitmap.is_empty() {
         return Ok(vec![]);
     }
@@ -134,9 +142,7 @@ pub fn encode_nsec_from_types(bitmap: Vec<DNSType>) -> Result<Vec<u8>, ParseZone
             last_length = 0;
         }
         if window < last_window || length < last_length {
-            return Err(ParseZoneDataErr::GeneralErr(
-                "nsec bit out of order".to_string(),
-            ));
+            return Err(DNSProtoErr::GeneralErr("nsec bit out of order".to_string()));
         }
         let expected_length = (offset + 2 + length) as usize;
         if expected_length > result.len() {
@@ -152,7 +158,7 @@ pub fn encode_nsec_from_types(bitmap: Vec<DNSType>) -> Result<Vec<u8>, ParseZone
     Ok(result)
 }
 
-pub fn hash_dname(
+pub fn hash_dname_for_nsec3(
     name: &str,
     ds: DigestType,
     iter: u16,
@@ -181,12 +187,14 @@ pub fn hash_dname(
 #[cfg(test)]
 mod test {
     use crate::qtype::ds::DigestType;
-    use crate::qtype::helper::hash_dname;
+    use crate::qtype::helper::{
+        encode_nsec_bitmap_from_str, hash_dname_for_nsec3, nsec_bitmaps_to_string,
+    };
 
     #[test]
     fn test_hash_dname() {
         let salt: Vec<u8> = vec![0x4c, 0xd7, 0xb0, 0x54, 0xf8, 0x76, 0x95, 0x6c];
-        let result = hash_dname("google.com.", DigestType::SHA1, 5, salt.as_slice());
+        let result = hash_dname_for_nsec3("google.com.", DigestType::SHA1, 5, salt.as_slice());
         assert_eq!(result.is_ok(), true);
         let result = result.unwrap();
         assert_eq!(
@@ -197,5 +205,19 @@ mod test {
             ]
             .as_slice()
         );
+    }
+
+    #[test]
+    fn test_encode_decode_nsec_bitmap() {
+        let bitmap_binary = vec![0x00, 0x07u8, 0x62, 0x01, 0x80, 0x08, 0x00, 0x02, 0x90];
+        let bitmap_string = "A NS SOA MX TXT AAAA RRSIG DNSKEY NSEC3PARAM";
+        let result = nsec_bitmaps_to_string(bitmap_binary.as_slice());
+        assert_eq!(result.is_ok(), true);
+        let result = result.unwrap();
+        assert_eq!(result, bitmap_string);
+
+        let encoded = encode_nsec_bitmap_from_str(bitmap_string);
+        assert_eq!(encoded.is_ok(), true);
+        assert_eq!(encoded.unwrap(), bitmap_binary)
     }
 }

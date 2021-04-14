@@ -1,6 +1,6 @@
 use crate::meta::DNSType;
 use crate::qtype::{CompressionType, DNSWireFrame};
-use otterlib::errors::{DNSProtoErr, ParseZoneDataErr};
+use otterlib::errors::DNSProtoErr;
 use std::any::Any;
 use std::net::Ipv6Addr;
 use std::str::FromStr;
@@ -41,11 +41,11 @@ impl DNSWireFrame for DnsTypeAAAA {
 }
 
 impl FromStr for DnsTypeAAAA {
-    type Err = ParseZoneDataErr;
+    type Err = DNSProtoErr;
     fn from_str(aaaa_str: &str) -> Result<Self, Self::Err> {
         match aaaa_str.parse::<Ipv6Addr>() {
             Ok(v6_addr) => Ok(DnsTypeAAAA(v6_addr)),
-            Err(err) => Err(ParseZoneDataErr::AddrParseError(err)),
+            Err(err) => Err(DNSProtoErr::AddrParseError(err)),
         }
     }
 }
@@ -100,7 +100,7 @@ mod test {
             "::127.0.0.1::",
         ] {
             match failed_ip.parse::<DnsTypeAAAA>() {
-                Err(ParseZoneDataErr::AddrParseError(_)) => {}
+                Err(DNSProtoErr::AddrParseError(_)) => {}
                 _ => assert!(false, format!("parse {} should return error", failed_ip)),
             }
         }

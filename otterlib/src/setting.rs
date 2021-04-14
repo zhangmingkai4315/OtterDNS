@@ -83,18 +83,6 @@ impl Settings {
         // extension validate
     }
 
-    // fn build_cache(&mut self) {
-    //     for acl in self.acl.iter() {
-    //         self.acl_cache.insert(acl.id.clone(), (*acl).clone());
-    //     }
-    //     for remote in self.remote.iter() {
-    //         self.remote_cache
-    //             .insert(remote.id.clone(), (*remote).clone());
-    //     }
-    //     for key in self.key.iter() {
-    //         self.key_cache.insert(key.id.clone(), (*key).clone());
-    //     }
-    // }
     #[allow(dead_code)]
     pub fn get_acl_by_id(&self, id: &str) -> Option<ACL> {
         for acl in self.acl.iter() {
