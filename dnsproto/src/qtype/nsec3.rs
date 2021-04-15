@@ -54,7 +54,7 @@ fn decode_nsec3_hash_to_string(hash: &[u8]) -> String {
 }
 
 impl DnsTypeNSEC3 {
-    pub fn new(
+    pub fn new_from_raw(
         hash_algorithem: DigestType,
         flag: u8,
         iterations: u16,
@@ -186,7 +186,7 @@ mod test {
 
     fn get_example_nsec3() -> (Vec<u8>, String, DnsTypeNSEC3) {
         let nsec3_str = "1 0 5 4CD7B054F876956C 1KH27L1DSQOR2RO6I202GTCTPDHKCB93 A NS SOA MX TXT AAAA RRSIG DNSKEY NSEC3PARAM";
-        let nsec3_struct = DnsTypeNSEC3::new(
+        let nsec3_struct = DnsTypeNSEC3::new_from_raw(
             DigestType::SHA1,
             0,
             5,

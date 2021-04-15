@@ -5,3 +5,4 @@ extern crate config;
 pub mod setting;
 #[macro_use]
 pub mod errors;
+mod server;

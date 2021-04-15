@@ -128,3 +128,23 @@ pub enum OtterError {
     #[error(transparent)]
     StorageError(#[from] StorageError),
 }
+
+#[derive(Error, Debug)]
+pub enum NetworkError {
+    #[error(transparent)]
+    AddrParseError(AddrParseError),
+
+    #[error("{0}")]
+    IOError(String),
+}
+
+impl From<AddrParseError> for NetworkError {
+    fn from(err: AddrParseError) -> Self {
+        NetworkError::AddrParseError(err)
+    }
+}
+impl From<std::io::Error> for NetworkError {
+    fn from(err: std::io::Error) -> Self {
+        NetworkError::IOError(err.to_string())
+    }
+}
