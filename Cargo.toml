@@ -5,7 +5,6 @@ members = [
     "otter",
     # library for run dns server
     "dnsproto",
-    "utils",
     "storage",
     "otterlib",
 ]

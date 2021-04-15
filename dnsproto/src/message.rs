@@ -1,5 +1,5 @@
 // http://www.networksorcery.com/enp/protocol/dns.htm
-use crate::dnsname::parse_name;
+use crate::dnsname::{parse_name, DNSName};
 use crate::edns::EDNS;
 use crate::label::Label;
 use crate::meta::{DNSClass, DNSType};
@@ -31,6 +31,12 @@ impl Message {
             authorities: vec![],
             additional: vec![],
         }
+    }
+    pub fn query_name_and_type(&self) -> Result<(&DNSName, &DNSType), DNSProtoErr> {
+        if self.questions.is_empty() {
+            Err(DNSProtoErr::No)
+        }
+        Some((&self.questions[0].q_name, &self.questions[0].q_type))
     }
     pub fn parse_dns_message(message: &[u8]) -> Result<Message, DNSProtoErr> {
         match parse_message(message, message) {

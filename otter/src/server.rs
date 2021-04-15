@@ -7,6 +7,50 @@ use std::sync::{Arc, Mutex};
 use storage::rb_storage;
 use storage::rb_storage::RBTreeNode;
 use tokio::net::{TcpListener, UdpSocket};
+use tokio::task::JoinHandle;
+use dnsproto::message::Message;
+
+pub struct UdpServer{
+    storage: Arc<Mutex<RBTreeNode>>,
+    udp_socket: UdpSocket
+}
+
+impl UdpServer{
+    fn new(storage: Arc<Mutex<RBTreeNode>>, udp_socket: UdpSocket) -> UdpServer{
+        UdpServer{
+            storage,
+            udp_socket,
+        }
+    }
+    fn start(&self) -> JoinHandle<> {
+        tokio::task::spawn(move ||{
+            let mut message: Vec<u8> = Vec::with_capacity(4096);
+            loop {
+                let size = self.udp_socket.recv(&mut message).await;
+                match size {
+                    Ok(vsize) => {
+                        let message = message[0..vsize];
+                        match Message::parse_dns_message(&message){
+                            Ok(message) => {
+                                let () =
+                                let mut storage = self.storage.lock().unwrap();
+                                storage.search_rrset(message.)
+                            },
+                            Err(err) => {
+                                continue
+                            }
+                        };
+
+
+
+                    },
+                    Err(err) => continue
+                }
+
+            }
+        })
+    }
+}
 
 pub struct Server {
     udp_listeners: Vec<UdpSocket>,
@@ -59,7 +103,14 @@ impl Server {
 
         Ok(())
     }
+    pub fn run(&mut self) {
+        for listener in self.udp_listeners.iter(){
+            listener.recv()
+        }
+        let join_handler = std::thread::spawn(||{
 
+        });
+    }
     pub fn init(&mut self) {}
 }
 
