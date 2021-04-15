@@ -1,10 +1,10 @@
+use dnsproto::dnsname::DNSName;
 use otterlib::errors::NetworkError;
+use otterlib::errors::OtterError;
+use otterlib::setting::Settings;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use storage::rb_storage;
-
-use otterlib::errors::OtterError;
-use otterlib::setting::Settings;
 use storage::rb_storage::RBTreeNode;
 use tokio::net::{TcpListener, UdpSocket};
 
@@ -26,17 +26,14 @@ impl Server {
         }
     }
 
-    pub async fn init_socket(
-        &mut self,
-        tcp_addrs: Vec<&str>,
-        udp_addrs: Vec<&str>,
-    ) -> Result<(), NetworkError> {
-        for tcp_addr in tcp_addrs.iter() {
+    pub async fn init_network(&mut self) -> Result<(), NetworkError> {
+        let (tcp_listeners, udp_listeners) = self.setting.get_listeners();
+        for tcp_addr in tcp_listeners.iter() {
             let tcp_addr = tcp_addr.parse::<SocketAddr>()?;
             let tcplistener = TcpListener::bind(tcp_addr).await?;
             self.tcp_listeners.push(tcplistener)
         }
-        for udp_addr in udp_addrs.iter() {
+        for udp_addr in udp_listeners.iter() {
             let udp_socket = udp_addr.parse::<SocketAddr>()?;
             let udpsocket = UdpSocket::bind(udp_socket).await?;
             self.udp_listeners.push(udpsocket)
@@ -44,9 +41,22 @@ impl Server {
         Ok(())
     }
 
-    fn init_load_storage(&mut self, file: &str) -> Result<(), OtterError> {
+    fn init_load_storage(&mut self) -> Result<(), OtterError> {
+        let zone_file_list = self.setting.get_zone_file_list();
         let mut storage = self.storage.lock().unwrap();
-        storage.update_zone(file, None)?;
+        for (file, domain) in &zone_file_list {
+            let mut orginal: Option<String> = None;
+            if !domain.is_empty() {
+                match DNSName::new(domain, None) {
+                    Ok(name) => {
+                        orginal = Some(name.to_string());
+                    }
+                    Err(err) => return Err(OtterError::DNSProtoError(err)),
+                }
+            }
+            storage.update_zone(file, orginal)?;
+        }
+
         Ok(())
     }
 
@@ -56,13 +66,27 @@ impl Server {
 #[cfg(test)]
 mod test {
     use super::*;
+    use otterlib::setting::ZoneSetting;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn new_socket_server() {
         let mut settings = Settings::default();
-        settings.server.listen = "0.0.0.0:15353";
-        let new_servers = Server::new(settings);
-        assert_eq!(new_servers.is_ok(), true);
-        // new_servers.map_err(|err| println!("{:?}", err));
+        settings.server.listen = vec!["0.0.0.0:15353".to_string()];
+        let zone = ZoneSetting {
+            domain: "abc.com.".to_string(),
+            file: "abc.com.zone".to_string(),
+            master: None,
+            notify: None,
+            acl: None,
+        };
+        settings.zone.push(zone);
+        let mut servers = Server::new(settings);
+        let init_status = servers.init_network().await;
+        assert_eq!(init_status.is_ok(), true);
+        let init_status = servers.init_load_storage();
+        // assert_eq!(init_status.is_ok(), true);
+        if init_status.is_err() {
+            println!("{:?}", init_status.unwrap_err())
+        }
     }
 }

@@ -1,24 +1,12 @@
 server:
     listen:
-      - 0.0.0.0:53
-
-
+      - 0.0.0.0:15353
 zone:
   - domain: abc.com
     file: abc.com.zone
     master: master01
     acl:
       - notify_from_master
-
-  - domain: com
-    file: com.zone
-    notify: slave1
-    acl: [slave1_acl,others_acl]
-
-  - domain: example.com
-    storage: /abc/zones/
-    file: example.com.zone
-    acl: [update_acl]
 
 key:
   - id: slave1_key

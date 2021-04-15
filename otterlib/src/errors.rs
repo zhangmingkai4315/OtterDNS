@@ -8,6 +8,9 @@ pub enum SettingError {
     ParseConfigError(String),
     #[error("validation config setting failed: {0}")]
     ValidationError(String),
+
+    #[error("validation server setting failed: {0}")]
+    ValidationServerConfigError(String),
 }
 
 #[derive(Error, PartialEq, Debug)]
