@@ -1,6 +1,7 @@
 use dnsproto::dnsname::DNSName;
-use otterlib::errors::NetworkError;
+use dnsproto::message::Message;
 use otterlib::errors::OtterError;
+use otterlib::errors::{DNSProtoErr, NetworkError, StorageError};
 use otterlib::setting::Settings;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
@@ -8,45 +9,51 @@ use storage::rb_storage;
 use storage::rb_storage::RBTreeNode;
 use tokio::net::{TcpListener, UdpSocket};
 use tokio::task::JoinHandle;
-use dnsproto::message::Message;
 
-pub struct UdpServer{
+pub struct UdpServer {
     storage: Arc<Mutex<RBTreeNode>>,
-    udp_socket: UdpSocket
+    udp_socket: UdpSocket,
 }
 
-impl UdpServer{
-    fn new(storage: Arc<Mutex<RBTreeNode>>, udp_socket: UdpSocket) -> UdpServer{
-        UdpServer{
+impl UdpServer {
+    fn new(storage: Arc<Mutex<RBTreeNode>>, udp_socket: UdpSocket) -> UdpServer {
+        UdpServer {
             storage,
             udp_socket,
         }
     }
-    fn start(&self) -> JoinHandle<> {
-        tokio::task::spawn(move ||{
+
+    fn process_message(storage: Arc<Mutex<RBTreeNode>>, message: &[u8]) -> Result<(), OtterError> {
+        let message = Message::parse_dns_message(&message)?;
+        let query_info = message.query_name_and_type()?;
+        let mut storage = storage.lock().unwrap();
+        let message = Message::new_message_from_query(&message);
+        match storage.search_rrset(query_info.0, *query_info.1) {
+            Ok(rrset) => {
+                // TODO:
+                message.set_answer(rrset)
+            }
+            Err(err) => {
+                match err {
+                    // add soa ?
+                    StorageError::DomainNotFoundError(_) => message.set_nxdomain(),
+                    _ => message.set_serverfail(),
+                }
+            }
+        }
+    }
+
+    fn start(&self) -> JoinHandle<T> {
+        tokio::task::spawn(move || {
             let mut message: Vec<u8> = Vec::with_capacity(4096);
             loop {
                 let size = self.udp_socket.recv(&mut message).await;
                 match size {
                     Ok(vsize) => {
                         let message = message[0..vsize];
-                        match Message::parse_dns_message(&message){
-                            Ok(message) => {
-                                let () =
-                                let mut storage = self.storage.lock().unwrap();
-                                storage.search_rrset(message.)
-                            },
-                            Err(err) => {
-                                continue
-                            }
-                        };
-
-
-
-                    },
-                    Err(err) => continue
+                    }
+                    Err(err) => continue,
                 }
-
             }
         })
     }
@@ -104,12 +111,10 @@ impl Server {
         Ok(())
     }
     pub fn run(&mut self) {
-        for listener in self.udp_listeners.iter(){
+        for listener in self.udp_listeners.iter() {
             listener.recv()
         }
-        let join_handler = std::thread::spawn(||{
-
-        });
+        let join_handler = std::thread::spawn(|| {});
     }
     pub fn init(&mut self) {}
 }

@@ -23,7 +23,7 @@ use std::io::{Cursor, Write};
 // |                    ARCOUNT                    |
 // +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Header {
     pub(crate) id: u16,
     pub(crate) qr: bool,

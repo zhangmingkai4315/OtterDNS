@@ -36,7 +36,7 @@ impl Message {
         if self.questions.is_empty() {
             Err(DNSProtoErr::No)
         }
-        Some((&self.questions[0].q_name, &self.questions[0].q_type))
+        Ok((&self.questions[0].q_name, &self.questions[0].q_type))
     }
     pub fn parse_dns_message(message: &[u8]) -> Result<Message, DNSProtoErr> {
         match parse_message(message, message) {
@@ -53,6 +53,13 @@ impl Message {
             additional: vec![],
         }
     }
+
+    pub fn new_message_from_query(q_message: &Message) -> Message {
+        let mut header = q_message.header.clone();
+        header.qr = true;
+        Message::new_with_header(header)
+    }
+
     pub fn encode(&mut self) -> Result<Vec<u8>, DNSProtoErr> {
         let buffer: Vec<u8> = {
             if self.header.qr {
