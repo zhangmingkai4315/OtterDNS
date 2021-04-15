@@ -2,13 +2,20 @@ use crate::errors::SettingError;
 use config::{Config, File};
 use validator::{Validate, ValidationError, ValidationErrors};
 
-#[derive(Debug, Clone, Validate, PartialEq, Deserialize)]
-pub struct Server {
-    pub listen: String,
+#[derive(Debug, Clone, Validate, PartialEq, Deserialize, Default)]
+pub struct ServerSetting {
+    pub listen: Vec<String>,
 }
 
-#[derive(Debug, Clone, Validate, PartialEq, Deserialize)]
-pub struct Zone {
+impl ServerSetting {
+    fn validation(&self) {
+        // self.
+    }
+    fn get_listen_addr(&self) -> () {}
+}
+
+#[derive(Debug, Clone, Validate, PartialEq, Deserialize, Default)]
+pub struct ZoneSetting {
     pub domain: String,
     pub storage: String,
     pub file: String,
@@ -17,14 +24,14 @@ pub struct Zone {
     pub acl: Option<Vec<String>>,
 }
 
-#[derive(Debug, Clone, Validate, PartialEq, Deserialize)]
-pub struct Key {
+#[derive(Debug, Clone, Validate, PartialEq, Deserialize, Default)]
+pub struct KeySetting {
     pub id: String,
     pub algorithm: String,
     pub secret: String,
 }
 
-#[derive(Debug, Clone, Validate, PartialEq, Deserialize)]
+#[derive(Debug, Clone, Validate, PartialEq, Deserialize, Default)]
 pub struct Log {
     pub target: String,
     #[validate(custom = "validate_log_level")]
@@ -35,14 +42,14 @@ pub struct Log {
     pub control: Option<String>,
 }
 
-#[derive(Debug, Clone, Validate, PartialEq, Deserialize)]
+#[derive(Debug, Clone, Validate, PartialEq, Deserialize, Default)]
 pub struct Remote {
     pub id: String,
     pub address: String,
     pub key: Option<String>,
 }
 
-#[derive(Debug, Clone, Validate, PartialEq, Deserialize)]
+#[derive(Debug, Clone, Validate, PartialEq, Deserialize, Default)]
 pub struct ACL {
     pub id: String,
     pub address: String,
@@ -50,11 +57,11 @@ pub struct ACL {
     pub action: String,
 }
 
-#[derive(Debug, Clone, Validate, PartialEq, Deserialize)]
+#[derive(Debug, Clone, Validate, PartialEq, Deserialize, Default)]
 pub struct Settings {
-    pub server: Server,
-    pub zone: Vec<Zone>,
-    pub key: Vec<Key>,
+    pub server: ServerSetting,
+    pub zone: Vec<ZoneSetting>,
+    pub key: Vec<KeySetting>,
     pub log: Vec<Log>,
     pub remote: Vec<Remote>,
     pub acl: Vec<ACL>,
@@ -102,7 +109,7 @@ impl Settings {
         None
     }
     #[allow(dead_code)]
-    pub fn get_key_by_id(&self, id: &str) -> Option<Key> {
+    pub fn get_key_by_id(&self, id: &str) -> Option<KeySetting> {
         for key in self.key.iter() {
             if key.id == id {
                 return Some(key.clone());
@@ -182,7 +189,7 @@ fn test_config_attribute() {
 
     assert_eq!(
         setting.key,
-        vec![Key {
+        vec![KeySetting {
             id: "slave1_key".to_string(),
             algorithm: "hmac-md5".to_string(),
             secret: "Wg==".to_string()
@@ -272,7 +279,7 @@ fn test_config_method() {
     if let Some(v) = setting.get_key_by_id("slave1_key") {
         assert_eq!(
             v,
-            Key {
+            KeySetting {
                 id: "slave1_key".to_string(),
                 algorithm: "hmac-md5".to_string(),
                 secret: "Wg==".to_string()

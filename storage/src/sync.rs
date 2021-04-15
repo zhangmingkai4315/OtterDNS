@@ -2,28 +2,39 @@ use crate::rb_storage::RBTreeNode;
 use dnsproto::zone::{ZoneFileParser, ZoneReader};
 use otterlib::errors::OtterError;
 
-fn load_zone_from_disk(
-    file: &str,
-    default_origin: Option<String>,
-) -> Result<RBTreeNode, OtterError> {
-    let mut zone = RBTreeNode::new_root();
-    let parser = ZoneFileParser::new(file)?;
-    // read f
-    let zone_reader = ZoneReader::new(parser, default_origin);
-    for item in zone_reader {
-        match item {
-            Ok(rr) => {
-                // insert rr record to zone node.
-                zone.insert_rr(rr)?
-            }
-            Err(err) => eprintln!("{:?}", err),
-        }
+impl RBTreeNode {
+    pub fn new_zone_from_file(
+        file: &str,
+        default_origin: Option<String>,
+    ) -> Result<RBTreeNode, OtterError> {
+        let mut zone = RBTreeNode::new_root();
+        zone.update_zone(file, default_origin)?;
+        Ok(zone)
     }
-    Ok(zone)
+
+    pub fn update_zone(
+        &mut self,
+        file: &str,
+        default_origin: Option<String>,
+    ) -> Result<(), OtterError> {
+        let parser = ZoneFileParser::new(file)?;
+        let zone_reader = ZoneReader::new(parser, default_origin);
+        for item in zone_reader {
+            match item {
+                Ok(rr) => {
+                    // insert rr record to zone node.
+                    self.insert_rr(rr)?;
+                }
+                Err(err) => return Err(OtterError::DNSProtoError(err)),
+            }
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod test {
+    use crate::rb_storage::RBTreeNode;
     use crate::sync::load_zone_from_disk;
     use dnsproto::dnsname::DNSName;
     use dnsproto::meta::DNSType;
@@ -61,7 +72,7 @@ mod test {
             ("main3-noexist.example.com.", DNSType::A, false),
         ];
         let test_zone_file = "./test/example.zone";
-        match load_zone_from_disk(test_zone_file, None) {
+        match RBTreeNode::new_zone_from_file(test_zone_file, None) {
             Ok(mut zone) => {
                 for item in search_items.iter() {
                     // zone.find()
@@ -95,7 +106,7 @@ mod test {
     #[test]
     fn load_root_zone_from_disk() {
         let test_zone_file = "./test/root.zone";
-        match load_zone_from_disk(test_zone_file, None) {
+        match RBTreeNode::new_zone_from_file(test_zone_file, None) {
             Ok(zone) => {
                 for item in zone {
                     println!("{}", item.borrow().to_string())

@@ -1,3 +1,5 @@
+mod server;
+
 extern crate dnsproto;
 
 fn main() {
