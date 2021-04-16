@@ -3,16 +3,20 @@ use dnsproto::message::Message;
 use otterlib::errors::OtterError;
 use otterlib::errors::{DNSProtoErr, NetworkError, StorageError};
 use otterlib::setting::Settings;
+use std::borrow::BorrowMut;
 use std::net::SocketAddr;
+use std::result::Result::Err;
 use std::sync::{Arc, Mutex};
 use storage::rb_storage;
 use storage::rb_storage::RBTreeNode;
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, UdpSocket};
 use tokio::task::JoinHandle;
 
+pub type TokioError = Box<dyn std::error::Error + Send + Sync>;
+pub type TokioResult<T> = std::result::Result<T, TokioError>;
+
 pub struct UdpServer {
-    storage: Arc<Mutex<RBTreeNode>>,
     udp_socket: UdpSocket,
 }
 
@@ -41,92 +45,35 @@ fn process_message(
 }
 
 impl UdpServer {
-    fn new(storage: Arc<Mutex<RBTreeNode>>, udp_socket: UdpSocket) -> UdpServer {
-        UdpServer {
-            storage,
-            udp_socket,
-        }
-    }
-
-    fn start(&mut self) -> JoinHandle<_> {
-        let storage = self.storage.clone();
-        tokio::task::spawn(async move || {
-            let mut message: Vec<u8> = Vec::with_capacity(4096);
-            loop {
-                let size = self.udp_socket.recv(&mut message).await;
-                match size {
-                    Ok(vsize) => {
-                        let message = message[0..vsize];
-                        match process_message(storage.clone(), &message) {
-                            Ok(message) => self.udp_socket.send(message.as_slice()).await,
-                            Err(err) => {
-                                println!("serilize message fail: {:?}", err);
-                                continue;
-                            }
-                        }
-                    }
-                    Err(err) => {
-                        println!("process message fail: {:?}", err);
-                        continue;
-                    }
-                }
-            }
-        })
+    fn new(udp_socket: UdpSocket) -> UdpServer {
+        UdpServer { udp_socket }
     }
 }
 
 impl TCPServer {
-    fn new(storage: Arc<Mutex<RBTreeNode>>, tcp_listener: TcpListener) -> TCPServer {
-        TCPServer {
-            storage,
-            tcp_listener,
-        }
-    }
-
-    fn start(&mut self) -> JoinHandle<_> {
-        let storage = self.storage.clone();
-        tokio::task::spawn(async move || loop {
-            let (mut stream, _) = self.tcp_listener.accept().await?;
-            let mut message: Vec<u8> = Vec::with_capacity(4096);
-            match stream.read(message.as_mut_slice()).await {
-                Ok(vsize) => {
-                    let message = message[0..vsize];
-                    match process_message(storage.clone(), &message) {
-                        Ok(message) => self.udp_socket.send(message.as_slice()).await,
-                        Err(err) => {
-                            println!("serialize message fail: {:?}", err);
-                            continue;
-                        }
-                    }
-                }
-                Err(err) => {
-                    println!("process message fail: {:?}", err);
-                    continue;
-                }
-            };
-        })
+    fn new(tcp_listener: TcpListener) -> TCPServer {
+        TCPServer { tcp_listener }
     }
 }
 
 pub struct TCPServer {
-    storage: Arc<Mutex<RBTreeNode>>,
     tcp_listener: TcpListener,
 }
 
 pub struct Server {
-    udp_servers: Vec<UdpServer>,
-    tcp_listeners: Vec<TCPServer>,
+    udp_servers: Arc<Vec<UdpServer>>,
+    tcp_servers: Arc<Vec<TCPServer>>,
     storage: Arc<Mutex<RBTreeNode>>,
     setting: Settings,
-    threads: Vec<JoinHandle<_>>,
+    threads: Vec<JoinHandle<TokioResult<()>>>,
 }
 
 impl Server {
     // bind addr must be string like: 127.0.0.1:53 192.168.0.1:53
     pub fn new(setting: Settings) -> Server {
         Server {
-            udp_servers: vec![],
-            tcp_listeners: vec![],
+            udp_servers: Arc::new(vec![]),
+            tcp_servers: Arc::new(vec![]),
             storage: Arc::new(Mutex::new((RBTreeNode::new_root()))),
             setting,
             threads: vec![],
@@ -135,19 +82,20 @@ impl Server {
     // setup after storage is ready
     pub async fn init_network(&mut self) -> Result<(), NetworkError> {
         let (tcp_listeners, udp_listeners) = self.setting.get_listeners();
+        let mut tcp_servers = vec![];
         for tcp_addr in tcp_listeners.iter() {
             let tcp_addr = tcp_addr.parse::<SocketAddr>()?;
-            let tcplistener = TcpListener::bind(tcp_addr).await?;
-            self.tcp_listeners
-                .push(TCPServer::new(self.storage.clone(), tcplistener))
+            let tcp_server = TcpListener::bind(tcp_addr).await?;
+            tcp_servers.push(TCPServer::new(tcp_server));
         }
+        let mut udp_servers = vec![];
         for udp_addr in udp_listeners.iter() {
             let udp_socket_addr = udp_addr.parse::<SocketAddr>()?;
             let udp_socket = UdpSocket::bind(udp_socket_addr).await?;
-            self.udp_servers
-                .push(UdpServer::new(self.storage.clone(), udp_socket));
+            udp_servers.push(UdpServer::new(udp_socket));
         }
-
+        self.tcp_servers = Arc::new(tcp_servers);
+        self.udp_servers = Arc::new(udp_servers);
         Ok(())
     }
 
@@ -169,21 +117,78 @@ impl Server {
 
         Ok(())
     }
-    pub async fn run(&mut self) {
+    pub async fn run(&mut self) -> Result<(), OtterError> {
         self.init_load_storage();
-        self.init_network().await?;
-
-        for server in self.udp_servers.iter_mut() {
-            let handler = server.start();
-            self.threads.push(handler);
+        if let Err(err) = self.init_network().await {
+            return Err(OtterError::NetworkError(err));
         }
-        for server in self.tcp_listeners.iter_mut() {
-            let handler = server.start();
-            self.threads.push(handler);
+        let udp_server_number = self.udp_servers.len();
+        for index in 0..udp_server_number {
+            let storage = self.storage.clone();
+            let servers_clone = self.udp_servers.clone();
+            self.threads.push(tokio::spawn(async move {
+                loop {
+                    let mut message: Vec<u8> = Vec::with_capacity(4096);
+                    match servers_clone[index].udp_socket.recv(&mut message).await {
+                        Ok(vsize) => {
+                            let message = &message[0..vsize];
+                            match process_message(storage.clone(), &message) {
+                                Ok(message) => {
+                                    servers_clone[index]
+                                        .udp_socket
+                                        .send(message.as_slice())
+                                        .await?;
+                                    continue;
+                                }
+                                Err(err) => {
+                                    println!("serilize message fail: {:?}", err);
+                                    continue;
+                                }
+                            }
+                        }
+                        Err(err) => {
+                            println!("process message fail: {:?}", err);
+                            continue;
+                        }
+                    }
+                }
+            }));
         }
-        for join_handler in self.threads {
-            join_handler.await?;
+        let tcp_server_number = self.tcp_servers.len();
+        for index in 0..tcp_server_number {
+            let storage = self.storage.clone();
+            let servers_clone = self.tcp_servers.clone();
+            self.threads.push(tokio::spawn(async move {
+                loop {
+                    if let Ok((mut stream, _)) = servers_clone[index].tcp_listener.accept().await {
+                        let mut message: Vec<u8> = Vec::with_capacity(4096);
+                        match stream.read(message.as_mut_slice()).await {
+                            Ok(vsize) => {
+                                let message = &message[0..vsize];
+                                match process_message(storage.clone(), &message) {
+                                    Ok(message) => {
+                                        stream.write(message.as_slice()).await;
+                                        continue;
+                                    }
+                                    Err(err) => {
+                                        println!("serialize message fail: {:?}", err);
+                                        continue;
+                                    }
+                                }
+                            }
+                            Err(err) => {
+                                println!("process message fail: {:?}", err);
+                                continue;
+                            }
+                        };
+                    };
+                }
+            }));
         }
+        for join_handler in self.threads.iter_mut() {
+            join_handler.await;
+        }
+        Ok(())
     }
 }
 

@@ -227,9 +227,7 @@ mod test {
             minimum: 86400,
         };
         match soa.encode(None) {
-            Ok(v) => {
-                assert_eq!(v, non_compression_vec, "soa encode not equal")
-            }
+            Ok(v) => assert_eq!(v, non_compression_vec, "soa encode not equal"),
             Err(err) => {
                 assert!(false, format!("error: {:?}", err));
             }

@@ -31,7 +31,9 @@ pub struct RBTreeNode {
     parent: Option<Weak<RefCell<RBTreeNode>>>,
     subtree: Option<RBTree<Label, Rc<RefCell<RBTreeNode>>>>,
 }
-
+// NOT SAFE!!!
+// Must use a thread safe structure to hold the data, without rc and refcell
+unsafe impl Send for RBTreeNode {}
 pub struct ZoneIterator {
     parent_stack: Vec<(Rc<RefCell<RBTreeNode>>, Option<usize>)>,
     next: Option<(Rc<RefCell<RBTreeNode>>, Option<usize>)>,

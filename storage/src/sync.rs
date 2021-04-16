@@ -98,9 +98,7 @@ mod test {
                     }
                 }
             }
-            Err(err) => {
-                assert!(false, err.to_string())
-            }
+            Err(err) => assert!(false, err.to_string()),
         }
     }
     #[test]
@@ -112,9 +110,7 @@ mod test {
                     println!("{}", item.borrow().to_string())
                 }
             }
-            Err(err) => {
-                assert!(false, format!("load root zone fail: {:?}", err))
-            }
+            Err(err) => assert!(false, format!("load root zone fail: {:?}", err)),
         }
     }
 }

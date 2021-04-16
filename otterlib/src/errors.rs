@@ -126,10 +126,15 @@ impl From<ParseIntError> for DNSProtoErr {
 //     }
 // }
 
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug)]
 pub enum OtterError {
     #[error(transparent)]
     DNSProtoError(#[from] DNSProtoErr),
+    #[error(transparent)]
+    SettingError(#[from] SettingError),
+
+    #[error(transparent)]
+    NetworkError(#[from] NetworkError),
 
     #[error(transparent)]
     StorageError(#[from] StorageError),

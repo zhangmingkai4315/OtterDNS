@@ -478,20 +478,12 @@ mod test {
         let loc_example =
             DnsTypeLOC::new(0, 0x12, 0x35, 0x13, 2299987176, 1891577364, 9997500).unwrap();
         match DnsTypeLOC::decode(&input, None) {
-            Ok(loc) => {
-                assert_eq!(loc, loc_example)
-            }
-            _ => {
-                assert!(false)
-            }
+            Ok(loc) => assert_eq!(loc, loc_example),
+            _ => assert!(false),
         }
         match loc_example.encode(None) {
-            Ok(binary_encoded) => {
-                assert_eq!(binary_encoded.as_slice(), input)
-            }
-            _ => {
-                assert!(false)
-            }
+            Ok(binary_encoded) => assert_eq!(binary_encoded.as_slice(), input),
+            _ => assert!(false),
         }
     }
 }
