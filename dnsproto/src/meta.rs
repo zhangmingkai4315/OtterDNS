@@ -336,6 +336,14 @@ impl RRSet {
         }
         self.content.push(rr);
     }
+    pub fn to_records(&self) -> Vec<Record> {
+        let mut result = vec![];
+        for item in self.content() {
+            let rr: ResourceRecord = unsafe { std::mem::transmute_copy(item) };
+            result.push(Record::AnswerRecord(rr))
+        }
+        result
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -429,6 +437,7 @@ impl Into<u8> for RCode {
 }
 
 use crate::label::Label;
+use crate::message::Record;
 use nom::lib::std::fmt::{Display, Formatter};
 use nom::lib::std::slice::Iter;
 use num_enum::{IntoPrimitive, TryFromPrimitive};

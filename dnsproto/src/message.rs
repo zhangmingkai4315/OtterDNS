@@ -2,7 +2,7 @@
 use crate::dnsname::{parse_name, DNSName};
 use crate::edns::EDNS;
 use crate::label::Label;
-use crate::meta::{DNSClass, DNSType};
+use crate::meta::{DNSClass, DNSType, RRSet};
 use crate::meta::{Header, OpCode, Question, RCode, ResourceRecord};
 use crate::qtype::decode_message_data;
 use nom::number::complete::{be_u16, be_u32};
@@ -34,7 +34,7 @@ impl Message {
     }
     pub fn query_name_and_type(&self) -> Result<(&DNSName, &DNSType), DNSProtoErr> {
         if self.questions.is_empty() {
-            Err(DNSProtoErr::No)
+            return Err(DNSProtoErr::ParseEmptyQuestionError);
         }
         Ok((&self.questions[0].q_name, &self.questions[0].q_type))
     }
@@ -57,7 +57,32 @@ impl Message {
     pub fn new_message_from_query(q_message: &Message) -> Message {
         let mut header = q_message.header.clone();
         header.qr = true;
-        Message::new_with_header(header)
+        let mut message = Message::new_with_header(header);
+        let question: Question = unsafe { std::mem::transmute_copy(&q_message.questions[0]) };
+        message.questions.push(question);
+        message
+    }
+    pub fn set_nxdomain(&mut self) {
+        self.header.r_code = RCode::NameError;
+    }
+    pub fn set_serverfail(&mut self) {
+        self.header.r_code = RCode::ServerFailure;
+    }
+
+    pub fn update_additional(&mut self, rrset: &RRSet) {
+        let additional = rrset.to_records();
+        self.header.additional_count = additional.len() as u16;
+        self.additional = additional;
+    }
+    pub fn update_answer(&mut self, rrset: &RRSet) {
+        let answer = rrset.to_records();
+        self.header.answer_count = answer.len() as u16;
+        self.answers = answer;
+    }
+    pub fn update_authority(&mut self, rrset: &RRSet) {
+        let ns_list = rrset.to_records();
+        self.header.ns_count = ns_list.len() as u16;
+        self.authorities = ns_list;
     }
 
     pub fn encode(&mut self) -> Result<Vec<u8>, DNSProtoErr> {

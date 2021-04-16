@@ -8,12 +8,6 @@ pub struct ServerSetting {
     pub listen: Vec<String>,
 }
 
-enum ListenType {
-    UDP,
-    TCP,
-    TCPAndUDP,
-}
-
 impl ServerSetting {
     fn validation(&self) -> Option<SettingError> {
         let (mut t_listeners, u_listeners) = self.get_listen_addr();

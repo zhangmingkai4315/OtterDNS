@@ -74,7 +74,7 @@ pub enum DNSProtoErr {
     #[error("parse dns from str incomplete error: `{0}`")]
     ParseDNSFromStrIncompleteError(String),
 
-    #[error("empty question section error")]
+    #[error("parse data fail: dns packet with empty question section")]
     ParseEmptyQuestionError,
 
     #[error("packet parse failed")]
