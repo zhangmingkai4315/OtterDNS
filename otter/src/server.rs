@@ -29,8 +29,9 @@ fn process_message(
     let message = Message::parse_dns_message(&message)?;
     info!(logger, "{}", message.query_info());
     let query_info = message.query_name_and_type()?;
-    let mut storage = storage.lock().unwrap();
     let mut message = Message::new_message_from_query(&message);
+    let mut storage = storage.lock().unwrap();
+
     match storage.search_rrset(query_info.0, *query_info.1) {
         Ok(rrset) => {
             // TODO:
@@ -44,7 +45,8 @@ fn process_message(
             }
         }
     }
-    message.encode()
+    let result = message.encode();
+    result
 }
 
 impl UdpServer {

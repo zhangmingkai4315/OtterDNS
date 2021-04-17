@@ -62,7 +62,7 @@ impl Message {
             additional: vec![],
         }
     }
-
+    // TODO: BUG EXIST !!!
     pub fn new_message_from_query(q_message: &Message) -> Message {
         let mut header = q_message.header.clone();
         header.qr = true;
