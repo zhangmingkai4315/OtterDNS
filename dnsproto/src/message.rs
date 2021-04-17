@@ -32,6 +32,15 @@ impl Message {
             additional: vec![],
         }
     }
+
+    pub fn query_info(&self) -> String {
+        // TODO: queries: info: client @0x7f82bc11d4e0 10.80.0.1#53995 (google.com): query: google.com IN A +E(0) (10.80.1.88)
+        format!(
+            "query: {} {} {}",
+            self.questions[0].q_name, self.questions[0].q_class, self.questions[0].q_type,
+        )
+    }
+
     pub fn query_name_and_type(&self) -> Result<(&DNSName, &DNSType), DNSProtoErr> {
         if self.questions.is_empty() {
             return Err(DNSProtoErr::ParseEmptyQuestionError);

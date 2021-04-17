@@ -5,7 +5,7 @@ server:
 
 zone:
   - domain: abc.com
-    file: abc.com.zone
+    file: example.com.zone
     master: master01
     acl:
       - notify_from_master

@@ -223,7 +223,7 @@ mod test {
         let setting = Settings::new("example.config.yaml").unwrap();
         assert_eq!(setting.server.listen, vec!["0.0.0.0:53".to_string()]);
         assert_eq!(setting.zone[0].domain, "abc.com");
-        assert_eq!(setting.zone[0].file, "abc.com.zone");
+        assert_eq!(setting.zone[0].file, "example.com.zone");
         assert_eq!(setting.zone[0].master, Some("master01".to_owned()));
         assert_eq!(
             setting.zone[0].acl.as_ref().unwrap()[0],

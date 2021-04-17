@@ -1,9 +1,9 @@
 server:
     listen:
-      - 0.0.0.0:15353
+      - 0.0.0.0:7070
 zone:
-  - domain: abc.com
-    file: abc.com.zone
+  - domain: example.com.
+    file: /Users/mingkaizhang/workspace/OtterDNS/otter/example.com.zone
     master: master01
     acl:
       - notify_from_master
