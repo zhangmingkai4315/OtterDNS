@@ -8,7 +8,6 @@ use dnsproto::label::Label;
 use dnsproto::meta::{DNSType, RRSet, ResourceRecord};
 use lazy_static::lazy_static;
 use otterlib::errors::StorageError;
-use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
@@ -90,6 +89,8 @@ impl Display for RBTreeNode {
         write!(formatter, "")
     }
 }
+
+// type DNSTreeStorage = Rc<RefCell<RBTreeNode>>;
 
 impl RBTreeNode {
     pub fn new_root() -> RBTreeNode {
@@ -252,6 +253,7 @@ impl RBTreeNode {
         }
         current
     }
+
     pub fn find(&self, name: &DNSName) -> Result<&RBTreeNode, StorageError> {
         let mut labels_count = name.label_count();
         if labels_count == 0 {
@@ -586,7 +588,13 @@ mod storage {
             Ok(node) => assert_eq!(node.rr_sets.len(), 2),
             _ => assert!(false),
         }
-
+        match zone.find(&dname) {
+            // re search again
+            Ok(node) => {
+                assert_eq!(node.rr_sets.len(), 2);
+            }
+            _ => assert!(false),
+        }
         let dname = DNSName::new("ftp.baidu.com.", None).unwrap();
         match zone.find(&dname) {
             // find wirdcard match

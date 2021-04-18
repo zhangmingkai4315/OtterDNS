@@ -67,7 +67,7 @@ impl Message {
         let mut header = q_message.header.clone();
         header.qr = true;
         let mut message = Message::new_with_header(header);
-        let question: Question = unsafe { std::mem::transmute_copy(&q_message.questions[0]) };
+        let question = q_message.questions[0].clone();
         message.questions.push(question);
         message
     }

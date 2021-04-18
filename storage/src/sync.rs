@@ -35,10 +35,8 @@ impl RBTreeNode {
 #[cfg(test)]
 mod test {
     use crate::rb_storage::RBTreeNode;
-    use crate::sync::load_zone_from_disk;
     use dnsproto::dnsname::DNSName;
     use dnsproto::meta::DNSType;
-    use otterlib::errors::OtterError;
 
     #[test]
     fn load_small_zone_from_disk() {

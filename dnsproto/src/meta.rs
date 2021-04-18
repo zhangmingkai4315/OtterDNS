@@ -125,7 +125,7 @@ impl Default for Header {
 // |                     QCLASS                    |
 // +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Question {
     pub(crate) q_name: DNSName,
     pub(crate) q_type: DNSType,

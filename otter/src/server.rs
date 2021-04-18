@@ -26,10 +26,10 @@ fn process_message(
     message: &[u8],
     logger: &mut Logger,
 ) -> Result<Vec<u8>, DNSProtoErr> {
-    let message = Message::parse_dns_message(&message)?;
-    info!(logger, "{}", message.query_info());
-    let query_info = message.query_name_and_type()?;
-    let mut message = Message::new_message_from_query(&message);
+    let query_message = Message::parse_dns_message(&message)?;
+    info!(logger, "{}", query_message.query_info());
+    let query_info = query_message.query_name_and_type()?;
+    let mut message = Message::new_message_from_query(&query_message);
     let mut storage = storage.lock().unwrap();
 
     match storage.search_rrset(query_info.0, *query_info.1) {
@@ -45,8 +45,7 @@ fn process_message(
             }
         }
     }
-    let result = message.encode();
-    result
+    message.encode()
 }
 
 impl UdpServer {
@@ -151,15 +150,25 @@ impl Server {
             self.threads.push(tokio::spawn(async move {
                 loop {
                     let mut message = [0u8; 4096];
-                    match servers_clone[index].udp_socket.recv(&mut message).await {
-                        Ok(vsize) => {
+                    match servers_clone[index]
+                        .udp_socket
+                        .recv_from(&mut message)
+                        .await
+                    {
+                        Ok((vsize, connected_peer)) => {
                             let message = &message[0..vsize];
                             match process_message(storage.clone(), &message, &mut query_logger) {
                                 Ok(message) => {
-                                    servers_clone[index]
+                                    if let Err(err) = servers_clone[index]
                                         .udp_socket
-                                        .send(message.as_slice())
-                                        .await?;
+                                        .send_to(message.as_slice(), &connected_peer)
+                                        .await
+                                    {
+                                        error!(
+                                            query_logger,
+                                            "send dns message back to client error: {}", err
+                                        );
+                                    }
                                     continue;
                                 }
                                 Err(err) => {
