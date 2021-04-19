@@ -16,7 +16,7 @@ use std::{fmt, fmt::Formatter};
 // /                            Public Key                         /
 // /                                                               /
 // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct DnsTypeDNSKEY {
     flags: u16,
     protocol_type: u8, // must be 3
@@ -71,6 +71,12 @@ impl DnsTypeDNSKEY {
             protocol_type,
             algorithem_type: AlgorithemType::from_u8(algorithm_type),
             public_key: public_key.to_vec(),
+        }
+    }
+    pub fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
+        match parse_dnskey(data, data.len()) {
+            Ok((_, mx)) => Ok(mx),
+            Err(_err) => Err(DNSProtoErr::PacketParseError),
         }
     }
 
@@ -131,13 +137,6 @@ impl fmt::Display for DnsTypeDNSKEY {
     }
 }
 impl DNSWireFrame for DnsTypeDNSKEY {
-    fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
-        match parse_dnskey(data, data.len()) {
-            Ok((_, mx)) => Ok(mx),
-            Err(_err) => Err(DNSProtoErr::PacketParseError),
-        }
-    }
-
     fn get_type(&self) -> DNSType {
         DNSType::DNSKEY
     }
@@ -152,6 +151,15 @@ impl DNSWireFrame for DnsTypeDNSKEY {
     }
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn clone_box(&self) -> Box<dyn DNSWireFrame> {
+        Box::new(DnsTypeDNSKEY {
+            flags: self.flags,
+            protocol_type: self.protocol_type,
+            algorithem_type: self.algorithem_type.clone(),
+            public_key: self.public_key.clone(),
+        })
     }
 }
 

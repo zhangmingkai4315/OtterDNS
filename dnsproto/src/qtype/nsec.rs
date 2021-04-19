@@ -21,7 +21,7 @@ use otterlib::errors::DNSProtoErr;
 use std::any::Any;
 use std::fmt::{self, Formatter};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct DnsTypeNSEC {
     next_domain: DNSName,
     bitmaps: Vec<u8>,
@@ -33,6 +33,12 @@ impl DnsTypeNSEC {
             next_domain: DNSName::new(domain, None)?,
             bitmaps: encode_nsec_bitmap_from_types(type_arr)?,
         })
+    }
+    pub fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
+        match parse_nsec(data, original.unwrap_or(&[])) {
+            Ok((_, nsec)) => Ok(nsec),
+            Err(_err) => Err(DNSProtoErr::PacketParseError),
+        }
     }
     // aaa. NS SOA RRSIG NSEC DNSKEY
     pub fn from_str(str: &str, default_original: Option<&str>) -> Result<Self, DNSProtoErr> {
@@ -58,13 +64,6 @@ impl fmt::Display for DnsTypeNSEC {
     }
 }
 impl DNSWireFrame for DnsTypeNSEC {
-    fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
-        match parse_nsec(data, original.unwrap_or(&[])) {
-            Ok((_, nsec)) => Ok(nsec),
-            Err(_err) => Err(DNSProtoErr::PacketParseError),
-        }
-    }
-
     fn get_type(&self) -> DNSType {
         DNSType::NSEC
     }
@@ -87,6 +86,13 @@ impl DNSWireFrame for DnsTypeNSEC {
     }
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn clone_box(&self) -> Box<dyn DNSWireFrame> {
+        Box::new(Self {
+            next_domain: self.next_domain.clone(),
+            bitmaps: self.bitmaps.clone(),
+        })
     }
 }
 

@@ -13,7 +13,7 @@ named!( parse_lat<&str,&str>, alt!( tag!( "S" ) | tag!( "s" ) | tag!( "N" ) | ta
 named!( parse_lng<&str,&str>, alt!( tag!( "E" ) | tag!( "W" ) ) );
 static DEFAULT_SIZE_HP_VP: [u8; 3] = [0x12, 0x16, 0x13];
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct DnsTypeLOC {
     version: u8,
     size: u8,
@@ -181,6 +181,13 @@ impl DnsTypeLOC {
             alt,
         })
     }
+    pub(crate) fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
+        match parse_loc(data, original.unwrap_or(&[])) {
+            Ok((_, soa)) => Ok(soa),
+            Err(_err) => Err(DNSProtoErr::PacketParseError),
+        }
+    }
+
     fn get_size(&self) -> String {
         format!("{:.2}m", Self::get_addtional(self.size))
     }
@@ -259,21 +266,11 @@ impl fmt::Display for DnsTypeLOC {
 }
 
 impl DNSWireFrame for DnsTypeLOC {
-    fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
-        match parse_loc(data, original.unwrap_or(&[])) {
-            Ok((_, soa)) => Ok(soa),
-            Err(_err) => Err(DNSProtoErr::PacketParseError),
-        }
-    }
-
     fn get_type(&self) -> DNSType {
         DNSType::LOC
     }
 
-    fn encode(&self, _: CompressionType) -> Result<Vec<u8>, DNSProtoErr>
-    where
-        Self: Sized,
-    {
+    fn encode(&self, _: CompressionType) -> Result<Vec<u8>, DNSProtoErr> {
         let mut data = vec![];
         data.extend_from_slice(&self.version.to_be_bytes()[..]);
         data.extend_from_slice(&self.size.to_be_bytes()[..]);
@@ -287,6 +284,18 @@ impl DNSWireFrame for DnsTypeLOC {
 
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn clone_box(&self) -> Box<dyn DNSWireFrame> {
+        Box::new(Self {
+            version: self.version,
+            size: self.size,
+            hor_precision: self.hor_precision,
+            ver_precision: self.ver_precision,
+            lat: self.lat,
+            lon: self.lon,
+            alt: self.alt,
+        })
     }
 }
 

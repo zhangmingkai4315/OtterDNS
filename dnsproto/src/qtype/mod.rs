@@ -43,9 +43,6 @@ use std::str::FromStr;
 type CompressionType<'a> = Option<(&'a mut HashMap<Vec<Label>, usize>, usize)>;
 
 pub trait DNSWireFrame: Debug + Display {
-    fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr>
-    where
-        Self: Sized;
     fn get_type(&self) -> DNSType;
     fn encode(
         &self,
@@ -53,6 +50,13 @@ pub trait DNSWireFrame: Debug + Display {
         compression: CompressionType,
     ) -> Result<Vec<u8>, DNSProtoErr>;
     fn as_any(&self) -> &dyn Any;
+    fn clone_box(&self) -> Box<dyn DNSWireFrame>;
+}
+
+impl Clone for Box<dyn DNSWireFrame> {
+    fn clone(&self) -> Self {
+        self.clone_box()
+    }
 }
 
 pub fn decode_message_data<'a>(

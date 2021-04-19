@@ -19,7 +19,7 @@ use std::str::FromStr;
 // _sip._tcp.example.com.   86400 IN    SRV 10       20     5060 smallbox2.example.com.
 // _sip._tcp.example.com.   86400 IN    SRV 20       0      5060 backupbox.example.com.
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct DnsTypeSRV {
     priority: u16,
     weight: u16,
@@ -57,6 +57,14 @@ impl DnsTypeSRV {
             target: DNSName::new(target, None)?,
         })
     }
+
+    pub(crate) fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
+        match parse_srv(data, original.unwrap_or(&[])) {
+            Ok((_, soa)) => Ok(soa),
+            Err(_err) => Err(DNSProtoErr::PacketParseError),
+        }
+    }
+
     pub fn from_str(str: &str, default_original: Option<&str>) -> Result<Self, DNSProtoErr> {
         let (rest, _) = multispace0(str)?;
         let (rest, priority) = digit1(rest)?;
@@ -93,21 +101,11 @@ impl fmt::Display for DnsTypeSRV {
 }
 
 impl DNSWireFrame for DnsTypeSRV {
-    fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
-        match parse_srv(data, original.unwrap_or(&[])) {
-            Ok((_, soa)) => Ok(soa),
-            Err(_err) => Err(DNSProtoErr::PacketParseError),
-        }
-    }
-
     fn get_type(&self) -> DNSType {
         DNSType::SRV
     }
 
-    fn encode(&self, compression: CompressionType) -> Result<Vec<u8>, DNSProtoErr>
-    where
-        Self: Sized,
-    {
+    fn encode(&self, compression: CompressionType) -> Result<Vec<u8>, DNSProtoErr> {
         let mut data = vec![];
         data.extend_from_slice(&self.priority.to_be_bytes()[..]);
         data.extend_from_slice(&self.weight.to_be_bytes()[..]);
@@ -127,6 +125,15 @@ impl DNSWireFrame for DnsTypeSRV {
 
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn clone_box(&self) -> Box<dyn DNSWireFrame> {
+        Box::new(Self {
+            priority: self.priority,
+            weight: self.weight,
+            port: self.port,
+            target: self.target.clone(),
+        })
     }
 }
 

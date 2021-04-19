@@ -13,6 +13,13 @@ impl DnsTypeAAAA {
     pub fn new(ip: &str) -> Result<Self, DNSProtoErr> {
         Ok(DnsTypeAAAA(Ipv6Addr::from_str(ip)?))
     }
+    pub fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
+        if data.len() < 16 {
+            return Err(DNSProtoErr::PacketParseError);
+        }
+        let data = unsafe { &*(data as *const [u8] as *const [u8; 16]) };
+        Ok(DnsTypeAAAA(Ipv6Addr::from(*data)))
+    }
 }
 
 impl fmt::Display for DnsTypeAAAA {
@@ -22,13 +29,6 @@ impl fmt::Display for DnsTypeAAAA {
 }
 
 impl DNSWireFrame for DnsTypeAAAA {
-    fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
-        if data.len() < 16 {
-            return Err(DNSProtoErr::PacketParseError);
-        }
-        let data = unsafe { &*(data as *const [u8] as *const [u8; 16]) };
-        Ok(DnsTypeAAAA(Ipv6Addr::from(*data)))
-    }
     fn get_type(&self) -> DNSType {
         DNSType::AAAA
     }
@@ -37,6 +37,9 @@ impl DNSWireFrame for DnsTypeAAAA {
     }
     fn as_any(&self) -> &dyn Any {
         self
+    }
+    fn clone_box(&self) -> Box<dyn DNSWireFrame> {
+        Box::new(DnsTypeAAAA(self.0.clone()))
     }
 }
 

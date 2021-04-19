@@ -5,7 +5,7 @@ use std::any::Any;
 use std::fmt::{self, Formatter};
 use std::str::FromStr;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct DnsTypeTXT {
     pub(crate) text: String,
 }
@@ -25,6 +25,12 @@ impl DnsTypeTXT {
             text: text.to_string(),
         })
     }
+    pub fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
+        match std::str::from_utf8(data) {
+            Ok(text_str) => DnsTypeTXT::new(text_str),
+            _ => Err(DNSProtoErr::PacketParseError),
+        }
+    }
 }
 
 impl fmt::Display for DnsTypeTXT {
@@ -34,12 +40,6 @@ impl fmt::Display for DnsTypeTXT {
 }
 
 impl DNSWireFrame for DnsTypeTXT {
-    fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
-        match std::str::from_utf8(data) {
-            Ok(text_str) => DnsTypeTXT::new(text_str),
-            _ => Err(DNSProtoErr::PacketParseError),
-        }
-    }
     fn get_type(&self) -> DNSType {
         DNSType::TXT
     }
@@ -48,6 +48,12 @@ impl DNSWireFrame for DnsTypeTXT {
     }
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn clone_box(&self) -> Box<dyn DNSWireFrame> {
+        Box::new(Self {
+            text: self.text.clone(),
+        })
     }
 }
 #[cfg(test)]

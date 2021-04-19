@@ -33,11 +33,11 @@ impl SafeRBTree {
         storage.update_zone(file, default_origin)
     }
     pub fn search_rrset(
-        &self,
+        &mut self,
         dname: &DNSName,
         dtype: DNSType,
     ) -> Result<Rc<RefCell<RRSet>>, StorageError> {
-        let storage = self.shared.lock().unwrap();
+        let mut storage = self.shared.lock().unwrap();
         storage.search_rrset(dname, dtype)
     }
 }

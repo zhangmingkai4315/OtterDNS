@@ -18,6 +18,12 @@ impl DnsTypePTR {
     ) -> Result<Self, DNSProtoErr> {
         Ok(DnsTypePTR(DnsTypeNS::from_str(a_str, default_original)?))
     }
+    pub fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
+        match parse_name(data, original.unwrap_or(&[])) {
+            Ok((_, name)) => Ok(DnsTypePTR(DnsTypeNS { name })),
+            Err(_err) => Err(DNSProtoErr::PacketParseError),
+        }
+    }
 }
 
 impl fmt::Display for DnsTypePTR {
@@ -27,12 +33,6 @@ impl fmt::Display for DnsTypePTR {
 }
 
 impl DNSWireFrame for DnsTypePTR {
-    fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
-        match parse_name(data, original.unwrap_or(&[])) {
-            Ok((_, name)) => Ok(DnsTypePTR(DnsTypeNS { name })),
-            Err(_err) => Err(DNSProtoErr::PacketParseError),
-        }
-    }
     fn get_type(&self) -> DNSType {
         DNSType::CNAME
     }
@@ -41,6 +41,13 @@ impl DNSWireFrame for DnsTypePTR {
     }
     fn as_any(&self) -> &dyn Any {
         self
+    }
+    fn clone_box(&self) -> Box<dyn DNSWireFrame> {
+        Box::new(Self {
+            0: DnsTypeNS {
+                name: self.0.name.clone(),
+            },
+        })
     }
 }
 #[cfg(test)]

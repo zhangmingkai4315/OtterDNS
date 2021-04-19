@@ -20,7 +20,7 @@ pub struct UdpServer {
 }
 
 fn process_message(
-    storage: SafeRBTree,
+    mut storage: SafeRBTree,
     message: &[u8],
     logger: &mut Logger,
 ) -> Result<Vec<u8>, DNSProtoErr> {
@@ -32,16 +32,34 @@ fn process_message(
         Ok(rrset) => {
             // TODO:
             let rrset = rrset.borrow().to_records();
+            // debug!(logger, "find record in zone database: {:?}", rrset);
             message.update_answer(rrset);
         }
         Err(err) => {
             match err {
                 // add soa ?
-                StorageError::DomainNotFoundError(_) => message.set_nxdomain(),
-                _ => message.set_serverfail(),
+                StorageError::DomainNotFoundError(_) => {
+                    debug!(
+                        logger,
+                        "can't find record {} in zone database: {:?}",
+                        query_info.0.to_string(),
+                        err
+                    );
+                    message.set_nxdomain()
+                }
+                _ => {
+                    debug!(
+                        logger,
+                        "can't find record {} in zone database: {:?}",
+                        query_info.0.to_string(),
+                        err
+                    );
+                    message.set_serverfail()
+                }
             }
         }
     }
+    // debug!(logger, "response message: {:?}", message);
     message.encode()
 }
 

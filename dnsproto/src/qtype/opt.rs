@@ -26,7 +26,7 @@ impl From<u16> for EDNSOptionCode {
     }
 }
 
-#[derive(Debug, PartialOrd, PartialEq)]
+#[derive(Debug, PartialOrd, PartialEq, Clone)]
 pub struct EdnsECS {
     family: u16,
     source_mask: u8,
@@ -92,7 +92,7 @@ named_args!(parse_edns_ecs<'a>(size: u16)<EdnsECS>,
     )
 ));
 
-#[derive(Debug, PartialOrd, PartialEq)]
+#[derive(Debug, PartialOrd, PartialEq, Clone)]
 pub struct EdnsCookie {
     client_cookie: Vec<u8>,
     server_cookie: Vec<u8>,
@@ -106,7 +106,7 @@ impl EdnsCookie {
     }
 }
 
-#[derive(Debug, PartialOrd, PartialEq)]
+#[derive(Debug, PartialOrd, PartialEq, Clone)]
 pub enum Opt {
     //
     ECS(EdnsECS),
@@ -115,7 +115,7 @@ pub enum Opt {
     Cookie(EdnsCookie),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct DnsTypeOpt {
     pub(crate) code: EDNSOptionCode,
     pub(crate) length: u16,
@@ -130,19 +130,6 @@ impl fmt::Display for DnsTypeOpt {
 }
 
 impl DNSWireFrame for DnsTypeOpt {
-    fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr>
-    where
-        Self: Sized,
-    {
-        match parse_opt(data) {
-            Ok((_, mut opt)) => match opt.decode_with_type() {
-                Ok(_) => Ok(opt),
-                Err(_) => Err(DNSProtoErr::PacketParseError),
-            },
-            Err(_err) => Err(DNSProtoErr::PacketParseError),
-        }
-    }
-
     fn get_type(&self) -> DNSType {
         DNSType::OPT
     }
@@ -170,6 +157,15 @@ impl DNSWireFrame for DnsTypeOpt {
 
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn clone_box(&self) -> Box<dyn DNSWireFrame> {
+        Box::new(Self {
+            code: self.code.clone(),
+            length: self.length,
+            raw_data: self.raw_data.clone(),
+            data: self.data.clone(),
+        })
     }
 }
 
@@ -199,6 +195,16 @@ impl Default for DnsTypeOpt {
 }
 
 impl DnsTypeOpt {
+    pub(crate) fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
+        match parse_opt(data) {
+            Ok((_, mut opt)) => match opt.decode_with_type() {
+                Ok(_) => Ok(opt),
+                Err(_) => Err(DNSProtoErr::PacketParseError),
+            },
+            Err(_err) => Err(DNSProtoErr::PacketParseError),
+        }
+    }
+
     fn decode_with_type(&mut self) -> Result<(), DNSProtoErr> {
         match self.code {
             EDNSOptionCode::Reserved => Ok(()),

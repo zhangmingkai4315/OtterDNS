@@ -29,7 +29,7 @@ use std::fmt;
 use std::fmt::Formatter;
 use std::str::FromStr;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct DnsTypeNSEC3 {
     hash_algorithem: u8,
     flag: u8,
@@ -71,6 +71,14 @@ impl DnsTypeNSEC3 {
             bitmaps: encode_nsec_bitmap_from_types(type_arr)?,
         })
     }
+
+    pub fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
+        match parse_nsec3(data, original.unwrap_or(&[])) {
+            Ok((_, nsec)) => Ok(nsec),
+            Err(_err) => Err(DNSProtoErr::PacketParseError),
+        }
+    }
+
     // 1 0 5 4CD7B054F876956C 1KH27L1DSQOR2RO6I202GTCTPDHKCB93  A NS SOA MX TXT AAAA RRSIG DNSKEY NSEC3PARAM
     pub fn from_str(str: &str, _: Option<&str>) -> Result<Self, DNSProtoErr> {
         let (rest, _) = multispace0(str)?;
@@ -126,13 +134,6 @@ impl fmt::Display for DnsTypeNSEC3 {
     }
 }
 impl DNSWireFrame for DnsTypeNSEC3 {
-    fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
-        match parse_nsec3(data, original.unwrap_or(&[])) {
-            Ok((_, nsec)) => Ok(nsec),
-            Err(_err) => Err(DNSProtoErr::PacketParseError),
-        }
-    }
-
     fn get_type(&self) -> DNSType {
         DNSType::NSEC3
     }
@@ -151,6 +152,16 @@ impl DNSWireFrame for DnsTypeNSEC3 {
     }
     fn as_any(&self) -> &dyn Any {
         self
+    }
+    fn clone_box(&self) -> Box<dyn DNSWireFrame> {
+        Box::new(Self {
+            hash_algorithem: self.hash_algorithem,
+            flag: self.flag,
+            iterations: self.iterations,
+            salt: self.salt.clone(),
+            bitmaps: self.bitmaps.clone(),
+            hash: self.hash.clone(),
+        })
     }
 }
 

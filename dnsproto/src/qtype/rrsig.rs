@@ -30,7 +30,7 @@ use std::{fmt, fmt::Formatter};
 // /                                                               /
 // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct DnsTypeRRSIG {
     rrsig_type: u16,
     algorithm_type: u8,
@@ -95,7 +95,12 @@ impl DnsTypeRRSIG {
             signature,
         }
     }
-
+    pub fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
+        match parse_rrsig(data, original, data.len()) {
+            Ok((_, rrsig)) => Ok(rrsig),
+            Err(_err) => Err(DNSProtoErr::PacketParseError),
+        }
+    }
     // example : "SOA 8 0 86400 20210422050000 20210409040000 14631 . W45Xjg7WewB+rNjMHDTpHlmvwT+L3VamaProC1FMIUFGZRcnFd41GSkK c2i2kgtcVjxIuYiw6kVgd7MXxaEsgW6wIexCq8H1JuDJIl/lDRZOPfzy 2IxEvqCFV01beVFnbWAMYOAa6u3W/DB2+uJ7+GNJPzN7vLAsNpFzFvxo 5jxY47I+WU0pFFxYlWoQ29Xzq2MBkwU8pPRovlN1nexk8I+Uwcw6fmUL LXg4U3U4+UK76Vhb0IMRFZFa44n3RjGwIu3lG+5Z16Fo3y8Xo+XA8ojt
     //            wvXpz1hfaKd8f/CMzs9dLSJp5TA15DQ9KAaqKepZmgJvajt/wYUMpTeX 4N0kuA=="
     pub fn from_str(str: &str) -> Result<Self, DNSProtoErr> {
@@ -184,13 +189,6 @@ impl fmt::Display for DnsTypeRRSIG {
     }
 }
 impl DNSWireFrame for DnsTypeRRSIG {
-    fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
-        match parse_rrsig(data, original, data.len()) {
-            Ok((_, rrsig)) => Ok(rrsig),
-            Err(_err) => Err(DNSProtoErr::PacketParseError),
-        }
-    }
-
     fn get_type(&self) -> DNSType {
         DNSType::RRSIG
     }
@@ -211,6 +209,19 @@ impl DNSWireFrame for DnsTypeRRSIG {
     }
     fn as_any(&self) -> &dyn Any {
         self
+    }
+    fn clone_box(&self) -> Box<dyn DNSWireFrame> {
+        Box::new(Self {
+            rrsig_type: self.rrsig_type,
+            algorithm_type: self.algorithm_type,
+            labels: self.labels,
+            original_ttl: self.original_ttl,
+            expiration: self.expiration,
+            inception: self.inception,
+            key_tag: self.key_tag,
+            signer: self.signer.clone(),
+            signature: self.signature.clone(),
+        })
     }
 }
 

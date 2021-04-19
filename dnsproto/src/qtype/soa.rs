@@ -11,7 +11,7 @@ use std::fmt;
 use std::fmt::Formatter;
 use std::str::FromStr;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct DnsTypeSOA {
     primary_name: DNSName,
     response_email: DNSName,
@@ -67,6 +67,14 @@ impl DnsTypeSOA {
             minimum,
         })
     }
+
+    pub fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
+        match parse_soa(data, original.unwrap_or(&[])) {
+            Ok((_, soa)) => Ok(soa),
+            Err(_err) => Err(DNSProtoErr::PacketParseError),
+        }
+    }
+
     // from_str from one line without ()
     pub fn from_str(str: &str, default_original: Option<&str>) -> Result<Self, DNSProtoErr> {
         let (rest, _) = multispace0(str)?;
@@ -117,21 +125,11 @@ impl fmt::Display for DnsTypeSOA {
 }
 
 impl DNSWireFrame for DnsTypeSOA {
-    fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
-        match parse_soa(data, original.unwrap_or(&[])) {
-            Ok((_, soa)) => Ok(soa),
-            Err(_err) => Err(DNSProtoErr::PacketParseError),
-        }
-    }
-
     fn get_type(&self) -> DNSType {
         DNSType::SOA
     }
 
-    fn encode(&self, compression: CompressionType) -> Result<Vec<u8>, DNSProtoErr>
-    where
-        Self: Sized,
-    {
+    fn encode(&self, compression: CompressionType) -> Result<Vec<u8>, DNSProtoErr> {
         let mut data = vec![];
         match compression {
             Some((compression_map, size)) => {
@@ -159,6 +157,18 @@ impl DNSWireFrame for DnsTypeSOA {
 
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn clone_box(&self) -> Box<dyn DNSWireFrame> {
+        Box::new(Self {
+            primary_name: self.primary_name.clone(),
+            response_email: self.response_email.clone(),
+            serial: self.serial,
+            refresh: self.refresh,
+            retry: self.retry,
+            expire: self.expire,
+            minimum: self.minimum,
+        })
     }
 }
 #[cfg(test)]

@@ -15,6 +15,12 @@ impl DnsTypeCNAME {
     pub fn from_str(a_str: &str, default_original: Option<&str>) -> Result<Self, DNSProtoErr> {
         Ok(DnsTypeCNAME(DnsTypeNS::from_str(a_str, default_original)?))
     }
+    pub fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
+        match parse_name(data, original.unwrap_or(&[])) {
+            Ok((_, name)) => Ok(DnsTypeCNAME(DnsTypeNS { name })),
+            Err(_err) => Err(DNSProtoErr::PacketParseError),
+        }
+    }
 }
 
 impl fmt::Display for DnsTypeCNAME {
@@ -24,12 +30,6 @@ impl fmt::Display for DnsTypeCNAME {
 }
 
 impl DNSWireFrame for DnsTypeCNAME {
-    fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
-        match parse_name(data, original.unwrap_or(&[])) {
-            Ok((_, name)) => Ok(DnsTypeCNAME(DnsTypeNS { name })),
-            Err(_err) => Err(DNSProtoErr::PacketParseError),
-        }
-    }
     fn get_type(&self) -> DNSType {
         DNSType::CNAME
     }
@@ -38,6 +38,11 @@ impl DNSWireFrame for DnsTypeCNAME {
     }
     fn as_any(&self) -> &dyn Any {
         self
+    }
+    fn clone_box(&self) -> Box<dyn DNSWireFrame> {
+        Box::new(DnsTypeCNAME(DnsTypeNS {
+            name: self.0.name.clone(),
+        }))
     }
 }
 #[cfg(test)]

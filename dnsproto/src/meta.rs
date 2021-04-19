@@ -186,7 +186,7 @@ impl Question {
 // /                     RDATA                     /
 // /                                               /
 // +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ResourceRecord {
     pub(crate) name: DNSName,
     pub(crate) qtype: DNSType,
@@ -295,7 +295,7 @@ impl ResourceRecord {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct RRSet {
     content: Vec<ResourceRecord>,
     signatures: Vec<ResourceRecord>,
@@ -336,11 +336,12 @@ impl RRSet {
         }
         self.content.push(rr);
     }
+
+    // Bug found !!!!
     pub fn to_records(&self) -> Vec<Record> {
         let mut result = vec![];
-        for item in self.content() {
-            let rr: ResourceRecord = unsafe { std::mem::transmute_copy(item) };
-            result.push(Record::AnswerRecord(rr))
+        for item in self.content().iter() {
+            result.push(Record::AnswerRecord(item.clone()))
         }
         result
     }

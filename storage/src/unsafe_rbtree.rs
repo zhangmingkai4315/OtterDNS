@@ -9,6 +9,7 @@ use dnsproto::meta::{DNSType, RRSet, ResourceRecord};
 use dnsproto::zone::{ZoneFileParser, ZoneReader};
 use lazy_static::lazy_static;
 use otterlib::errors::{OtterError, StorageError};
+// use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
@@ -89,8 +90,10 @@ impl UnSafeRBTreeStorage {
         for label in name.labels.iter().rev() {
             labels_count -= 1;
             let mut temp = current.borrow_mut();
-            let subtree = temp.subtree.get_or_insert(RBTree::new());
-            let result = subtree.get(&label.clone()).cloned();
+            let subtree = temp
+                .subtree
+                .get_or_insert(Rc::new(RefCell::new(RBTree::new())));
+            let result = subtree.borrow().get(&label.clone()).cloned();
 
             if let Some(node) = result {
                 if labels_count == 0 {
@@ -107,7 +110,7 @@ impl UnSafeRBTreeStorage {
             } else {
                 (*node).borrow_mut().parent = None
             }
-            subtree.insert(label.clone(), node.clone());
+            subtree.borrow_mut().insert(label.clone(), node.clone());
             // not found in subtree
             if labels_count == 0 {
                 // subtree exist but has not label node
@@ -132,12 +135,13 @@ impl UnSafeRBTreeStorage {
     }
     /// search will travel from top of tree down to the bottom.
     pub fn search_rrset(
-        &self,
+        &mut self,
         dname: &DNSName,
         dtype: DNSType,
     ) -> Result<Rc<RefCell<RRSet>>, StorageError> {
         let node = self.find(dname)?;
-        let result = match node.borrow().rr_sets.get(&dtype) {
+        let node = node.borrow();
+        let result = match node.rr_sets.get(&dtype) {
             Some(rrset) => Ok(rrset.clone()),
             None => Err(StorageError::DNSTypeNotFoundError(
                 dname.to_string(),
@@ -169,13 +173,9 @@ impl UnSafeRBTreeStorage {
             if current.borrow().subtree.is_none() {
                 return self.0.clone();
             }
-            let result = current
-                .borrow()
-                .subtree
-                .as_ref()
-                .unwrap()
-                .get(&label.clone())
-                .cloned();
+            let temp = current.clone();
+            let subtree = temp.borrow().subtree.as_ref().unwrap().clone();
+            let result = subtree.borrow().get(&label.clone()).cloned();
             /// subtree exist and has label node
             if let Some(node) = result {
                 if labels_count == 0 {
@@ -189,7 +189,7 @@ impl UnSafeRBTreeStorage {
         current
     }
 
-    pub fn find(&self, name: &DNSName) -> Result<Rc<RefCell<RBTreeNode>>, StorageError> {
+    pub fn find(&mut self, name: &DNSName) -> Result<Rc<RefCell<RBTreeNode>>, StorageError> {
         let mut labels_count = name.label_count();
         if labels_count == 0 {
             return Ok(self.0.clone());
@@ -197,18 +197,17 @@ impl UnSafeRBTreeStorage {
         let mut current = self.0.clone();
         for label in name.labels.iter().rev() {
             labels_count -= 1;
-            if current.borrow().subtree.is_none() {
+            let temp = current.clone();
+
+            let subtree = temp.borrow_mut().subtree.take();
+            if subtree.is_none() {
                 return Err(StorageError::DomainNotFoundError(name.to_string()));
             }
-            let result = current
-                .borrow()
-                .subtree
-                .as_ref()
-                .unwrap()
-                .get(&label.clone())
-                .cloned();
+            let subtree = subtree.unwrap().clone();
+            let result = subtree.borrow().get(&label.clone()).cloned();
             /// subtree exist and has label node
             if let Some(node) = result {
+                temp.borrow_mut().subtree = Some(subtree);
                 if labels_count == 0 {
                     return Ok(node);
                 }
@@ -216,13 +215,8 @@ impl UnSafeRBTreeStorage {
                 continue;
             }
             /// find if include wildcard *
-            let result = current
-                .borrow()
-                .subtree
-                .as_ref()
-                .unwrap()
-                .get(&WILDCARD_LABEL)
-                .cloned();
+            let result = subtree.borrow().get(&WILDCARD_LABEL).cloned();
+            temp.borrow_mut().subtree = Some(subtree);
             if let Some(node) = result {
                 return Ok(node);
             }
@@ -238,7 +232,7 @@ pub struct RBTreeNode {
     label: Label,
     pub(crate) rr_sets: HashMap<DNSType, Rc<RefCell<RRSet>>>,
     parent: Option<Weak<RefCell<RBTreeNode>>>,
-    subtree: Option<RBTree<Label, Rc<RefCell<RBTreeNode>>>>,
+    subtree: Option<Rc<RefCell<RBTree<Label, Rc<RefCell<RBTreeNode>>>>>>,
 }
 // NOT SAFE!!!
 // Must use a thread safe structure to hold the data, without rc and refcell
@@ -271,7 +265,7 @@ impl Iterator for ZoneIterator {
                 if let Some(id) = id {
                     if let Some(parent) = self.parent_stack.pop() {
                         if let Some(tree) = &parent.0.deref().borrow().subtree {
-                            if let Some(v) = tree.find_next_value(id) {
+                            if let Some(v) = tree.borrow().find_next_value(id) {
                                 self.next = Some((v.0.clone(), Some(v.1)));
                                 self.parent_stack.push((parent.0.clone(), parent.1));
                                 return Some(next);
@@ -368,7 +362,7 @@ impl RBTreeNode {
         id: Option<usize>,
     ) -> (Rc<RefCell<RBTreeNode>>, Option<usize>) {
         if let Some(subtree) = &current.deref().borrow_mut().subtree {
-            if let Some((val, id)) = subtree.find_smallest_value() {
+            if let Some((val, id)) = subtree.borrow().find_smallest_value() {
                 stack.push((current.clone(), Some(id)));
                 return RBTreeNode::find_smallest(val.clone(), stack, Some(id));
             }

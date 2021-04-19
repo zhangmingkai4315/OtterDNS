@@ -13,6 +13,13 @@ impl DnsTypeA {
     pub fn new(ip: &str) -> Result<Self, DNSProtoErr> {
         Ok(DnsTypeA(Ipv4Addr::from_str(ip)?))
     }
+    pub fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
+        if data.len() < 4 {
+            return Err(DNSProtoErr::PacketParseError);
+        }
+        let data = unsafe { &*(data as *const [u8] as *const [u8; 4]) };
+        Ok(DnsTypeA(Ipv4Addr::from(*data)))
+    }
 }
 
 impl fmt::Display for DnsTypeA {
@@ -21,13 +28,6 @@ impl fmt::Display for DnsTypeA {
     }
 }
 impl DNSWireFrame for DnsTypeA {
-    fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
-        if data.len() < 4 {
-            return Err(DNSProtoErr::PacketParseError);
-        }
-        let data = unsafe { &*(data as *const [u8] as *const [u8; 4]) };
-        Ok(DnsTypeA(Ipv4Addr::from(*data)))
-    }
     fn get_type(&self) -> DNSType {
         DNSType::A
     }
@@ -38,6 +38,9 @@ impl DNSWireFrame for DnsTypeA {
 
     fn as_any(&self) -> &dyn Any {
         self
+    }
+    fn clone_box(&self) -> Box<dyn DNSWireFrame> {
+        Box::new(DnsTypeA(self.0.clone()))
     }
 }
 

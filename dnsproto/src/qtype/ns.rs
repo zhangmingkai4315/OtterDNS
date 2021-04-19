@@ -16,13 +16,16 @@ impl DnsTypeNS {
             name: DNSName::new(name, None)?,
         })
     }
-    pub(crate) fn from_str(
-        a_str: &str,
-        default_original: Option<&str>,
-    ) -> Result<Self, DNSProtoErr> {
+    pub fn from_str(a_str: &str, default_original: Option<&str>) -> Result<Self, DNSProtoErr> {
         Ok(DnsTypeNS {
             name: DNSName::new(a_str, default_original)?,
         })
+    }
+    pub fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
+        match parse_ns(data, original.unwrap_or(&[])) {
+            Ok((_, ns)) => Ok(ns),
+            Err(_err) => Err(DNSProtoErr::PacketParseError),
+        }
     }
 }
 
@@ -41,12 +44,6 @@ named_args!(parse_ns<'a>(original: &[u8])<DnsTypeNS>,
 ));
 
 impl DNSWireFrame for DnsTypeNS {
-    fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
-        match parse_ns(data, original.unwrap_or(&[])) {
-            Ok((_, ns)) => Ok(ns),
-            Err(_err) => Err(DNSProtoErr::PacketParseError),
-        }
-    }
     fn get_type(&self) -> DNSType {
         DNSType::NS
     }
@@ -55,6 +52,12 @@ impl DNSWireFrame for DnsTypeNS {
     }
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn clone_box(&self) -> Box<dyn DNSWireFrame> {
+        Box::new(Self {
+            name: self.name.clone(),
+        })
     }
 }
 #[cfg(test)]

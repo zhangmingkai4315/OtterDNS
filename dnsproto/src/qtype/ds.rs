@@ -16,7 +16,7 @@ use std::{fmt, fmt::Formatter};
 // /                            Digest                             /
 // /                                                               /
 // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct DnsTypeDS {
     key_tag: u16,
     algorithm_type: AlgorithemType,
@@ -130,6 +130,13 @@ impl DnsTypeDS {
             digest: string_to_hex_u8(digest.as_str())?,
         })
     }
+    pub fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
+        match parse_ds(data, data.len()) {
+            Ok((_, mx)) => Ok(mx),
+            Err(_err) => Err(DNSProtoErr::PacketParseError),
+        }
+    }
+
     pub fn new_from_raw(key_tag: u16, algorithm_type: u8, digest_type: u8, digest: &[u8]) -> Self {
         DnsTypeDS {
             key_tag,
@@ -172,13 +179,6 @@ impl fmt::Display for DnsTypeDS {
     }
 }
 impl DNSWireFrame for DnsTypeDS {
-    fn decode(data: &[u8], _: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
-        match parse_ds(data, data.len()) {
-            Ok((_, mx)) => Ok(mx),
-            Err(_err) => Err(DNSProtoErr::PacketParseError),
-        }
-    }
-
     fn get_type(&self) -> DNSType {
         DNSType::DS
     }
@@ -193,6 +193,15 @@ impl DNSWireFrame for DnsTypeDS {
     }
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn clone_box(&self) -> Box<dyn DNSWireFrame> {
+        Box::new(Self {
+            key_tag: self.key_tag,
+            algorithm_type: self.algorithm_type.clone(),
+            digest_type: self.digest_type.clone(),
+            digest: self.digest.clone(),
+        })
     }
 }
 

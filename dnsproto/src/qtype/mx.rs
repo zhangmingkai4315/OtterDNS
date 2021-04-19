@@ -16,7 +16,7 @@ use std::{fmt, fmt::Formatter};
 // /                   EXCHANGE                    /
 // /                                               /
 // +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct DnsTypeMX {
     priority: u16,
     exchange: DNSName,
@@ -40,6 +40,12 @@ impl DnsTypeMX {
             exchange: DNSName::new(exchange, default_original)?,
         })
     }
+    pub fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
+        match parse_mx(data, original.unwrap_or(&[])) {
+            Ok((_, mx)) => Ok(mx),
+            Err(_err) => Err(DNSProtoErr::PacketParseError),
+        }
+    }
 }
 
 impl fmt::Display for DnsTypeMX {
@@ -48,13 +54,6 @@ impl fmt::Display for DnsTypeMX {
     }
 }
 impl DNSWireFrame for DnsTypeMX {
-    fn decode(data: &[u8], original: Option<&[u8]>) -> Result<Self, DNSProtoErr> {
-        match parse_mx(data, original.unwrap_or(&[])) {
-            Ok((_, mx)) => Ok(mx),
-            Err(_err) => Err(DNSProtoErr::PacketParseError),
-        }
-    }
-
     fn get_type(&self) -> DNSType {
         DNSType::MX
     }
@@ -76,6 +75,13 @@ impl DNSWireFrame for DnsTypeMX {
     }
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn clone_box(&self) -> Box<dyn DNSWireFrame> {
+        Box::new(Self {
+            priority: self.priority,
+            exchange: self.exchange.clone(),
+        })
     }
 }
 
