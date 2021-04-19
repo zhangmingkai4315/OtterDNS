@@ -8,6 +8,7 @@ use std::net::SocketAddr;
 use std::result::Result::Err;
 use std::sync::Arc;
 use storage::safe_rbtree::SafeRBTree;
+use storage::unsafe_rbtree::RBTreeNode;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, UdpSocket};
 use tokio::task::JoinHandle;
@@ -102,7 +103,7 @@ impl Server {
         Server {
             udp_servers: Arc::new(vec![]),
             tcp_servers: Arc::new(vec![]),
-            storage: SafeRBTree::new(),
+            storage: SafeRBTree::new(RBTreeNode::new_root()),
             setting,
             threads: vec![],
             server_logger: server_log,
