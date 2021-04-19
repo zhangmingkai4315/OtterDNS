@@ -4,12 +4,10 @@ use otterlib::errors::OtterError;
 use otterlib::errors::{DNSProtoErr, NetworkError, StorageError};
 use otterlib::setting::Settings;
 use slog::{Drain, Logger};
-use std::borrow::BorrowMut;
 use std::net::SocketAddr;
 use std::result::Result::Err;
-use std::sync::{Arc, Mutex};
-use storage::rb_storage;
-use storage::rb_storage::RBTreeNode;
+use std::sync::Arc;
+use storage::safe_rbtree::SafeRBTree;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, UdpSocket};
 use tokio::task::JoinHandle;
@@ -22,7 +20,7 @@ pub struct UdpServer {
 }
 
 fn process_message(
-    storage: Arc<Mutex<RBTreeNode>>,
+    storage: SafeRBTree,
     message: &[u8],
     logger: &mut Logger,
 ) -> Result<Vec<u8>, DNSProtoErr> {
@@ -30,11 +28,10 @@ fn process_message(
     info!(logger, "{}", query_message.query_info());
     let query_info = query_message.query_name_and_type()?;
     let mut message = Message::new_message_from_query(&query_message);
-    let mut storage = storage.lock().unwrap();
-
     match storage.search_rrset(query_info.0, *query_info.1) {
         Ok(rrset) => {
             // TODO:
+            let rrset = rrset.borrow().to_records();
             message.update_answer(rrset);
         }
         Err(err) => {
@@ -67,7 +64,7 @@ pub struct TCPServer {
 pub struct Server {
     udp_servers: Arc<Vec<UdpServer>>,
     tcp_servers: Arc<Vec<TCPServer>>,
-    storage: Arc<Mutex<RBTreeNode>>,
+    storage: SafeRBTree,
     setting: Settings,
     threads: Vec<JoinHandle<TokioResult<()>>>,
     server_logger: Logger,
@@ -87,7 +84,7 @@ impl Server {
         Server {
             udp_servers: Arc::new(vec![]),
             tcp_servers: Arc::new(vec![]),
-            storage: Arc::new(Mutex::new((RBTreeNode::new_root()))),
+            storage: SafeRBTree::new(),
             setting,
             threads: vec![],
             server_logger: server_log,
@@ -116,8 +113,7 @@ impl Server {
 
     fn init_load_storage(&mut self) -> Result<(), OtterError> {
         let zone_file_list = self.setting.get_zone_file_list();
-        let mut storage = self.storage.lock().unwrap();
-        let ref mut logger = self.server_logger.clone();
+        let logger = self.server_logger.clone();
         for (file, domain) in &zone_file_list {
             let mut orginal: Option<String> = None;
             if !domain.is_empty() {
@@ -130,7 +126,7 @@ impl Server {
                     }
                 }
             }
-            storage.update_zone(file, orginal)?;
+            self.storage.update_zone(file, orginal)?;
             info!(logger, "{}", format!("load zone file: {} success", file));
         }
         info!(logger, "load all zone files success");
@@ -149,6 +145,7 @@ impl Server {
             let mut query_logger = self.query_logger.clone();
             self.threads.push(tokio::spawn(async move {
                 loop {
+                    let storage = storage.clone();
                     let mut message = [0u8; 4096];
                     match servers_clone[index]
                         .udp_socket
@@ -157,7 +154,7 @@ impl Server {
                     {
                         Ok((vsize, connected_peer)) => {
                             let message = &message[0..vsize];
-                            match process_message(storage.clone(), &message, &mut query_logger) {
+                            match process_message(storage, &message, &mut query_logger) {
                                 Ok(message) => {
                                     if let Err(err) = servers_clone[index]
                                         .udp_socket
@@ -190,27 +187,30 @@ impl Server {
             let storage = self.storage.clone();
             let servers_clone = self.tcp_servers.clone();
             let mut query_logger = self.query_logger.clone();
+            let server_logger = self.server_logger.clone();
             self.threads.push(tokio::spawn(async move {
                 loop {
+                    let storage = storage.clone();
                     if let Ok((mut stream, _)) = servers_clone[index].tcp_listener.accept().await {
                         let mut message: Vec<u8> = Vec::with_capacity(4096);
                         match stream.read(message.as_mut_slice()).await {
                             Ok(vsize) => {
                                 let message = &message[0..vsize];
-                                match process_message(storage.clone(), &message, &mut query_logger)
-                                {
+                                match process_message(storage, &message, &mut query_logger) {
                                     Ok(message) => {
-                                        stream.write(message.as_slice()).await;
+                                        if let Err(err) = stream.write(message.as_slice()).await {
+                                            error!(server_logger, "{:?}", err)
+                                        };
                                         continue;
                                     }
                                     Err(err) => {
-                                        println!("serialize message fail: {:?}", err);
+                                        error!(server_logger, "serialize message fail: {:?}", err);
                                         continue;
                                     }
                                 }
                             }
                             Err(err) => {
-                                println!("process message fail: {:?}", err);
+                                error!(server_logger, "process message fail: {:?}", err);
                                 continue;
                             }
                         };
@@ -219,7 +219,9 @@ impl Server {
             }));
         }
         for join_handler in self.threads.iter_mut() {
-            join_handler.await;
+            if let Err(err) = join_handler.await {
+                error!(self.server_logger, "{:?}", err)
+            };
         }
         Ok(())
     }

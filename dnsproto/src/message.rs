@@ -83,10 +83,9 @@ impl Message {
         self.header.additional_count = additional.len() as u16;
         self.additional = additional;
     }
-    pub fn update_answer(&mut self, rrset: &RRSet) {
-        let answer = rrset.to_records();
-        self.header.answer_count = answer.len() as u16;
-        self.answers = answer;
+    pub fn update_answer(&mut self, rrset: Vec<Record>) {
+        self.header.answer_count = rrset.len() as u16;
+        self.answers = rrset;
     }
     pub fn update_authority(&mut self, rrset: &RRSet) {
         let ns_list = rrset.to_records();

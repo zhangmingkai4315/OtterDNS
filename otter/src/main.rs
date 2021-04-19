@@ -8,9 +8,8 @@ extern crate slog_term;
 extern crate dnsproto;
 use crate::server::Server;
 use clap::{App, Arg};
-use otterlib::errors::{OtterError, SettingError};
+use otterlib::errors::OtterError;
 use otterlib::setting::Settings;
-use slog::Drain;
 
 #[tokio::main]
 async fn main() -> Result<(), OtterError> {

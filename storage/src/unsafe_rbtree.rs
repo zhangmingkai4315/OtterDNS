@@ -6,8 +6,9 @@ use crate::rbtree::RBTree;
 use dnsproto::dnsname::DNSName;
 use dnsproto::label::Label;
 use dnsproto::meta::{DNSType, RRSet, ResourceRecord};
+use dnsproto::zone::{ZoneFileParser, ZoneReader};
 use lazy_static::lazy_static;
-use otterlib::errors::StorageError;
+use otterlib::errors::{OtterError, StorageError};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
@@ -22,17 +23,226 @@ use std::str::FromStr;
 lazy_static! {
     static ref WILDCARD_LABEL: Label = Label::from_str("*").unwrap();
 }
+#[derive(Debug, Clone)]
+pub struct UnSafeRBTreeStorage(Rc<RefCell<RBTreeNode>>);
+
+impl Default for UnSafeRBTreeStorage {
+    fn default() -> Self {
+        UnSafeRBTreeStorage::new(RBTreeNode::new_root())
+    }
+}
+
+impl UnSafeRBTreeStorage {
+    pub fn new(node: RBTreeNode) -> UnSafeRBTreeStorage {
+        UnSafeRBTreeStorage(Rc::new(RefCell::new(node)))
+    }
+
+    pub fn new_zone_from_file(
+        file: &str,
+        default_origin: Option<String>,
+    ) -> Result<UnSafeRBTreeStorage, OtterError> {
+        let mut zone = UnSafeRBTreeStorage::new(RBTreeNode::new_root());
+        zone.update_zone(file, default_origin)?;
+        Ok(zone)
+    }
+
+    pub fn update_zone(
+        &mut self,
+        file: &str,
+        default_origin: Option<String>,
+    ) -> Result<(), OtterError> {
+        let parser = ZoneFileParser::new(file)?;
+        let zone_reader = ZoneReader::new(parser, default_origin);
+        for item in zone_reader {
+            match item {
+                Ok(rr) => {
+                    // insert rr record to zone node.
+                    self.insert_rr(rr)?;
+                }
+                Err(err) => return Err(OtterError::DNSProtoError(err)),
+            }
+        }
+        Ok(())
+    }
+
+    /// locate the dns name node from top zone root node. if the dns name is not found in this zone
+    /// create a sub node based the label.
+    /// should valid if the name is below to the zone data.
+    pub fn find_or_insert(
+        &mut self,
+        name: &DNSName,
+    ) -> Result<Rc<RefCell<RBTreeNode>>, StorageError> {
+        let current_name = &self.0.borrow().get_name();
+        if !name.is_part_of(current_name) {
+            return Err(StorageError::ZoneOutOfArea(
+                name.to_string(),
+                current_name.to_string(),
+            ));
+        }
+        let mut labels_count = name.label_count();
+        if labels_count == 0 {
+            return Ok(self.0.clone());
+        }
+        let mut parent_node = None;
+        let mut current = self.0.clone();
+
+        for label in name.labels.iter().rev() {
+            labels_count -= 1;
+            let mut temp = current.borrow_mut();
+            let subtree = temp.subtree.get_or_insert(RBTree::new());
+            let result = subtree.get(&label.clone()).cloned();
+
+            if let Some(node) = result {
+                if labels_count == 0 {
+                    return Ok(node);
+                }
+                parent_node = Some(node.clone());
+                drop(temp);
+                current = node;
+                continue;
+            }
+            let node = RBTreeNode::from_label(label.clone());
+            if let Some(parent) = parent_node {
+                (*node).borrow_mut().parent = Some(Rc::downgrade(&parent));
+            } else {
+                (*node).borrow_mut().parent = None
+            }
+            subtree.insert(label.clone(), node.clone());
+            // not found in subtree
+            if labels_count == 0 {
+                // subtree exist but has not label node
+                // create a new label node
+                return Ok(node);
+            } else {
+                // create a path to next label, but if each label has a new rbtree will consume
+                // too much memory , so should build with a compressed way
+                drop(temp);
+                current = node.clone();
+                parent_node = Some(node);
+            }
+        }
+        Ok(current)
+    }
+
+    pub fn insert_rr(&mut self, rr: ResourceRecord) -> Result<(), StorageError> {
+        let dname = rr.get_dname();
+        let vnode = self.find_or_insert(dname)?;
+        vnode.borrow_mut().add_rr(rr)?;
+        Ok(())
+    }
+    /// search will travel from top of tree down to the bottom.
+    pub fn search_rrset(
+        &self,
+        dname: &DNSName,
+        dtype: DNSType,
+    ) -> Result<Rc<RefCell<RRSet>>, StorageError> {
+        let node = self.find(dname)?;
+        let result = match node.borrow().rr_sets.get(&dtype) {
+            Some(rrset) => Ok(rrset.clone()),
+            None => Err(StorageError::DNSTypeNotFoundError(
+                dname.to_string(),
+                dtype.to_string(),
+            )),
+        };
+        result
+    }
+
+    pub fn delete_rrset(&mut self, dtype: DNSType) -> Result<Rc<RefCell<RRSet>>, StorageError> {
+        let name = self.0.borrow().get_name();
+        match self.0.borrow_mut().rr_sets.remove(&dtype) {
+            Some(rrset) => Ok(rrset),
+            None => Err(StorageError::DNSTypeNotFoundError(
+                name.to_string(),
+                dtype.to_string(),
+            )),
+        }
+    }
+
+    pub fn find_best(&self, name: &DNSName) -> Rc<RefCell<RBTreeNode>> {
+        let mut labels_count = name.label_count();
+        if labels_count == 0 {
+            return self.0.clone();
+        }
+        let mut current = self.0.clone();
+        for label in name.labels.iter().rev() {
+            labels_count -= 1;
+            if current.borrow().subtree.is_none() {
+                return self.0.clone();
+            }
+            let result = current
+                .borrow()
+                .subtree
+                .as_ref()
+                .unwrap()
+                .get(&label.clone())
+                .cloned();
+            /// subtree exist and has label node
+            if let Some(node) = result {
+                if labels_count == 0 {
+                    return node;
+                }
+                current = node;
+                continue;
+            }
+            return current;
+        }
+        current
+    }
+
+    pub fn find(&self, name: &DNSName) -> Result<Rc<RefCell<RBTreeNode>>, StorageError> {
+        let mut labels_count = name.label_count();
+        if labels_count == 0 {
+            return Ok(self.0.clone());
+        }
+        let mut current = self.0.clone();
+        for label in name.labels.iter().rev() {
+            labels_count -= 1;
+            if current.borrow().subtree.is_none() {
+                return Err(StorageError::DomainNotFoundError(name.to_string()));
+            }
+            let result = current
+                .borrow()
+                .subtree
+                .as_ref()
+                .unwrap()
+                .get(&label.clone())
+                .cloned();
+            /// subtree exist and has label node
+            if let Some(node) = result {
+                if labels_count == 0 {
+                    return Ok(node);
+                }
+                current = node;
+                continue;
+            }
+            /// find if include wildcard *
+            let result = current
+                .borrow()
+                .subtree
+                .as_ref()
+                .unwrap()
+                .get(&WILDCARD_LABEL)
+                .cloned();
+            if let Some(node) = result {
+                return Ok(node);
+            }
+            /// not found in subtree
+            return Err(StorageError::DomainNotFoundError(name.to_string()));
+        }
+        Ok(current)
+    }
+}
 
 #[derive(Debug)]
 pub struct RBTreeNode {
     label: Label,
-    rr_sets: HashMap<DNSType, RRSet>,
+    pub(crate) rr_sets: HashMap<DNSType, Rc<RefCell<RRSet>>>,
     parent: Option<Weak<RefCell<RBTreeNode>>>,
     subtree: Option<RBTree<Label, Rc<RefCell<RBTreeNode>>>>,
 }
 // NOT SAFE!!!
 // Must use a thread safe structure to hold the data, without rc and refcell
-unsafe impl Send for RBTreeNode {}
+
 pub struct ZoneIterator {
     parent_stack: Vec<(Rc<RefCell<RBTreeNode>>, Option<usize>)>,
     next: Option<(Rc<RefCell<RBTreeNode>>, Option<usize>)>,
@@ -83,8 +293,8 @@ impl Iterator for ZoneIterator {
 
 impl Display for RBTreeNode {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        for (_, rrset) in &self.rr_sets {
-            write!(formatter, "{}", rrset.to_string());
+        for rrset in self.rr_sets.values() {
+            let _ = write!(formatter, "{}", rrset.borrow().to_string());
         }
         write!(formatter, "")
     }
@@ -101,7 +311,57 @@ impl RBTreeNode {
             subtree: None,
         }
     }
-
+    pub fn find_soa(&self) -> Result<Rc<RefCell<RRSet>>, StorageError> {
+        return match self.find_rrset(DNSType::SOA) {
+            Ok(rrset) => Ok(rrset),
+            _ => {
+                if let Some(parent) = &self.parent {
+                    if let Some(parent) = parent.upgrade() {
+                        match unsafe { parent.as_ptr().as_ref() } {
+                            Some(parent) => {
+                                return parent.find_soa();
+                            }
+                            _ => return Err(StorageError::SOAResourceError),
+                        };
+                    }
+                }
+                Err(StorageError::SOAResourceError)
+            }
+        };
+    }
+    pub fn add_rr(&mut self, rr: ResourceRecord) -> Result<(), StorageError> {
+        match rr.get_type() {
+            DNSType::RRSIG => {
+                self.rr_sets
+                    .entry(rr.get_type())
+                    .or_insert_with(Default::default)
+                    .borrow_mut()
+                    .add(rr);
+            }
+            DNSType::CNAME => {
+                if self.has_non_type(DNSType::NSEC) {
+                    return Err(StorageError::AddCNAMEConflictError);
+                } else {
+                    self.rr_sets
+                        .entry(rr.get_type())
+                        .or_insert_with(Default::default)
+                        .borrow_mut()
+                        .add(rr);
+                }
+            }
+            _ => {
+                if self.has_type(DNSType::CNAME) && rr.get_type() != DNSType::NSEC {
+                    return Err(StorageError::AddOtherRRConflictCNAME);
+                }
+                self.rr_sets
+                    .entry(rr.get_type())
+                    .or_insert_with(Default::default)
+                    .borrow_mut()
+                    .add(rr);
+            }
+        }
+        Ok(())
+    }
     pub fn find_smallest(
         current: Rc<RefCell<RBTreeNode>>,
         stack: &mut Vec<(Rc<RefCell<RBTreeNode>>, Option<usize>)>,
@@ -131,9 +391,9 @@ impl RBTreeNode {
         }
         false
     }
-    pub fn find_rrset(&self, dtype: DNSType) -> Result<&RRSet, StorageError> {
+    pub fn find_rrset(&self, dtype: DNSType) -> Result<Rc<RefCell<RRSet>>, StorageError> {
         match self.rr_sets.get(&dtype) {
-            Some(rrset) => Ok(rrset),
+            Some(rrset) => Ok(rrset.clone()),
             None => Err(StorageError::DNSTypeNotFoundError(
                 self.get_name().to_string(),
                 dtype.to_string(),
@@ -141,213 +401,6 @@ impl RBTreeNode {
         }
     }
 
-    pub fn search_rrset(
-        &mut self,
-        dname: &DNSName,
-        dtype: DNSType,
-    ) -> Result<&RRSet, StorageError> {
-        let node = self.find(dname)?;
-        match node.rr_sets.get(&dtype) {
-            Some(rrset) => Ok(rrset),
-            None => Err(StorageError::DNSTypeNotFoundError(
-                dname.to_string(),
-                dtype.to_string(),
-            )),
-        }
-    }
-
-    pub fn insert_rr(&mut self, rr: ResourceRecord) -> Result<(), StorageError> {
-        let dname = rr.get_dname();
-        let vnode = self.find_or_insert(dname)?;
-        vnode.add_rr(rr)?;
-        Ok(())
-    }
-
-    pub fn delete_rrset(&mut self, dtype: DNSType) -> Result<RRSet, StorageError> {
-        match self.rr_sets.remove(&dtype) {
-            Some(rrset) => Ok(rrset),
-            None => Err(StorageError::DNSTypeNotFoundError(
-                self.get_name().to_string(),
-                dtype.to_string(),
-            )),
-        }
-    }
-
-    /// locate the dns name node from top zone root node. if the dns name is not found in this zone
-    /// create a sub node based the label.
-    /// should valid if the name is below to the zone data.
-    pub fn find_or_insert(&mut self, name: &DNSName) -> Result<&mut RBTreeNode, StorageError> {
-        if !name.is_part_of(&self.get_name()) {
-            return Err(StorageError::ZoneOutOfArea(
-                name.to_string(),
-                self.get_name().to_string(),
-            ));
-        }
-        let mut labels_count = name.label_count();
-        if labels_count == 0 {
-            return Ok(self);
-        }
-        let mut parent_node = None;
-        let mut current = self;
-
-        for label in name.labels.iter().rev() {
-            labels_count -= 1;
-            let subtree = current.subtree.get_or_insert(RBTree::new());
-            let result = subtree.get(&label.clone()).cloned();
-            /// subtree exist and has label node
-            if let Some(node) = result {
-                if labels_count == 0 {
-                    return Ok(unsafe { node.as_ptr().as_mut().unwrap() });
-                }
-                parent_node = Some(node.clone());
-                current = unsafe { node.as_ptr().as_mut().unwrap() };
-                continue;
-            }
-            let node = RBTreeNode::from_label(label.clone());
-            if let Some(parent) = parent_node {
-                (*node).borrow_mut().parent = Some(Rc::downgrade(&parent));
-            } else {
-                (*node).borrow_mut().parent = None
-            }
-            subtree.insert(label.clone(), node.clone());
-            // not found in subtree
-            if labels_count == 0 {
-                // subtree exist but has not label node
-                // create a new label node
-                return Ok(unsafe { node.as_ptr().as_mut().unwrap() });
-            } else {
-                // create a path to next label, but if each label has a new rbtree will consume
-                // too much memory , so should build with a compressed way
-                current = unsafe { node.clone().as_ptr().as_mut().unwrap() };
-                parent_node = Some(node);
-            }
-        }
-        Ok(current)
-    }
-    pub fn find_best(&self, name: &DNSName) -> &RBTreeNode {
-        let mut labels_count = name.label_count();
-        if labels_count == 0 {
-            return self;
-        }
-        let mut current = self;
-        for label in name.labels.iter().rev() {
-            labels_count -= 1;
-            if current.subtree.is_none() {
-                return self;
-            }
-            let result = current
-                .subtree
-                .as_ref()
-                .unwrap()
-                .get(&label.clone())
-                .cloned();
-            /// subtree exist and has label node
-            if let Some(node) = result {
-                if labels_count == 0 {
-                    return unsafe { node.as_ptr().as_ref().unwrap() };
-                }
-                current = unsafe { node.as_ptr().as_ref().unwrap() };
-                continue;
-            }
-            return current;
-        }
-        current
-    }
-
-    pub fn find(&self, name: &DNSName) -> Result<&RBTreeNode, StorageError> {
-        let mut labels_count = name.label_count();
-        if labels_count == 0 {
-            return Ok(self);
-        }
-        let mut current = self;
-        for label in name.labels.iter().rev() {
-            labels_count -= 1;
-            if current.subtree.is_none() {
-                return Err(StorageError::DomainNotFoundError(name.to_string()));
-            }
-            let result = current
-                .subtree
-                .as_ref()
-                .unwrap()
-                .get(&label.clone())
-                .cloned();
-            /// subtree exist and has label node
-            if let Some(node) = result {
-                if labels_count == 0 {
-                    return Ok(unsafe { node.as_ptr().as_ref().unwrap() });
-                }
-                current = unsafe { node.as_ptr().as_ref().unwrap() };
-                continue;
-            }
-            /// find if include wildcard *
-            let result = current
-                .subtree
-                .as_ref()
-                .unwrap()
-                .get(&WILDCARD_LABEL)
-                .cloned();
-            if let Some(node) = result {
-                return Ok(unsafe { node.as_ptr().as_ref().unwrap() });
-            }
-            /// not found in subtree
-            return Err(StorageError::DomainNotFoundError(name.to_string()));
-        }
-        Ok(current)
-    }
-    pub fn find_soa(&self) -> Result<&ResourceRecord, StorageError> {
-        return match self.find_rrset(DNSType::SOA) {
-            Ok(rrset) => {
-                if rrset.content().len() != 1 {
-                    return Err(StorageError::SOAResourceError);
-                }
-                Ok(rrset.content().get(0).unwrap())
-            }
-            _ => {
-                if let Some(parent) = &self.parent {
-                    if let Some(parent) = parent.upgrade() {
-                        match unsafe { parent.as_ptr().as_ref() } {
-                            Some(parent) => {
-                                return parent.find_soa();
-                            }
-                            _ => return Err(StorageError::SOAResourceError),
-                        };
-                    }
-                }
-                Err(StorageError::SOAResourceError)
-            }
-        };
-    }
-
-    pub fn add_rr(&mut self, rr: ResourceRecord) -> Result<(), StorageError> {
-        match rr.get_type() {
-            DNSType::RRSIG => {
-                self.rr_sets
-                    .entry(rr.get_type())
-                    .or_insert_with(Default::default)
-                    .add(rr);
-            }
-            DNSType::CNAME => {
-                if self.has_non_type(DNSType::NSEC) {
-                    return Err(StorageError::AddCNAMEConflictError);
-                } else {
-                    self.rr_sets
-                        .entry(rr.get_type())
-                        .or_insert_with(Default::default)
-                        .add(rr);
-                }
-            }
-            _ => {
-                if self.has_type(DNSType::CNAME) && rr.get_type() != DNSType::NSEC {
-                    return Err(StorageError::AddOtherRRConflictCNAME);
-                }
-                self.rr_sets
-                    .entry(rr.get_type())
-                    .or_insert_with(Default::default)
-                    .add(rr);
-            }
-        }
-        Ok(())
-    }
     #[allow(dead_code)]
     fn get_parent(&self) -> Option<Rc<RefCell<RBTreeNode>>> {
         if let Some(parent) = self.parent.clone() {
@@ -694,5 +747,86 @@ mod storage {
                 .downcast_ref::<DnsTypeSOA>(),
             Some(&soa_record)
         );
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::unsafe_rbtree::{RBTreeNode, UnSafeRBTreeStorage};
+    use dnsproto::dnsname::DNSName;
+    use dnsproto::meta::DNSType;
+
+    #[test]
+    fn load_small_zone_from_disk() {
+        let search_items = [
+            ("example.com.", DNSType::SOA, true),
+            ("example.com.", DNSType::NS, true),
+            ("example.com.", DNSType::MX, true),
+            ("example.com.", DNSType::A, true),
+            ("example.com.", DNSType::AAAA, true),
+            ("ns.example.com.", DNSType::A, true),
+            ("ns.example.com.", DNSType::AAAA, true),
+            ("www.example.com.", DNSType::CNAME, true),
+            ("wwwtest.example.com.", DNSType::CNAME, true),
+            ("mail.example.com.", DNSType::A, true),
+            ("mail2.example.com.", DNSType::A, true),
+            ("mail3.example.com.", DNSType::A, true),
+            // not exist type
+            ("example.com.", DNSType::TXT, false),
+            ("ns.example.com.", DNSType::TXT, false),
+            ("www.example.com.", DNSType::TXT, false),
+            ("wwwtest.example.com.", DNSType::TXT, false),
+            ("mail.example.com.", DNSType::TXT, false),
+            ("mail2.example.com.", DNSType::TXT, false),
+            ("mail3.example.com.", DNSType::TXT, false),
+            // not exist domain
+            ("ns-noexist.example.com.", DNSType::AAAA, false),
+            ("www-noexist.example.com.", DNSType::CNAME, false),
+            ("wwwtest-noexist.example.com.", DNSType::CNAME, false),
+            ("mail-noexist.example.com.", DNSType::A, false),
+            ("main2-noexist.example.com.", DNSType::A, false),
+            ("main3-noexist.example.com.", DNSType::A, false),
+        ];
+        let test_zone_file = "./test/example.zone";
+        match UnSafeRBTreeStorage::new_zone_from_file(test_zone_file, None) {
+            Ok(mut zone) => {
+                for item in search_items.iter() {
+                    // zone.find()
+                    match zone.search_rrset(&DNSName::new(item.0, None).unwrap(), item.1) {
+                        Ok(_) => {
+                            assert_eq!(
+                                item.2,
+                                true,
+                                "domain: {} and type: {} should not exist but found",
+                                item.0,
+                                item.1.to_string(),
+                            );
+                        }
+                        Err(_) => {
+                            assert_eq!(
+                                item.2,
+                                false,
+                                "domain: {} and type: {} should exist but not found",
+                                item.0,
+                                item.1.to_string(),
+                            );
+                        }
+                    }
+                }
+            }
+            Err(err) => assert!(false, err.to_string()),
+        }
+    }
+    #[test]
+    fn load_root_zone_from_disk() {
+        let test_zone_file = "./test/root.zone";
+        match RBTreeNode::new_zone_from_file(test_zone_file, None) {
+            Ok(zone) => {
+                for item in zone {
+                    println!("{}", item.borrow().to_string())
+                }
+            }
+            Err(err) => assert!(false, format!("load root zone fail: {:?}", err)),
+        }
     }
 }

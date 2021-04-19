@@ -3,7 +3,7 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use dnsproto::dnsname::DNSName;
 use dnsproto::meta::{DNSClass, DNSType, ResourceRecord};
 use dnsproto::qtype::DnsTypeA;
-use storage::rb_storage::RBZone;
+use storage::unsafe_rbtree::RBZone;
 
 fn rbstorage_find_name(c: &mut Criterion) {
     let mut zone = RBZone::new_root();
