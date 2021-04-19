@@ -237,7 +237,6 @@ mod test {
         assert_eq!(setting.zone[1].acl.as_ref().unwrap()[1], "others_acl");
 
         assert_eq!(setting.zone[2].domain, "example.com");
-        assert_eq!(setting.zone[2].storage, "/abc/zones/");
         assert_eq!(setting.zone[2].file, "example.com.zone");
         assert_eq!(setting.zone[2].acl.as_ref().unwrap()[0], "update_acl");
 

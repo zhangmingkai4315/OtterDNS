@@ -1,6 +1,6 @@
 use crate::unsafe_rbtree::UnSafeRBTreeStorage;
 use dnsproto::dnsname::DNSName;
-use dnsproto::meta::{DNSType, RRSet};
+use dnsproto::meta::{DNSType, RRSet, ResourceRecord};
 use otterlib::errors::{OtterError, StorageError};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -39,5 +39,10 @@ impl SafeRBTree {
     ) -> Result<Rc<RefCell<RRSet>>, StorageError> {
         let mut storage = self.shared.lock().unwrap();
         storage.search_rrset(dname, dtype)
+    }
+
+    pub fn insert_rr(&mut self, rr: ResourceRecord) -> Result<(), StorageError> {
+        let mut storage = self.shared.lock().unwrap();
+        storage.insert_rr(rr)
     }
 }

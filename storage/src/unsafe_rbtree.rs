@@ -9,7 +9,6 @@ use dnsproto::meta::{DNSType, RRSet, ResourceRecord};
 use dnsproto::zone::{ZoneFileParser, ZoneReader};
 use lazy_static::lazy_static;
 use otterlib::errors::{OtterError, StorageError};
-// use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
@@ -188,6 +187,21 @@ impl UnSafeRBTreeStorage {
         }
         current
     }
+    pub fn find_smallest(
+        &self,
+        stack: &mut Vec<(Rc<RefCell<RBTreeNode>>, Option<usize>)>,
+        id: Option<usize>,
+    ) -> (Rc<RefCell<RBTreeNode>>, Option<usize>) {
+        let current = self.0.clone();
+        if let Some(subtree) = &current.deref().borrow_mut().subtree {
+            if let Some((val, id)) = subtree.borrow().find_smallest_value() {
+                stack.push((current.clone(), Some(id)));
+                let subtree = UnSafeRBTreeStorage(val.clone());
+                return subtree.find_smallest(stack, Some(id));
+            }
+        }
+        (current, id)
+    }
 
     pub fn find(&mut self, name: &DNSName) -> Result<Rc<RefCell<RBTreeNode>>, StorageError> {
         let mut labels_count = name.label_count();
@@ -234,22 +248,19 @@ pub struct RBTreeNode {
     parent: Option<Weak<RefCell<RBTreeNode>>>,
     subtree: Option<Rc<RefCell<RBTree<Label, Rc<RefCell<RBTreeNode>>>>>>,
 }
-// NOT SAFE!!!
-// Must use a thread safe structure to hold the data, without rc and refcell
 
 pub struct ZoneIterator {
     parent_stack: Vec<(Rc<RefCell<RBTreeNode>>, Option<usize>)>,
     next: Option<(Rc<RefCell<RBTreeNode>>, Option<usize>)>,
 }
 
-impl IntoIterator for RBTreeNode {
+impl IntoIterator for UnSafeRBTreeStorage {
     type Item = Rc<RefCell<RBTreeNode>>;
     type IntoIter = ZoneIterator;
 
     fn into_iter(self) -> Self::IntoIter {
         let mut stack = Vec::new();
-        let (smallest, id) =
-            RBTreeNode::find_smallest(Rc::new(RefCell::new(self)), &mut stack, None);
+        let (smallest, id) = self.find_smallest(&mut stack, None);
         ZoneIterator {
             parent_stack: stack,
             next: Some((smallest, id)),
@@ -311,12 +322,7 @@ impl RBTreeNode {
             _ => {
                 if let Some(parent) = &self.parent {
                     if let Some(parent) = parent.upgrade() {
-                        match unsafe { parent.as_ptr().as_ref() } {
-                            Some(parent) => {
-                                return parent.find_soa();
-                            }
-                            _ => return Err(StorageError::SOAResourceError),
-                        };
+                        return parent.borrow().find_soa();
                     }
                 }
                 Err(StorageError::SOAResourceError)
@@ -355,19 +361,6 @@ impl RBTreeNode {
             }
         }
         Ok(())
-    }
-    pub fn find_smallest(
-        current: Rc<RefCell<RBTreeNode>>,
-        stack: &mut Vec<(Rc<RefCell<RBTreeNode>>, Option<usize>)>,
-        id: Option<usize>,
-    ) -> (Rc<RefCell<RBTreeNode>>, Option<usize>) {
-        if let Some(subtree) = &current.deref().borrow_mut().subtree {
-            if let Some((val, id)) = subtree.borrow().find_smallest_value() {
-                stack.push((current.clone(), Some(id)));
-                return RBTreeNode::find_smallest(val.clone(), stack, Some(id));
-            }
-        }
-        (current, id)
     }
     fn has_type(&self, qtype: DNSType) -> bool {
         for (q_type, _) in self.rr_sets.iter() {
@@ -446,8 +439,8 @@ mod storage {
     use dnsproto::qtype::DnsTypeSOA;
     use std::str::FromStr;
 
-    fn example_zone_v2() -> RBTreeNode {
-        let mut zone: RBTreeNode = RBTreeNode::new_root();
+    fn example_zone_v2() -> UnSafeRBTreeStorage {
+        let mut zone = RBTreeNode::new_root();
         zone.add_rr(
             ResourceRecord::new(
                 ".",
@@ -527,10 +520,13 @@ mod storage {
                     .unwrap(),
             ),
         ];
+
+        let mut zone = UnSafeRBTreeStorage::new(zone);
         for (name, rr) in dnsnames {
             let node = zone.find_or_insert(&name).unwrap();
             // let mut borrow_node = node.deref().borrow_mut();
-            if let Err(_e) = node.add_rr(rr) {
+
+            if let Err(_e) = zone.insert_rr(rr) {
                 panic!("create example zone fail");
             }
         }
@@ -569,22 +565,15 @@ mod storage {
     }
     #[test]
     fn test_find_or_insert() {
-        let mut zone = RBTreeNode::new_root();
+        let mut zone = UnSafeRBTreeStorage::default();
         let node = zone
             .find_or_insert(&DNSName::new("www.baidu.com.", None).unwrap())
             .unwrap();
-        assert_eq!(node.label, Label::from_str("www").unwrap());
+        assert_eq!(node.borrow().label, Label::from_str("www").unwrap());
         assert_eq!(
-            node.get_name(),
+            node.borrow().get_name(),
             DNSName::new("www.baidu.com.", None).unwrap()
         );
-
-        let insert_out_of_zone =
-            node.find_or_insert(&DNSName::new("www.google.cc.", None).unwrap());
-        assert_eq!(
-            insert_out_of_zone.unwrap_err(),
-            StorageError::ZoneOutOfArea("www.google.cc.".to_owned(), "www.baidu.com.".to_owned())
-        )
     }
 
     #[test]
@@ -629,16 +618,16 @@ mod storage {
 
     #[test]
     fn test_rbnode_insert() {
-        let zone = example_zone_v2();
+        let mut zone = example_zone_v2();
         let dname = DNSName::new("baidu.com.", None).unwrap();
         match zone.find(&dname) {
-            Ok(node) => assert_eq!(node.rr_sets.len(), 2),
+            Ok(node) => assert_eq!(node.borrow().rr_sets.len(), 2),
             _ => assert!(false),
         }
         match zone.find(&dname) {
             // re search again
             Ok(node) => {
-                assert_eq!(node.rr_sets.len(), 2);
+                assert_eq!(node.borrow().rr_sets.len(), 2);
             }
             _ => assert!(false),
         }
@@ -646,8 +635,9 @@ mod storage {
         match zone.find(&dname) {
             // find wirdcard match
             Ok(node) => {
-                assert_eq!(node.rr_sets.len(), 1);
-                assert_eq!(node.rr_sets.get(&DNSType::A).is_some(), true);
+                let node_rrset = &node.borrow().rr_sets;
+                assert_eq!(node_rrset.len(), 1);
+                assert_eq!(node_rrset.get(&DNSType::A).is_some(), true);
             }
             _ => assert!(false),
         }
@@ -656,18 +646,16 @@ mod storage {
     #[test]
     fn test_find_smallest() {
         let zone = example_zone_v2();
-        let zone_rc = Rc::new(RefCell::new(zone));
         let mut stack = vec![];
-        let smallest = RBTreeNode::find_smallest(zone_rc, &mut stack, None);
+        let smallest = zone.find_smallest(&mut stack, None);
         assert_eq!(
             smallest.0.deref().borrow().label,
             Label::from_str("*").unwrap()
         );
         assert_eq!(stack.len(), 3);
-        let zone = RBTreeNode::new_root();
-        let zone_rc = Rc::new(RefCell::new(zone));
+        let zone = UnSafeRBTreeStorage::default();
         let mut stack = vec![];
-        let smallest = RBTreeNode::find_smallest(zone_rc, &mut stack, None);
+        let smallest = zone.find_smallest(&mut stack, None);
         assert_eq!(smallest.0.deref().borrow().label, Label::root());
         assert_eq!(stack.len(), 0);
     }
@@ -692,7 +680,7 @@ mod storage {
             index = index + 1;
         }
 
-        let zone = RBTreeNode::new_root();
+        let zone = UnSafeRBTreeStorage::default();
         for ix in zone {
             assert_eq!(
                 ix.deref().borrow().get_name().to_string(),
@@ -704,19 +692,19 @@ mod storage {
     fn test_find_best() {
         let zone = example_zone_v2();
         let best = zone.find_best(&DNSName::new("www.baidu.com.", None).unwrap());
-        assert_eq!(best.get_name().to_string(), "baidu.com.");
+        assert_eq!(best.borrow().get_name().to_string(), "baidu.com.");
         let best = zone.find_best(&DNSName::new("www.google.com.", None).unwrap());
-        assert_eq!(best.get_name().to_string(), "www.google.com.");
+        assert_eq!(best.borrow().get_name().to_string(), "www.google.com.");
 
-        let zone = RBTreeNode::new_root();
-        let best = zone.find_best(&DNSName::new("www.baidu.com.", None).unwrap());
-        assert_eq!(best.get_name().to_string(), ".");
+        let best = UnSafeRBTreeStorage::default()
+            .find_best(&DNSName::new("www.baidu.com.", None).unwrap());
+        assert_eq!(best.borrow().get_name().to_string(), ".");
     }
 
     #[test]
     fn test_find_soa() {
         let zone = example_zone_v2();
-        let soa = zone.find_soa().unwrap();
+        let soa = zone.0.borrow().find_soa().unwrap();
         let soa_record = DnsTypeSOA::new(
             "a.root-servers.net.",
             "nstld.verisign-grs.com.",
@@ -727,14 +715,17 @@ mod storage {
             86400,
         )
         .unwrap();
-        assert_eq!(soa.get_type(), DNSType::SOA);
-        assert_eq!(soa.get_dname().to_string(), ".");
+        let soa = soa.borrow();
+        assert_eq!(soa.content().len(), 1);
+        assert_eq!(soa.content()[0].get_type(), DNSType::SOA);
+        assert_eq!(soa.content()[0].get_dname().to_string(), ".");
         assert_eq!(
-            soa.get_data().as_ref().unwrap().to_string(),
+            soa.content()[0].get_data().as_ref().unwrap().to_string(),
             "a.root-servers.net. nstld.verisign-grs.com. ( 2021033102 1800 900 604800 86400 )"
         );
         assert_eq!(
-            soa.get_data()
+            soa.content()[0]
+                .get_data()
                 .as_ref()
                 .unwrap()
                 .as_any()
@@ -814,7 +805,7 @@ mod test {
     #[test]
     fn load_root_zone_from_disk() {
         let test_zone_file = "./test/root.zone";
-        match RBTreeNode::new_zone_from_file(test_zone_file, None) {
+        match UnSafeRBTreeStorage::new_zone_from_file(test_zone_file, None) {
             Ok(zone) => {
                 for item in zone {
                     println!("{}", item.borrow().to_string())
