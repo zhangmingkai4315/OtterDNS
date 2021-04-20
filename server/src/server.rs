@@ -1,3 +1,5 @@
+use crate::tcp_server::TCPServer;
+use crate::udp_server::UdpServer;
 use dnsproto::dnsname::DNSName;
 use dnsproto::message::Message;
 use otterlib::errors::OtterError;
@@ -15,10 +17,6 @@ use tokio::task::JoinHandle;
 
 pub type TokioError = Box<dyn std::error::Error + Send + Sync>;
 pub type TokioResult<T> = std::result::Result<T, TokioError>;
-
-pub struct UdpServer {
-    udp_socket: UdpSocket,
-}
 
 fn process_message(
     mut storage: SafeRBTree,
@@ -64,22 +62,6 @@ fn process_message(
     message.encode()
 }
 
-impl UdpServer {
-    fn new(udp_socket: UdpSocket) -> UdpServer {
-        UdpServer { udp_socket }
-    }
-}
-
-impl TCPServer {
-    fn new(tcp_listener: TcpListener) -> TCPServer {
-        TCPServer { tcp_listener }
-    }
-}
-
-pub struct TCPServer {
-    tcp_listener: TcpListener,
-}
-
 pub struct Server {
     udp_servers: Arc<Vec<UdpServer>>,
     tcp_servers: Arc<Vec<TCPServer>>,
@@ -103,7 +85,7 @@ impl Server {
         Server {
             udp_servers: Arc::new(vec![]),
             tcp_servers: Arc::new(vec![]),
-            storage: SafeRBTree::new(RBTreeNode::new_root()),
+            storage: SafeRBTree::default(),
             setting,
             threads: vec![],
             server_logger: server_log,

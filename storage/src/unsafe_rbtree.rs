@@ -2,7 +2,6 @@
 // use intrusive_collections::{RBTree, intrusive_adapter, RBTreeLink, KeyAdapter};
 // use std::cell::Cell;
 use crate::rbtree::RBTree;
-// use crate::Storage;
 use dnsproto::dnsname::DNSName;
 use dnsproto::label::Label;
 use dnsproto::meta::{DNSType, RRSet, ResourceRecord};

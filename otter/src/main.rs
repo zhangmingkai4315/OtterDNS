@@ -1,15 +1,7 @@
-mod server;
-
-#[macro_use]
-extern crate slog;
-extern crate slog_async;
-extern crate slog_term;
-
-extern crate dnsproto;
-use crate::server::Server;
 use clap::{App, Arg};
 use otterlib::errors::OtterError;
 use otterlib::setting::Settings;
+use server::Server;
 
 #[tokio::main]
 async fn main() -> Result<(), OtterError> {

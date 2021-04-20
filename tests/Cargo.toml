@@ -1,0 +1,27 @@
+[package]
+name = "tests"
+version = "0.1.0"
+authors = ["zhangmingkai4315 <zhangmingkai19892013@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "otter_tests"
+path = "src/lib.rs"
+
+
+[dependencies]
+
+dnsproto = {path = "../dnsproto"}
+otterlib = {path = "../otterlib"}
+storage = {path = "../storage"}
+server = {path = "../server"}
+
+[dev-dependencies]
+criterion = "0.3"
+
+
+[[bench]]
+name = "benchmark"
+harness = false
