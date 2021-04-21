@@ -15,7 +15,11 @@ fn main() {
     let cpu_number = num_cpus::get();
     let default_workers_number = {
         if cpu_number / 2 > 0 {
-            cpu_number / 2
+            if cpu_number / 2 <= 4 {
+                cpu_number / 2
+            } else {
+                4
+            }
         } else {
             1
         }
@@ -72,10 +76,10 @@ fn main() {
         )
         .get_matches();
     let config_file = matches.value_of("config").unwrap();
-    env_logger::Builder::from_env(
-        Env::default().default_filter_or(matches.value_of("loglevel").unwrap()),
-    )
-    .init();
+    info!("read config file from {}", config_file);
+    let log_level = matches.value_of("loglevel").unwrap();
+    info!("set log level to {}", log_level);
+    env_logger::Builder::from_env(Env::default().default_filter_or(log_level)).init();
     match Settings::new(config_file) {
         Ok(setting) => {
             let mut server = Server::new(setting);
@@ -86,7 +90,11 @@ fn main() {
                 .build()
                 .expect("failed to initialize dns server runtime");
             let tcp_workers = usize::from_str(matches.value_of("tcp-workers").unwrap()).unwrap();
-            let udp_workers = usize::from_str(matches.value_of("tcp-workers").unwrap()).unwrap();
+            let udp_workers = usize::from_str(matches.value_of("udp-workers").unwrap()).unwrap();
+            info!(
+                "set tcp workers number to {}, udp workers number to {}",
+                tcp_workers, udp_workers
+            );
             let exsetting = ExSetting {
                 tcp_workers,
                 udp_workers,

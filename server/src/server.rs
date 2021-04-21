@@ -21,7 +21,6 @@ pub type TokioResult<T> = std::result::Result<T, TokioError>;
 
 fn process_message(mut storage: SafeRBTree, message: &[u8]) -> Result<Vec<u8>, DNSProtoErr> {
     let query_message = Message::parse_dns_message(&message)?;
-    info!("{}", query_message.query_info());
     let query_info = query_message.query_name_and_type()?;
     let mut message = Message::new_message_from_query(&query_message);
     match storage.search_rrset(query_info.0, *query_info.1) {
@@ -89,18 +88,18 @@ impl Server {
                 let tcp_socket = if tcp_addr.is_ipv4() {
                     net2::TcpBuilder::new_v4()
                         .unwrap()
-                        .bind(tcp_addr)
-                        .unwrap()
                         .reuse_port(true)
+                        .unwrap()
+                        .bind(tcp_addr)
                         .unwrap()
                         .to_tcp_listener()
                         .unwrap()
                 } else {
                     net2::TcpBuilder::new_v6()
                         .unwrap()
-                        .bind(tcp_addr)
-                        .unwrap()
                         .reuse_port(true)
+                        .unwrap()
+                        .bind(tcp_addr)
                         .unwrap()
                         .to_tcp_listener()
                         .unwrap()
