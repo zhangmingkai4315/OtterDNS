@@ -1,5 +1,5 @@
 use clap::{App, Arg};
-use otterlib::setting::Settings;
+use otterlib::setting::{ExSetting, Settings};
 use server::Server;
 use std::str::FromStr;
 use tokio::runtime;
@@ -12,7 +12,15 @@ pub fn version() -> &'static str {
 }
 
 fn main() {
-    let cpu_number = num_cpus::get().to_string();
+    let cpu_number = num_cpus::get();
+    let default_workers_number = {
+        if cpu_number / 2 > 0 {
+            cpu_number / 2
+        } else {
+            1
+        }
+        .to_string()
+    };
     let matches = App::new("OtterDNS")
         .version(version())
         .author("mike zhang. <zhangmingkai.1989@gmail.com>")
@@ -26,16 +34,29 @@ fn main() {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("threads")
-                .long("threads")
-                .default_value(cpu_number.as_str())
+            Arg::with_name("udp-workers")
+                .long("udp-workers")
+                .default_value(default_workers_number.as_str())
                 .validator(|v| match usize::from_str(v.as_str()) {
                     Ok(0..=256) => return Ok(()),
                     _ => Err(String::from(
-                        "The threads value did not set correct [0, 256]",
+                        "The workers value did not set correct [0, 256]",
                     )),
                 })
-                .help("threads number of dns server")
+                .help("threads number of udp listener")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("tcp-workers")
+                .long("tcp-workers")
+                .default_value(default_workers_number.as_str())
+                .validator(|v| match usize::from_str(v.as_str()) {
+                    Ok(0..=256) => return Ok(()),
+                    _ => Err(String::from(
+                        "The workers value did not set correct [0, 256]",
+                    )),
+                })
+                .help("worker number of tcp listener")
                 .takes_value(true),
         )
         .arg(
@@ -61,12 +82,16 @@ fn main() {
             info!("OtterDNS {} starting", version());
             let runtime = runtime::Builder::new_multi_thread()
                 .enable_all()
-                .worker_threads(usize::from_str(matches.value_of("threads").unwrap()).unwrap())
                 .thread_name("otter-runtime")
                 .build()
                 .expect("failed to initialize dns server runtime");
-
-            match runtime.block_on(server.run()) {
+            let tcp_workers = usize::from_str(matches.value_of("tcp-workers").unwrap()).unwrap();
+            let udp_workers = usize::from_str(matches.value_of("tcp-workers").unwrap()).unwrap();
+            let exsetting = ExSetting {
+                tcp_workers,
+                udp_workers,
+            };
+            match runtime.block_on(server.run(&exsetting)) {
                 Ok(()) => {
                     info!("OtterDNS {} stopping", version());
                 }

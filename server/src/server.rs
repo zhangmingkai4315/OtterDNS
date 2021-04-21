@@ -2,9 +2,11 @@ use crate::tcp_server::TCPServer;
 use crate::udp_server::UdpServer;
 use dnsproto::dnsname::DNSName;
 use dnsproto::message::Message;
+use net2::unix::{UnixTcpBuilderExt, UnixUdpBuilderExt};
+use net2::{TcpBuilder, UdpBuilder};
 use otterlib::errors::OtterError;
 use otterlib::errors::{DNSProtoErr, NetworkError, StorageError};
-use otterlib::setting::Settings;
+use otterlib::setting::{ExSetting, Settings};
 use std::net::SocketAddr;
 use std::result::Result::Err;
 use std::sync::Arc;
@@ -76,19 +78,61 @@ impl Server {
         }
     }
     // setup after storage is ready
-    pub async fn init_network(&mut self) -> Result<(), NetworkError> {
+    pub async fn init_network(&mut self, extension: &ExSetting) -> Result<(), NetworkError> {
         let (tcp_listeners, udp_listeners) = self.setting.get_listeners();
         let mut tcp_servers = vec![];
-        for tcp_addr in tcp_listeners.iter() {
-            let tcp_addr = tcp_addr.parse::<SocketAddr>()?;
-            let tcp_server = TcpListener::bind(tcp_addr).await?;
-            tcp_servers.push(TCPServer::new(tcp_server));
+        for _ in 0..extension.tcp_workers {
+            for tcp_addr in tcp_listeners.iter() {
+                let tcp_addr = tcp_addr.parse::<SocketAddr>()?;
+                // let tcp_server = TcpListener::bind(tcp_addr).await?;
+                // let tcp_socket = net2::TcpBuilder ::reuse_port(true).unwrap();
+                let tcp_socket = if tcp_addr.is_ipv4() {
+                    net2::TcpBuilder::new_v4()
+                        .unwrap()
+                        .bind(tcp_addr)
+                        .unwrap()
+                        .reuse_port(true)
+                        .unwrap()
+                        .to_tcp_listener()
+                        .unwrap()
+                } else {
+                    net2::TcpBuilder::new_v6()
+                        .unwrap()
+                        .bind(tcp_addr)
+                        .unwrap()
+                        .reuse_port(true)
+                        .unwrap()
+                        .to_tcp_listener()
+                        .unwrap()
+                };
+                // let tcp_socket = net2::UdpBuilder::bind()?
+                let tcp_server = TcpListener::from_std(tcp_socket).unwrap();
+                tcp_servers.push(TCPServer::new(tcp_server));
+            }
         }
+
         let mut udp_servers = vec![];
-        for udp_addr in udp_listeners.iter() {
-            let udp_socket_addr = udp_addr.parse::<SocketAddr>()?;
-            let udp_socket = UdpSocket::bind(udp_socket_addr).await?;
-            udp_servers.push(UdpServer::new(udp_socket));
+        for _ in 0..extension.udp_workers {
+            for udp_addr in udp_listeners.iter() {
+                let udp_socket_addr = udp_addr.parse::<SocketAddr>()?;
+                let udp_socket = if udp_socket_addr.is_ipv4() {
+                    net2::UdpBuilder::new_v4()
+                        .unwrap()
+                        .reuse_port(true)
+                        .unwrap()
+                        .bind(udp_socket_addr)
+                        .unwrap()
+                } else {
+                    net2::UdpBuilder::new_v6()
+                        .unwrap()
+                        .reuse_port(true)
+                        .unwrap()
+                        .bind(udp_socket_addr)
+                        .unwrap()
+                };
+                let udp_socket = UdpSocket::from_std(udp_socket).unwrap();
+                udp_servers.push(UdpServer::new(udp_socket));
+            }
         }
         self.tcp_servers = Arc::new(tcp_servers);
         self.udp_servers = Arc::new(udp_servers);
@@ -115,9 +159,9 @@ impl Server {
         info!("load all zone files success");
         Ok(())
     }
-    pub async fn run(&mut self) -> Result<(), OtterError> {
+    pub async fn run(&mut self, extension: &ExSetting) -> Result<(), OtterError> {
         self.init_load_storage()?;
-        if let Err(err) = self.init_network().await {
+        if let Err(err) = self.init_network(extension).await {
             return Err(OtterError::NetworkError(err));
         }
         let udp_server_number = self.udp_servers.len();
@@ -220,8 +264,12 @@ mod test {
             acl: None,
         };
         settings.zone.push(zone);
+        let extension = ExSetting {
+            tcp_workers: 1,
+            udp_workers: 1,
+        };
         let mut servers = Server::new(settings);
-        let init_status = servers.init_network().await;
+        let init_status = servers.init_network(&extension).await;
         assert_eq!(init_status.is_ok(), true);
         let init_status = servers.init_load_storage();
         // assert_eq!(init_status.is_ok(), true);

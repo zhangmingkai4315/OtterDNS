@@ -4,6 +4,12 @@ use std::str::FromStr;
 use validator::{Validate, ValidationError, ValidationErrors};
 
 #[derive(Debug, Clone, Validate, PartialEq, Deserialize, Default)]
+pub struct ExSetting {
+    pub tcp_workers: usize,
+    pub udp_workers: usize,
+}
+
+#[derive(Debug, Clone, Validate, PartialEq, Deserialize, Default)]
 pub struct ServerSetting {
     pub listen: Vec<String>,
 }

@@ -10,6 +10,7 @@ edition = "2018"
 tokio = { version = "1.5.0", features = ["full"] }
 log = "0.4"
 env_logger = "0.8"
+net2 = "0.2.37"
 dnsproto = { path = "../dnsproto", version = "0.1.0"}
 storage = { path = "../storage", version = "0.1.0"}
 otterlib = { path = "../otterlib", version = "0.1.0"}
