@@ -10,7 +10,7 @@ use otterlib::setting::{ExSetting, Settings};
 use std::net::SocketAddr;
 use std::result::Result::Err;
 use std::sync::Arc;
-use storage::safe_rbtree::SafeRBTree;
+use storage::safe_rbtree::SafeRBTreeStorage;
 use storage::unsafe_rbtree::RBTreeNode;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, UdpSocket};
@@ -19,14 +19,14 @@ use tokio::task::JoinHandle;
 pub type TokioError = Box<dyn std::error::Error + Send + Sync>;
 pub type TokioResult<T> = std::result::Result<T, TokioError>;
 
-fn process_message(mut storage: SafeRBTree, message: &[u8]) -> Result<Vec<u8>, DNSProtoErr> {
+fn process_message(mut storage: SafeRBTreeStorage, message: &[u8]) -> Result<Vec<u8>, DNSProtoErr> {
     let query_message = Message::parse_dns_message(&message)?;
     let query_info = query_message.query_name_and_type()?;
     let mut message = Message::new_message_from_query(&query_message);
     match storage.search_rrset(query_info.0, *query_info.1) {
         Ok(rrset) => {
             // TODO:
-            let rrset = rrset.borrow().to_records();
+            let rrset = rrset.read().unwrap().to_records();
             // debug!(logger, "find record in zone database: {:?}", rrset);
             message.update_answer(rrset);
         }
@@ -59,7 +59,7 @@ fn process_message(mut storage: SafeRBTree, message: &[u8]) -> Result<Vec<u8>, D
 pub struct Server {
     udp_servers: Arc<Vec<UdpServer>>,
     tcp_servers: Arc<Vec<TCPServer>>,
-    storage: SafeRBTree,
+    storage: SafeRBTreeStorage,
     setting: Settings,
     threads: Vec<JoinHandle<TokioResult<()>>>,
 }
@@ -71,7 +71,7 @@ impl Server {
         Server {
             udp_servers: Arc::new(vec![]),
             tcp_servers: Arc::new(vec![]),
-            storage: SafeRBTree::default(),
+            storage: SafeRBTreeStorage::default(),
             setting,
             threads: vec![],
         }

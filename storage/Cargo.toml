@@ -10,6 +10,7 @@ edition = "2018"
 thiserror = "1.0.24"
 sys-info = "0.8"
 lazy_static = "1.4.0"
+dashmap = "4.0.2"
 dnsproto = {path = "../dnsproto"}
 otterlib = {path = "../otterlib"}
 [dev-dependencies]

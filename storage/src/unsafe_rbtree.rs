@@ -15,6 +15,7 @@ use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
 use std::str::FromStr;
+
 // use std::borrow::{Borrow, BorrowMut};
 // use std::iter::IntoIterator;
 // use std::vec::IntoIter;
@@ -22,6 +23,7 @@ use std::str::FromStr;
 lazy_static! {
     static ref WILDCARD_LABEL: Label = Label::from_str("*").unwrap();
 }
+
 #[derive(Debug, Clone)]
 pub struct UnSafeRBTreeStorage(Rc<RefCell<RBTreeNode>>);
 
@@ -242,7 +244,7 @@ impl UnSafeRBTreeStorage {
 
 #[derive(Debug)]
 pub struct RBTreeNode {
-    label: Label,
+    pub(crate) label: Label,
     pub(crate) rr_sets: HashMap<DNSType, Rc<RefCell<RRSet>>>,
     parent: Option<Weak<RefCell<RBTreeNode>>>,
     subtree: Option<Rc<RefCell<RBTree<Label, Rc<RefCell<RBTreeNode>>>>>>,
