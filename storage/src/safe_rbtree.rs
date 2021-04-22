@@ -10,6 +10,7 @@ use otterlib::errors::{OtterError, StorageError};
 use std::cell::RefCell;
 use std::collections::btree_map::Iter;
 use std::collections::BTreeMap;
+use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, RwLock, Weak};
@@ -105,14 +106,14 @@ impl Iterator for SafeZoneIterator {
 //     }
 // }
 
-// impl Display for SafeRBTreeNode {
-//     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-//         for rrset in self.rr_sets.values() {
-//             let _ = write!(formatter, "{}", rrset.borrow().to_string());
-//         }
-//         write!(formatter, "")
-//     }
-// }
+impl Display for SafeRBTreeNode {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        for rrset in self.rr_sets.iter() {
+            let _ = write!(formatter, "{}", rrset.read().unwrap().to_string());
+        }
+        write!(formatter, "")
+    }
+}
 
 // type DNSTreeStorage = Rc<RefCell<RBTreeNode>>;
 
@@ -371,11 +372,11 @@ impl SafeRBTreeStorage {
     pub fn search_rrset(
         &mut self,
         dname: &DNSName,
-        dtype: DNSType,
+        dtype: &DNSType,
     ) -> Result<Arc<RwLock<RRSet>>, StorageError> {
         let node = self.find(dname)?;
         let node = node.read().unwrap();
-        let result = match node.rr_sets.get(&dtype) {
+        let result = match node.rr_sets.get(dtype) {
             Some(rrset) => Ok(rrset.clone()),
             None => Err(StorageError::DNSTypeNotFoundError(
                 dname.to_string(),

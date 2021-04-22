@@ -386,18 +386,19 @@ impl Into<u8> for OpCode {
 // http://www.tcpipguide.com/free/t_DNSMessageHeaderandQuestionSectionFormat.htm
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RCode {
-    NoError,
-    FormatError,
-    ServerFailure,
-    NameError,
-    NotImplemented,
-    Refused,
-    YxDomain,
-    YxRRSet,
-    NxRRSet,
-    NotAuth,
-    NotZone,
-    Unknown,
+    NoError = 0,
+    FormatError = 1,
+    ServerFailure = 2,
+    NameError = 3,
+    NotImplemented = 4,
+    Refused = 5,
+    YxDomain = 6,
+    YxRRSet = 7,
+    NxRRSet = 8,
+    NotAuth = 9,
+    NotZone = 10,
+    BadVersion = 16,
+    Unknown = 255,
 }
 
 impl From<u8> for RCode {
@@ -414,6 +415,7 @@ impl From<u8> for RCode {
             8 => RCode::NxRRSet,
             9 => RCode::NotAuth,
             10 => RCode::NotZone,
+            16 => RCode::BadVersion,
             _ => RCode::Unknown,
         }
     }
@@ -494,6 +496,7 @@ pub enum DNSType {
     DNSKEY = 48,
     NSEC3 = 50,
     NSEC3PARAM = 51,
+    IXFR = 251,
     AXFR = 252,
     Any = 255, // Rfc1035: return all records of all types known to the dns server
 }

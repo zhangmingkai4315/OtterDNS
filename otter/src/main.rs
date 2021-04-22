@@ -1,6 +1,6 @@
 use clap::{App, Arg};
 use otterlib::setting::{ExSetting, Settings};
-use server::Server;
+use server::OtterServer;
 use std::str::FromStr;
 use tokio::runtime;
 #[macro_use]
@@ -82,10 +82,11 @@ fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or(log_level)).init();
     match Settings::new(config_file) {
         Ok(setting) => {
-            let mut server = Server::new(setting);
+            let mut server = OtterServer::new(setting);
             info!("OtterDNS {} starting", version());
             let runtime = runtime::Builder::new_multi_thread()
                 .enable_all()
+                .worker_threads(4)
                 .thread_name("otter-runtime")
                 .build()
                 .expect("failed to initialize dns server runtime");

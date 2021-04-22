@@ -43,6 +43,8 @@ pub enum DNSProtoErr {
     // original parse zone data error
     #[error("domain: `{0}` validate fail")]
     ValidDomainErr(String),
+    #[error("not a valid query message")]
+    ValidQueryDomainErr,
     #[error("dns label: `{0}` validate fail")]
     ValidDomainLabelErr(String),
     #[error("dns type: `{0}` validate fail")]
@@ -62,6 +64,8 @@ pub enum DNSProtoErr {
     #[error("domain is not a valid fqdn: `{0}`")]
     ValidFQDNError(String),
 
+    #[error("edns version number not support")]
+    BadEDNSVersion,
     #[error(transparent)]
     AddrParseError(#[from] AddrParseError),
 

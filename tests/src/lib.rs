@@ -1,7 +1,7 @@
 use otterlib::setting::{Settings, ZoneSetting};
-use server::Server;
+use server::OtterServer;
 
-pub fn create_dns_server() -> Server {
+pub fn create_dns_server() -> OtterServer {
     let mut settings = Settings::default();
     settings.server.listen = vec!["127.0.0.1:0".to_string()];
     let zone = ZoneSetting {
@@ -12,6 +12,6 @@ pub fn create_dns_server() -> Server {
         acl: None,
     };
     settings.zone.push(zone);
-    let mut servers = Server::new(settings);
+    let mut servers = OtterServer::new(settings);
     servers
 }

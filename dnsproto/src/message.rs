@@ -2,6 +2,7 @@
 use crate::dnsname::{parse_name, DNSName};
 use crate::edns::EDNS;
 use crate::label::Label;
+use crate::meta::RCode::ServerFailure;
 use crate::meta::{DNSClass, DNSType, RRSet};
 use crate::meta::{Header, OpCode, Question, RCode, ResourceRecord};
 use crate::qtype::decode_message_data;
@@ -33,6 +34,11 @@ impl Message {
         }
     }
 
+    /// return true if the message is query or false if the message is
+    pub fn is_query(&self) -> bool {
+        !self.header.qr
+    }
+
     pub fn query_info(&self) -> String {
         // TODO: queries: info: client @0x7f82bc11d4e0 10.80.0.1#53995 (google.com): query: google.com IN A +E(0) (10.80.1.88)
         format!(
@@ -62,14 +68,53 @@ impl Message {
             additional: vec![],
         }
     }
-    // TODO: BUG EXIST !!!
-    pub fn new_message_from_query(q_message: &Message) -> Message {
+    /// new_message_from_query parse message and return a message
+    /// return a message and bool(when true means something wrong and need terminate)
+    pub fn new_message_from_query(q_message: &Message, from_udp: bool) -> (Message, bool) {
         let mut header = q_message.header.clone();
+        let mut terminator = false;
         header.qr = true;
+        header.ad = false;
+        header.aa = false;
+        header.ra = false;
+
         let mut message = Message::new_with_header(header);
+        if q_message.header.op_code != RCode::NoError {
+            message.header.r_code = RCode::ServerFailure;
+            return (message, true);
+        }
+
+        if q_message.questions.len() != 1 {
+            message.header.r_code = RCode::ServerFailure;
+            return (message, true);
+        }
+        let question = &q_message.questions[0];
+        if (question.q_type == DNSType::AXFR || question.q_type == DNSType::IXFR)
+            && from_udp == true
+        {
+            message.header.r_code = RCode::ServerFailure;
+            return (message, true);
+        }
+
         let question = q_message.questions[0].clone();
         message.questions.push(question);
-        message
+        // process edns message
+        for additional in q_message.additional.iter() {
+            match additional {
+                Record::EDNSRecord(edns) => {
+                    if edns.version != 0 {
+                        // Err(DNSProtoErr::BadEDNSVersion)
+                        message.header.r_code = RCode::BadVersion;
+                        message.additional.push(Record::EDNSRecord(edns.clone()));
+                        terminator = true;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        (message, terminator)
     }
     pub fn set_nxdomain(&mut self) {
         self.header.r_code = RCode::NameError;

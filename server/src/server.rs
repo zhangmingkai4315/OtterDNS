@@ -1,7 +1,8 @@
 use crate::tcp_server::TCPServer;
 use crate::udp_server::UdpServer;
 use dnsproto::dnsname::DNSName;
-use dnsproto::message::Message;
+use dnsproto::message::{Message, Record};
+use dnsproto::meta::DNSType;
 use net2::unix::{UnixTcpBuilderExt, UnixUdpBuilderExt};
 use net2::{TcpBuilder, UdpBuilder};
 use otterlib::errors::OtterError;
@@ -19,15 +20,34 @@ use tokio::task::JoinHandle;
 pub type TokioError = Box<dyn std::error::Error + Send + Sync>;
 pub type TokioResult<T> = std::result::Result<T, TokioError>;
 
-fn process_message(mut storage: SafeRBTreeStorage, message: &[u8]) -> Result<Vec<u8>, DNSProtoErr> {
-    let query_message = Message::parse_dns_message(&message)?;
-    let query_info = query_message.query_name_and_type()?;
-    let mut message = Message::new_message_from_query(&query_message);
-    match storage.search_rrset(query_info.0, *query_info.1) {
+/// report_query_message
+fn report_query_message(dnsname: &DNSName, dnstype: &DNSType, remote: &SocketAddr) {}
+
+/// process_message is the main dns process logic function
+/// implements the rfc1034 and used for udp and tcp listeners
+/// but not axfr and ixfr.
+fn process_message(
+    mut storage: SafeRBTreeStorage,
+    message: &[u8],
+    remote: &SocketAddr,
+    from_udp: bool,
+) -> Result<Vec<u8>, DNSProtoErr> {
+    let parsed_message = Message::parse_dns_message(&message)?;
+    if !parsed_message.is_query() {
+        Err(DNSProtoErr::ValidQueryDomainErr)
+    }
+
+    let (dnsname, dnstype) = parsed_message.query_name_and_type()?;
+    report_query_message(dnsname, dnstype, remote);
+    let (mut message, terminator) = Message::new_message_from_query(&parsed_message);
+    if terminator == true {
+        return message.encode();
+    }
+
+    match storage.search_rrset(dnsname, dnstype) {
         Ok(rrset) => {
             // TODO:
             let rrset = rrset.read().unwrap().to_records();
-            // debug!(logger, "find record in zone database: {:?}", rrset);
             message.update_answer(rrset);
         }
         Err(err) => {
@@ -56,7 +76,7 @@ fn process_message(mut storage: SafeRBTreeStorage, message: &[u8]) -> Result<Vec
     message.encode()
 }
 
-pub struct Server {
+pub struct OtterServer {
     udp_servers: Arc<Vec<UdpServer>>,
     tcp_servers: Arc<Vec<TCPServer>>,
     storage: SafeRBTreeStorage,
@@ -64,11 +84,11 @@ pub struct Server {
     threads: Vec<JoinHandle<TokioResult<()>>>,
 }
 
-impl Server {
+impl OtterServer {
     // bind addr must be string like: 127.0.0.1:53 192.168.0.1:53
-    pub fn new(setting: Settings) -> Server {
+    pub fn new(setting: Settings) -> OtterServer {
         // TODO: config file to logger
-        Server {
+        OtterServer {
             udp_servers: Arc::new(vec![]),
             tcp_servers: Arc::new(vec![]),
             storage: SafeRBTreeStorage::default(),
@@ -179,7 +199,7 @@ impl Server {
                     {
                         Ok((vsize, connected_peer)) => {
                             let message = &message[0..vsize];
-                            match process_message(storage, &message) {
+                            match process_message(storage, &message, &connected_peer, true) {
                                 Ok(message) => {
                                     if let Err(err) = servers_clone[index]
                                         .udp_socket
@@ -211,12 +231,14 @@ impl Server {
             self.threads.push(tokio::spawn(async move {
                 loop {
                     let storage = storage.clone();
-                    if let Ok((mut stream, _)) = servers_clone[index].tcp_listener.accept().await {
+                    if let Ok((mut stream, remote_addr)) =
+                        servers_clone[index].tcp_listener.accept().await
+                    {
                         let mut message: Vec<u8> = Vec::with_capacity(4096);
                         match stream.read(message.as_mut_slice()).await {
                             Ok(vsize) => {
                                 let message = &message[0..vsize];
-                                match process_message(storage, &message) {
+                                match process_message(storage, &message, &remote_addr, false) {
                                     Ok(message) => {
                                         if let Err(err) = stream.write(message.as_slice()).await {
                                             error!("{:?}", err)
@@ -267,7 +289,7 @@ mod test {
             tcp_workers: 1,
             udp_workers: 1,
         };
-        let mut servers = Server::new(settings);
+        let mut servers = OtterServer::new(settings);
         let init_status = servers.init_network(&extension).await;
         assert_eq!(init_status.is_ok(), true);
         let init_status = servers.init_load_storage();
