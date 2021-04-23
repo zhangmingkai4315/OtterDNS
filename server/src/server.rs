@@ -100,8 +100,10 @@ impl OtterServer {
     pub async fn init_network(&mut self, extension: &ExSetting) -> Result<(), NetworkError> {
         let (tcp_listeners, udp_listeners) = self.setting.get_listeners();
         let mut tcp_servers = vec![];
-        for _ in 0..extension.tcp_workers {
-            for tcp_addr in tcp_listeners.iter() {
+
+        for tcp_addr in tcp_listeners.iter() {
+            info!("start listen tcp connection at: {}", tcp_addr);
+            for _ in 0..extension.tcp_workers {
                 let tcp_addr = tcp_addr.parse::<SocketAddr>()?;
                 // let tcp_server = TcpListener::bind(tcp_addr).await?;
                 // let tcp_socket = net2::TcpBuilder ::reuse_port(true).unwrap();
@@ -131,8 +133,10 @@ impl OtterServer {
         }
 
         let mut udp_servers = vec![];
-        for _ in 0..extension.udp_workers {
-            for udp_addr in udp_listeners.iter() {
+
+        for udp_addr in udp_listeners.iter() {
+            info!("start listen udp connection at: {}", udp_addr);
+            for _ in 0..extension.udp_workers {
                 let udp_socket_addr = udp_addr.parse::<SocketAddr>()?;
                 let udp_socket = if udp_socket_addr.is_ipv4() {
                     net2::UdpBuilder::new_v4()

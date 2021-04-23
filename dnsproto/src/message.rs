@@ -91,10 +91,9 @@ impl Message {
 
         if question.q_class != DNSClass::IN {
             if question.q_class == DNSClass::CH && question.q_type == DNSType::TXT {
-                let question = Question::new("version.bind", DNSType::TXT, DNSClass::CH);
                 let record = Record::AnswerRecord(
                     ResourceRecord::new(
-                        "version.bind",
+                        "version.bind.",
                         DNSType::TXT,
                         DNSClass::CH,
                         3600,
