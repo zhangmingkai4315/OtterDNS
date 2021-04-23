@@ -34,12 +34,12 @@ fn process_message(
 ) -> Result<Vec<u8>, DNSProtoErr> {
     let parsed_message = Message::parse_dns_message(&message)?;
     if !parsed_message.is_query() {
-        Err(DNSProtoErr::ValidQueryDomainErr)
+        return Err(DNSProtoErr::ValidQueryDomainErr);
     }
 
     let (dnsname, dnstype) = parsed_message.query_name_and_type()?;
     report_query_message(dnsname, dnstype, remote);
-    let (mut message, terminator) = Message::new_message_from_query(&parsed_message);
+    let (mut message, terminator) = Message::new_message_from_query(&parsed_message, from_udp);
     if terminator == true {
         return message.encode();
     }
@@ -56,15 +56,15 @@ fn process_message(
                 StorageError::DomainNotFoundError(_) => {
                     debug!(
                         "can't find record {} in zone database: {:?}",
-                        query_info.0.to_string(),
-                        err
+                        dnsname.to_string(),
+                        err,
                     );
                     message.set_nxdomain()
                 }
                 _ => {
                     debug!(
                         "can't find record {} in zone database: {:?}",
-                        query_info.0.to_string(),
+                        dnsname.to_string(),
                         err
                     );
                     message.set_serverfail()

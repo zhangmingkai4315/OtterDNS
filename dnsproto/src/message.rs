@@ -2,10 +2,9 @@
 use crate::dnsname::{parse_name, DNSName};
 use crate::edns::EDNS;
 use crate::label::Label;
-use crate::meta::RCode::ServerFailure;
 use crate::meta::{DNSClass, DNSType, RRSet};
 use crate::meta::{Header, OpCode, Question, RCode, ResourceRecord};
-use crate::qtype::decode_message_data;
+use crate::qtype::{decode_message_data, DnsTypeTXT};
 use nom::number::complete::{be_u16, be_u32};
 use otterlib::errors::DNSProtoErr;
 use std::collections::HashMap;
@@ -79,7 +78,7 @@ impl Message {
         header.ra = false;
 
         let mut message = Message::new_with_header(header);
-        if q_message.header.op_code != RCode::NoError {
+        if q_message.header.r_code != RCode::NoError {
             message.header.r_code = RCode::ServerFailure;
             return (message, true);
         }
@@ -89,6 +88,28 @@ impl Message {
             return (message, true);
         }
         let question = &q_message.questions[0];
+
+        if question.q_class != DNSClass::IN {
+            if question.q_class == DNSClass::CH && question.q_type == DNSType::TXT {
+                let question = Question::new("version.bind", DNSType::TXT, DNSClass::CH);
+                let record = Record::AnswerRecord(
+                    ResourceRecord::new(
+                        "version.bind",
+                        DNSType::TXT,
+                        DNSClass::CH,
+                        3600,
+                        Some(Box::new(DnsTypeTXT::new("OtterDNS").unwrap())),
+                    )
+                    .unwrap(),
+                );
+
+                message.update_answer(vec![record]);
+                return (message, true);
+            }
+            message.header.r_code = RCode::NotImplemented;
+            return (message, true);
+        }
+
         if (question.q_type == DNSType::AXFR || question.q_type == DNSType::IXFR)
             && from_udp == true
         {

@@ -8,7 +8,7 @@ use nom::lib::std::collections::HashMap;
 use otterlib::errors::DNSProtoErr;
 use std::io::{Cursor, Write};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct EDNS {
     pub(crate) name: DNSName,
     pub(crate) qtype: DNSType,

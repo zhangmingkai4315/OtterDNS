@@ -435,6 +435,7 @@ impl Into<u8> for RCode {
             RCode::NotAuth => 9,
             RCode::NotZone => 10,
             RCode::Unknown => 11,
+            RCode::BadVersion => 16,
         }
     }
 }

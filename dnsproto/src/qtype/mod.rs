@@ -18,27 +18,27 @@ mod txt;
 
 use crate::label::Label;
 use crate::meta::DNSType;
-use crate::qtype::dnskey::DnsTypeDNSKEY;
-use crate::qtype::ds::DnsTypeDS;
-use crate::qtype::loc::DnsTypeLOC;
-use crate::qtype::nsec::DnsTypeNSEC;
-use crate::qtype::rrsig::DnsTypeRRSIG;
-use crate::qtype::srv::DnsTypeSRV;
-use crate::qtype::txt::DnsTypeTXT;
 pub use a::DnsTypeA;
 pub use aaaa::DnsTypeAAAA;
 pub use cname::DnsTypeCNAME;
+pub use dnskey::DnsTypeDNSKEY;
+pub use ds::DnsTypeDS;
+pub use loc::DnsTypeLOC;
 pub use mx::DnsTypeMX;
 use nom::lib::std::collections::HashMap;
 use nom::lib::std::fmt::Display;
 pub use ns::DnsTypeNS;
+pub use nsec::DnsTypeNSEC;
 pub use opt::DnsTypeOpt;
 use otterlib::errors::DNSProtoErr;
 pub use ptr::DnsTypePTR;
+pub use rrsig::DnsTypeRRSIG;
 pub use soa::DnsTypeSOA;
+pub use srv::DnsTypeSRV;
 use std::any::Any;
 use std::fmt::Debug;
 use std::str::FromStr;
+pub use txt::DnsTypeTXT;
 
 type CompressionType<'a> = Option<(&'a mut HashMap<Vec<Label>, usize>, usize)>;
 
