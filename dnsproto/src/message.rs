@@ -67,9 +67,31 @@ impl Message {
             additional: vec![],
         }
     }
+
+    pub fn new_tc_message_from_build_message(message: &mut Message) -> (&mut Message) {
+        message.header.tc = true;
+        message.answers.clear();
+        message.authorities.clear();
+        message.header.answer_count = 0;
+        message.header.answer_count = 0;
+        let mut additional = vec![];
+        for item in message.additional.iter() {
+            if let Record::EDNSRecord(edns) = item {
+                additional.push(Record::EDNSRecord(edns.clone()));
+            }
+        }
+        message.header.additional_count = additional.len() as u16;
+        message.additional = additional;
+        message
+    }
+
     /// new_message_from_query parse message and return a message
     /// return a message and bool(when true means something wrong and need terminate)
-    pub fn new_message_from_query(q_message: &Message, from_udp: bool) -> (Message, bool) {
+    pub fn new_message_from_query(
+        q_message: &Message,
+        from_udp: bool,
+        max_edns_size: u16,
+    ) -> (Message, u16, bool) {
         let mut header = q_message.header.clone();
         let mut terminator = false;
         header.qr = true;
@@ -78,15 +100,39 @@ impl Message {
         header.ra = false;
 
         let mut message = Message::new_with_header(header);
+        let mut max_size = max_edns_size;
+        for additional in q_message.additional.iter() {
+            match additional {
+                Record::EDNSRecord(edns) => {
+                    if edns.version != 0 {
+                        message.header.r_code = RCode::BadVersion;
+                        terminator = true;
+                        break;
+                    } else {
+                        let mut edns = edns.clone();
+                        if max_edns_size < edns.payload_size {
+                            edns.payload_size = max_edns_size;
+                            max_size = max_edns_size;
+                        } else {
+                            max_size = edns.payload_size
+                        }
+                        message.additional.push(Record::EDNSRecord(edns));
+                    }
+                }
+                _ => {}
+            }
+        }
+
         if q_message.header.r_code != RCode::NoError {
             message.header.r_code = RCode::ServerFailure;
-            return (message, true);
+            return (message, max_size, true);
         }
 
         if q_message.questions.len() != 1 {
             message.header.r_code = RCode::ServerFailure;
-            return (message, true);
+            return (message, max_size, true);
         }
+
         let question = &q_message.questions[0];
         message.questions = vec![question.clone()];
         message.header.question_count = 1;
@@ -104,38 +150,23 @@ impl Message {
                 );
 
                 message.update_answer(vec![record]);
-                return (message, true);
+                return (message, max_size, true);
             }
             message.header.r_code = RCode::NotImplemented;
-            return (message, true);
+            return (message, max_size, true);
         }
 
         if (question.q_type == DNSType::AXFR || question.q_type == DNSType::IXFR)
             && from_udp == true
         {
             message.header.r_code = RCode::ServerFailure;
-            return (message, true);
+            return (message, max_size, true);
         }
 
         let question = q_message.questions[0].clone();
         message.questions.push(question);
-        // process edns message
-        for additional in q_message.additional.iter() {
-            match additional {
-                Record::EDNSRecord(edns) => {
-                    if edns.version != 0 {
-                        // Err(DNSProtoErr::BadEDNSVersion)
-                        message.header.r_code = RCode::BadVersion;
-                        message.additional.push(Record::EDNSRecord(edns.clone()));
-                        terminator = true;
-                        break;
-                    }
-                }
-                _ => {}
-            }
-        }
 
-        (message, terminator)
+        (message, max_size, terminator)
     }
     pub fn set_nxdomain(&mut self) {
         self.header.r_code = RCode::NameError;
@@ -172,13 +203,14 @@ impl Message {
         let compression = &mut HashMap::new();
         let mut cursor = self.header.encode(cursor)?;
         for question in self.questions.as_slice() {
-            cursor = question.encode(cursor, Some(compression))?
+            cursor = question.encode(cursor, Some(compression))?;
+            break;
         }
         for answer in self.answers.as_mut_slice() {
-            cursor = answer.encode(cursor, Some(compression))?
+            cursor = answer.encode(cursor, Some(compression))?;
         }
         for ns_record in self.authorities.as_mut_slice() {
-            cursor = ns_record.encode(cursor, Some(compression))?
+            cursor = ns_record.encode(cursor, Some(compression))?;
         }
         // Opt is ends type not answer type
         for additional in self.additional.as_mut_slice() {
@@ -864,5 +896,16 @@ mod message {
                 assert!(false);
             }
         }
+    }
+
+    #[test]
+    fn test_new_tc_message_from_build_message() {
+        let mut message_s = get_message();
+        let tc_message = Message::new_tc_message_from_build_message(&mut message_s);
+        assert_eq!(tc_message.header.tc, true);
+        assert_eq!(tc_message.questions.len(), 1);
+        assert_eq!(tc_message.answers.len(), 0);
+        assert_eq!(tc_message.authorities.len(), 0);
+        assert_eq!(tc_message.additional.len(), 1);
     }
 }

@@ -1,5 +1,5 @@
 use crate::errors::SettingError;
-use config::{Config, File};
+use config::{Config, File, Source};
 use std::str::FromStr;
 use validator::{Validate, ValidationError, ValidationErrors};
 
@@ -12,6 +12,7 @@ pub struct ExSetting {
 #[derive(Debug, Clone, Validate, PartialEq, Deserialize, Default)]
 pub struct ServerSetting {
     pub listen: Vec<String>,
+    pub max_edns_size: u16,
 }
 
 impl ServerSetting {
@@ -25,6 +26,11 @@ impl ServerSetting {
                     err.to_string()
                 )));
             }
+        }
+        if self.max_edns_size < 512 || self.max_edns_size > 4096 {
+            return Some(SettingError::ValidationServerConfigError(
+                "max-edns-size must set in range [512, 4096]".to_string(),
+            ));
         }
         None
     }
@@ -106,6 +112,8 @@ impl Settings {
     #[allow(dead_code)]
     pub fn new(filename: &str) -> Result<Settings, SettingError> {
         let mut config_obj = Config::new();
+        // set default value
+        config_obj.set_default("server.max_edns_size", 1243);
         if let Err(err) = config_obj.merge(File::with_name(filename)) {
             return Err(SettingError::ParseConfigError(err.to_string()));
         }
@@ -199,6 +207,7 @@ mod test {
     fn test_get_listen_addr() {
         let server = ServerSetting {
             listen: vec!["0.0.0.0:53".to_string(), "127.0.0.1:53/tcp".to_string()],
+            max_edns_size: 1243,
         };
         assert_eq!(server.validation(), None);
         let (tcplisteners, udplisteners) = server.get_listen_addr();
@@ -207,6 +216,11 @@ mod test {
             vec!["0.0.0.0:53".to_string(), "127.0.0.1:53".to_string()]
         );
         assert_eq!(udplisteners, vec!["0.0.0.0:53".to_string()]);
+        let server = ServerSetting {
+            listen: vec!["0.0.0.0:53".to_string(), "127.0.0.1:53/tcp".to_string()],
+            max_edns_size: 100,
+        };
+        assert_eq!(server.validation().is_some(), true);
     }
     #[test]
     fn test_read_config() {
@@ -228,6 +242,7 @@ mod test {
     fn test_config_attribute() {
         let setting = Settings::new("example.config.yaml").unwrap();
         assert_eq!(setting.server.listen, vec!["0.0.0.0:53".to_string()]);
+        assert_eq!(setting.server.max_edns_size, 1024);
         assert_eq!(setting.zone[0].domain, "abc.com");
         assert_eq!(setting.zone[0].file, "example.com.zone");
         assert_eq!(setting.zone[0].master, Some("master01".to_owned()));

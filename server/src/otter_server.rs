@@ -45,6 +45,7 @@ fn process_message(
     message: &[u8],
     remote: &SocketAddr,
     from_udp: bool,
+    max_edns_size: u16,
 ) -> Result<Vec<u8>, DNSProtoErr> {
     let parsed_message = Message::parse_dns_message(&message)?;
     if !parsed_message.is_query() {
@@ -53,7 +54,8 @@ fn process_message(
 
     let (dnsname, dnstype) = parsed_message.query_name_and_type()?;
     report_query_message(dnsname, dnstype, remote, from_udp);
-    let (mut message, terminator) = Message::new_message_from_query(&parsed_message, from_udp);
+    let (mut message, max_size, terminator) =
+        Message::new_message_from_query(&parsed_message, from_udp, max_edns_size);
     if terminator == true {
         return message.encode(from_udp);
     }
@@ -87,7 +89,14 @@ fn process_message(
         }
     }
     // debug!(logger, "response message: {:?}", message);
-    message.encode(from_udp)
+    let message_byte = message.encode(from_udp)?;
+    // when query from udp and message size great than max_size
+    if from_udp == true && message_byte.len() > (max_size as usize) {
+        let tc_message = Message::new_tc_message_from_build_message(&mut message);
+        Ok(tc_message.encode(from_udp)?)
+    } else {
+        Ok(message_byte)
+    }
 }
 
 pub struct OtterServer {
@@ -232,7 +241,7 @@ impl OtterServer {
             return Err(OtterError::NetworkError(err));
         }
         let udp_server_number = self.udp_servers.len();
-
+        let max_edns_size = self.setting.server.max_edns_size;
         for index in 0..udp_server_number {
             let storage = self.storage.clone();
             let servers_clone = self.udp_servers.clone();
@@ -247,7 +256,13 @@ impl OtterServer {
                     {
                         Ok((vsize, connected_peer)) => {
                             let message = &message[0..vsize];
-                            match process_message(storage, &message, &connected_peer, true) {
+                            match process_message(
+                                storage,
+                                &message,
+                                &connected_peer,
+                                true,
+                                max_edns_size,
+                            ) {
                                 Ok(message) => {
                                     if let Err(err) = servers_clone[index]
                                         .udp_socket
@@ -299,7 +314,13 @@ impl OtterServer {
                             Ok(vsize) => {
                                 let message = &message[0..vsize];
                                 println!("{:?}", message);
-                                match process_message(storage, &message, &remote_addr, false) {
+                                match process_message(
+                                    storage,
+                                    &message,
+                                    &remote_addr,
+                                    false,
+                                    max_edns_size,
+                                ) {
                                     Ok(message) => {
                                         if let Err(err) = stream.write(message.as_slice()).await {
                                             error!("{:?}", err)

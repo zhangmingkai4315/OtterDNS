@@ -1,6 +1,7 @@
 server:
     listen:
       - 0.0.0.0:53
+    max_edns_size: 1024
 
 
 zone:

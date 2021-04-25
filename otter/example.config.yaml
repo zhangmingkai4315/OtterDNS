@@ -1,7 +1,8 @@
 server:
     listen:
-      - 127.0.0.1:53/udp
-      - 127.0.0.1:53/tcp
+      - 127.0.0.1:15353/udp
+      - 127.0.0.1:15353/tcp
+    max_edns_size: 1024
 zone:
   - domain: example.com.
     file: /Users/mingkaizhang/workspace/OtterDNS/otter/example.com.zone
