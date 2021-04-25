@@ -55,7 +55,6 @@ impl FromStr for DnsTypeAAAA {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::qtype::DNSWireFrame;
     use std::str::FromStr;
 
     #[test]

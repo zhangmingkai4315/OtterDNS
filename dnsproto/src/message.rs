@@ -5,12 +5,11 @@ use crate::label::Label;
 use crate::meta::{DNSClass, DNSType, RRSet};
 use crate::meta::{Header, OpCode, Question, RCode, ResourceRecord};
 use crate::qtype::{decode_message_data, DnsTypeTXT};
-use byteorder::{BigEndian, WriteBytesExt};
 use nom::number::complete::{be_u16, be_u32};
 use otterlib::errors::DNSProtoErr;
 use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::io::{Cursor, Write};
+use std::io::Cursor;
 // use std::str::FromStr;
 
 #[derive(Debug, PartialEq)]
@@ -185,7 +184,7 @@ impl Message {
         for additional in self.additional.as_mut_slice() {
             cursor = additional.encode(cursor, Some(compression))?
         }
-        let mut result = cursor.get_ref().clone();
+        let result = cursor.get_ref().clone();
         // for tcp connection
         if from_udp == false {
             let size = result.len() as u16;
@@ -808,9 +807,9 @@ mod message {
     }
 
     #[test]
-    fn test_encode_message() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_encode_message() {
         let mut message = get_message();
-        match message.encode() {
+        match message.encode(true) {
             Ok(data) => {
                 assert_eq!(
                     data,
@@ -826,7 +825,22 @@ mod message {
             }
             _ => assert!(false),
         }
-        Ok(())
+        match message.encode(false) {
+            Ok(data) => {
+                assert_eq!(
+                    data,
+                    vec![
+                        0, 111, 202, 177, 129, 0, 0, 1, 0, 4, 0, 0, 0, 1, 6, 103, 111, 111, 103,
+                        108, 101, 3, 99, 111, 109, 0, 0, 2, 0, 1, 192, 12, 0, 2, 0, 1, 0, 0, 39,
+                        16, 0, 6, 3, 110, 115, 49, 192, 12, 192, 12, 0, 2, 0, 1, 0, 0, 39, 16, 0,
+                        6, 3, 110, 115, 50, 192, 12, 192, 12, 0, 2, 0, 1, 0, 0, 39, 16, 0, 6, 3,
+                        110, 115, 51, 192, 12, 192, 12, 0, 2, 0, 1, 0, 0, 39, 16, 0, 6, 3, 110,
+                        115, 52, 192, 12, 0, 0, 41, 4, 219, 0, 0, 0, 0, 0, 0
+                    ],
+                );
+            }
+            _ => assert!(false),
+        }
     }
 
     #[test]
