@@ -87,6 +87,10 @@ pub enum DNSProtoErr {
     PacketSerializeError,
     #[error("packet encode error")]
     EncodeError,
+
+    #[error("txt encode overflow error")]
+    EncodeTxtLengthTooLongError,
+
     #[error("read zone file: `{path:?}` error: {err:?}")]
     IOError { path: String, err: String },
 

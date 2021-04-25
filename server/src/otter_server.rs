@@ -21,7 +21,21 @@ pub type TokioError = Box<dyn std::error::Error + Send + Sync>;
 pub type TokioResult<T> = std::result::Result<T, TokioError>;
 
 /// report_query_message
-fn report_query_message(dnsname: &DNSName, dnstype: &DNSType, remote: &SocketAddr) {}
+fn report_query_message(dnsname: &DNSName, dnstype: &DNSType, remote: &SocketAddr, from_udp: bool) {
+    info!(
+        "receive query: {} IN {} from {} +{}",
+        dnsname.to_string(),
+        dnstype.to_string(),
+        remote.to_string(),
+        {
+            if from_udp == true {
+                "udp".to_string()
+            } else {
+                "tcp".to_string()
+            }
+        }
+    )
+}
 
 /// process_message is the main dns process logic function
 /// implements the rfc1034 and used for udp and tcp listeners
@@ -38,10 +52,10 @@ fn process_message(
     }
 
     let (dnsname, dnstype) = parsed_message.query_name_and_type()?;
-    report_query_message(dnsname, dnstype, remote);
+    report_query_message(dnsname, dnstype, remote, from_udp);
     let (mut message, terminator) = Message::new_message_from_query(&parsed_message, from_udp);
     if terminator == true {
-        return message.encode();
+        return message.encode(from_udp);
     }
 
     match storage.search_rrset(dnsname, dnstype) {
@@ -59,7 +73,7 @@ fn process_message(
                         dnsname.to_string(),
                         err,
                     );
-                    message.set_nxdomain()
+                    message.set_nxdomain();
                 }
                 _ => {
                     debug!(
@@ -67,13 +81,13 @@ fn process_message(
                         dnsname.to_string(),
                         err
                     );
-                    message.set_serverfail()
+                    message.set_serverfail();
                 }
             }
         }
     }
     // debug!(logger, "response message: {:?}", message);
-    message.encode()
+    message.encode(from_udp)
 }
 
 pub struct OtterServer {
@@ -101,35 +115,65 @@ impl OtterServer {
         let (tcp_listeners, udp_listeners) = self.setting.get_listeners();
         let mut tcp_servers = vec![];
 
+        // for tcp_addr in tcp_listeners.iter() {
+        //     info!("start listen tcp connection at: {}", tcp_addr);
+        //     for _ in 0..extension.tcp_workers {
+        //         let tcp_addr = tcp_addr.parse::<SocketAddr>()?;
+        //         // let tcp_server = TcpListener::bind(tcp_addr).await?;
+        //         // let tcp_socket = net2::TcpBuilder ::reuse_port(true).unwrap();
+        //         let tcp_socket = if tcp_addr.is_ipv4() {
+        //             net2::TcpBuilder::new_v4()
+        //                 .unwrap()
+        //                 .reuse_port(true)
+        //                 .unwrap()
+        //                 .bind(tcp_addr)
+        //                 .unwrap()
+        //                 .to_tcp_listener()
+        //                 .unwrap()
+        //         } else {
+        //             net2::TcpBuilder::new_v6()
+        //                 .unwrap()
+        //                 .reuse_port(true)
+        //                 .unwrap()
+        //                 .bind(tcp_addr)
+        //                 .unwrap()
+        //                 .to_tcp_listener()
+        //                 .unwrap()
+        //         };
+        //         let tcp_server = TcpListener::from_std(tcp_socket).unwrap();
+        //         tcp_servers.push(TCPServer::new(tcp_server));
+        //     }
+        // }
+
         for tcp_addr in tcp_listeners.iter() {
             info!("start listen tcp connection at: {}", tcp_addr);
-            for _ in 0..extension.tcp_workers {
-                let tcp_addr = tcp_addr.parse::<SocketAddr>()?;
-                // let tcp_server = TcpListener::bind(tcp_addr).await?;
-                // let tcp_socket = net2::TcpBuilder ::reuse_port(true).unwrap();
-                let tcp_socket = if tcp_addr.is_ipv4() {
-                    net2::TcpBuilder::new_v4()
-                        .unwrap()
-                        .reuse_port(true)
-                        .unwrap()
-                        .bind(tcp_addr)
-                        .unwrap()
-                        .to_tcp_listener()
-                        .unwrap()
-                } else {
-                    net2::TcpBuilder::new_v6()
-                        .unwrap()
-                        .reuse_port(true)
-                        .unwrap()
-                        .bind(tcp_addr)
-                        .unwrap()
-                        .to_tcp_listener()
-                        .unwrap()
-                };
-                // let tcp_socket = net2::UdpBuilder::bind()?
-                let tcp_server = TcpListener::from_std(tcp_socket).unwrap();
-                tcp_servers.push(TCPServer::new(tcp_server));
-            }
+            // for _ in 0..extension.tcp_workers {
+            let tcp_addr = tcp_addr.parse::<SocketAddr>()?;
+            let tcp_server = TcpListener::bind(tcp_addr).await?;
+            // let tcp_server = TcpListener::bind(tcp_addr).await?;
+            // let tcp_socket = net2::TcpBuilder ::reuse_port(true).unwrap();
+            // let tcp_socket = if tcp_addr.is_ipv4() {
+            //     net2::TcpBuilder::new_v4()
+            //         .unwrap()
+            //         .reuse_port(true)
+            //         .unwrap()
+            //         .bind(tcp_addr)
+            //         .unwrap()
+            //         .to_tcp_listener()
+            //         .unwrap()
+            // } else {
+            //     net2::TcpBuilder::new_v6()
+            //         .unwrap()
+            //         .reuse_port(true)
+            //         .unwrap()
+            //         .bind(tcp_addr)
+            //         .unwrap()
+            //         .to_tcp_listener()
+            //         .unwrap()
+            // };
+            // let tcp_server = TcpListener::from_std(tcp_socket).unwrap();
+            tcp_servers.push(TCPServer::new(tcp_server));
+            // }
         }
 
         let mut udp_servers = vec![];
@@ -195,7 +239,7 @@ impl OtterServer {
             self.threads.push(tokio::spawn(async move {
                 loop {
                     let storage = storage.clone();
-                    let mut message = [0u8; 4096];
+                    let mut message = [0u8; 512];
                     match servers_clone[index]
                         .udp_socket
                         .recv_from(&mut message)
@@ -238,15 +282,29 @@ impl OtterServer {
                     if let Ok((mut stream, remote_addr)) =
                         servers_clone[index].tcp_listener.accept().await
                     {
-                        let mut message: Vec<u8> = Vec::with_capacity(4096);
-                        match stream.read(message.as_mut_slice()).await {
+                        let mut packet_length = [0u8; 2];
+                        let mut next_size: u16 = 0;
+                        if let Ok(v) = stream.read_exact(&mut packet_length).await {
+                            if v != 2 {
+                                continue;
+                            }
+                            next_size =
+                                ((packet_length[0] as u16) << 8) + (packet_length[1] as u16);
+                        } else {
+                            continue;
+                        }
+                        let mut message: Vec<u8> = Vec::with_capacity(next_size as usize);
+                        message.resize(next_size as usize, 0);
+                        match stream.read_exact(message.as_mut_slice()).await {
                             Ok(vsize) => {
                                 let message = &message[0..vsize];
+                                println!("{:?}", message);
                                 match process_message(storage, &message, &remote_addr, false) {
                                     Ok(message) => {
                                         if let Err(err) = stream.write(message.as_slice()).await {
                                             error!("{:?}", err)
                                         };
+                                        println!("{:?}", message);
                                         continue;
                                     }
                                     Err(err) => {

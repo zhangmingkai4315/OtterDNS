@@ -5,11 +5,12 @@ use crate::label::Label;
 use crate::meta::{DNSClass, DNSType, RRSet};
 use crate::meta::{Header, OpCode, Question, RCode, ResourceRecord};
 use crate::qtype::{decode_message_data, DnsTypeTXT};
+use byteorder::{BigEndian, WriteBytesExt};
 use nom::number::complete::{be_u16, be_u32};
 use otterlib::errors::DNSProtoErr;
 use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::io::Cursor;
+use std::io::{Cursor, Write};
 // use std::str::FromStr;
 
 #[derive(Debug, PartialEq)]
@@ -88,7 +89,8 @@ impl Message {
             return (message, true);
         }
         let question = &q_message.questions[0];
-
+        message.questions = vec![question.clone()];
+        message.header.question_count = 1;
         if question.q_class != DNSClass::IN {
             if question.q_class == DNSClass::CH && question.q_type == DNSType::TXT {
                 let record = Record::AnswerRecord(
@@ -158,7 +160,7 @@ impl Message {
         self.authorities = ns_list;
     }
 
-    pub fn encode(&mut self) -> Result<Vec<u8>, DNSProtoErr> {
+    pub fn encode(&mut self, from_udp: bool) -> Result<Vec<u8>, DNSProtoErr> {
         let buffer: Vec<u8> = {
             if self.header.qr {
                 Vec::with_capacity(256)
@@ -166,8 +168,7 @@ impl Message {
                 Vec::with_capacity(128)
             }
         };
-        // self.cursor = Some(&mut Cursor::new(buffer));
-        // let cursor = self.cursor.unwrap();
+
         let cursor = &mut Cursor::new(buffer);
         let compression = &mut HashMap::new();
         let mut cursor = self.header.encode(cursor)?;
@@ -184,8 +185,16 @@ impl Message {
         for additional in self.additional.as_mut_slice() {
             cursor = additional.encode(cursor, Some(compression))?
         }
-        let result = cursor.get_ref().clone();
-        Ok(result)
+        let mut result = cursor.get_ref().clone();
+        // for tcp connection
+        if from_udp == false {
+            let size = result.len() as u16;
+            let mut result_with_length = vec![((size & 0xff00) >> 8) as u8, (size & 0x00ff) as u8];
+            result_with_length.extend_from_slice(result.as_slice());
+            Ok(result_with_length)
+        } else {
+            Ok(result)
+        }
     }
     pub fn set_header(&mut self, header: Header) {
         self.header = header;

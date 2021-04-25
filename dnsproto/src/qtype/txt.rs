@@ -44,7 +44,14 @@ impl DNSWireFrame for DnsTypeTXT {
         DNSType::TXT
     }
     fn encode(&self, _: CompressionType) -> Result<Vec<u8>, DNSProtoErr> {
-        Ok(Vec::from(self.text.as_bytes()))
+        let text_bytes = self.text.as_bytes();
+        let size = text_bytes.len();
+        if size > (u8::MAX as usize) {
+            return Err(DNSProtoErr::EncodeTxtLengthTooLongError);
+        }
+        let mut result = vec![size as u8];
+        result.extend_from_slice(text_bytes);
+        Ok(result)
     }
     fn as_any(&self) -> &dyn Any {
         self

@@ -1,6 +1,7 @@
 server:
     listen:
-      - 0.0.0.0:7070
+      - 127.0.0.1:53/udp
+      - 127.0.0.1:53/tcp
 zone:
   - domain: example.com.
     file: /Users/mingkaizhang/workspace/OtterDNS/otter/example.com.zone
