@@ -434,6 +434,19 @@ impl SafeRBTreeStorage {
         }
         current
     }
+    pub fn get_additionals(
+        &mut self,
+        name: &DNSName,
+    ) -> Result<Arc<RwLock<SafeRBTreeNode>>, StorageError> {
+        // TODO: if name is not in current zone , do we need to return the glue records, maybe ignore it.
+        Err(StorageError::Unimplemented)
+    }
+
+    pub fn is_relative(&self, name: &DNSName) -> bool {
+        let zone = self.0.read().unwrap().get_name();
+        let (is_relative, _) = name.is_relative(&zone);
+        is_relative
+    }
 
     pub fn find(&mut self, name: &DNSName) -> Result<Arc<RwLock<SafeRBTreeNode>>, StorageError> {
         let mut labels_count = name.label_count();
@@ -453,9 +466,6 @@ impl SafeRBTreeStorage {
                 current = node.clone();
                 continue;
             }
-            /// find if include wildcard *
-            // let result = subtree.read().unwrap().get(&WILDCARD_LABEL);
-            // temp.write().unwrap().subtree = subtree;
             if let Some(node) = subtree.read().unwrap().get(&WILDCARD_LABEL) {
                 return Ok(node.clone());
             }

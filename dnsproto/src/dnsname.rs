@@ -100,20 +100,30 @@ impl DNSName {
         }
         true
     }
+    /// make_relative return true if current node is belone to zone
+    /// for example. if zone is google.com. and current name is www.google.com. then should return true
+    /// otherwise return false, btw if equal then return true. we also need to truncate the label array
+    /// when return true.
+    pub fn make_relative(&mut self, zone: &DNSName) -> bool {
+        let (is_relative, truncated_pos) = self.is_relative(zone);
+        if is_relative == true {
+            self.labels.truncate(truncated_pos);
+        }
+        is_relative
+    }
 
-    pub fn make_relative(&mut self, dnsname: &DNSName) -> bool {
+    pub fn is_relative(&self, zone: &DNSName) -> (bool, usize) {
         let us_counter = self.label_count();
-        let them_counter = dnsname.label_count();
+        let them_counter = zone.label_count();
         if us_counter < them_counter {
-            return false;
+            return (false, 0);
         }
         for i in 0..them_counter {
-            if self.labels[us_counter - i - 1] != dnsname.labels[them_counter - i - 1] {
-                return false;
+            if self.labels[us_counter - i - 1] != zone.labels[them_counter - i - 1] {
+                return (false, 0);
             }
         }
-        self.labels.truncate(us_counter - them_counter);
-        true
+        (true, us_counter - them_counter)
     }
 
     pub fn to_binary(
@@ -447,8 +457,8 @@ mod dnsname {
         assert_eq!(dnsname.labels.len(), 0);
 
         let mut dnsname = DNSName::new("www.com.", None).unwrap();
-        let root = DNSName::new("baidu.com.", None).unwrap();
-        assert_eq!(dnsname.make_relative(&root), false);
+        let zone = DNSName::new("baidu.com.", None).unwrap();
+        assert_eq!(dnsname.make_relative(&zone), false);
         assert_eq!(
             dnsname.labels,
             vec![
