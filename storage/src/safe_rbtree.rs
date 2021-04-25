@@ -50,11 +50,11 @@ impl Iterator for SafeZoneIterator {
     type Item = Arc<RwLock<SafeRBTreeNode>>;
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            if let Some(next) = self.next.take() {
+            return if let Some(next) = self.next.take() {
                 if let Some(parent) = self.parent_stack.pop() {
                     let tree = &parent.read().unwrap().subtree;
 
-                    if let Some(v) = tree
+                    return if let Some(v) = tree
                         .read()
                         .unwrap()
                         .range(&next.read().unwrap().label..)
@@ -62,18 +62,18 @@ impl Iterator for SafeZoneIterator {
                     {
                         self.next = Some(v.1.clone());
                         self.parent_stack.push(parent.clone());
-                        return Some(next.clone());
+                        Some(next.clone())
                     } else {
-                        return Some(next.clone());
-                    }
+                        Some(next.clone())
+                    };
 
                     // no more item in this tree shift to another sub tree
                     self.next = Some(parent.clone());
                 }
-                return Some(next);
+                Some(next)
             } else {
-                return None;
-            }
+                None
+            };
         }
     }
 }
@@ -434,12 +434,24 @@ impl SafeRBTreeStorage {
         }
         current
     }
-    pub fn get_additionals(
-        &mut self,
-        name: &DNSName,
-    ) -> Result<Arc<RwLock<SafeRBTreeNode>>, StorageError> {
+    pub fn get_additionals(&mut self, names: Vec<&DNSName>) -> Vec<Arc<RwLock<RRSet>>> {
         // TODO: if name is not in current zone , do we need to return the glue records, maybe ignore it.
-        Err(StorageError::Unimplemented)
+        let mut results = vec![];
+        for name in names.iter() {
+            if self.is_relative(name) == false {
+                continue;
+            }
+            if let Ok(result) = self.find(name) {
+                let node = result.read().unwrap();
+                if let Some(result) = node.rr_sets.get(&DNSType::A) {
+                    results.push(result.value().clone());
+                }
+                if let Some(result) = node.rr_sets.get(&DNSType::AAAA) {
+                    results.push(result.value().clone());
+                }
+            }
+        }
+        results
     }
 
     pub fn is_relative(&self, name: &DNSName) -> bool {
