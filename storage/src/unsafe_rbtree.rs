@@ -738,7 +738,7 @@ mod storage {
 
 #[cfg(test)]
 mod test {
-    use crate::unsafe_rbtree::{RBTreeNode, UnSafeRBTreeStorage};
+    use crate::unsafe_rbtree::UnSafeRBTreeStorage;
     use dnsproto::dnsname::DNSName;
     use dnsproto::meta::DNSType;
 

@@ -68,7 +68,7 @@ impl Message {
         }
     }
 
-    pub fn new_tc_message_from_build_message(message: &mut Message) -> (&mut Message) {
+    pub fn new_tc_message_from_build_message(message: &mut Message) -> &mut Message {
         message.header.tc = true;
         message.answers.clear();
         message.authorities.clear();

@@ -1,5 +1,5 @@
 use crate::errors::SettingError;
-use config::{Config, File, Source};
+use config::{Config, File};
 use std::str::FromStr;
 use validator::{Validate, ValidationError, ValidationErrors};
 
@@ -113,7 +113,7 @@ impl Settings {
     pub fn new(filename: &str) -> Result<Settings, SettingError> {
         let mut config_obj = Config::new();
         // set default value
-        config_obj.set_default("server.max_edns_size", 1243);
+        config_obj.set_default("server.max_edns_size", 1243)?;
         if let Err(err) = config_obj.merge(File::with_name(filename)) {
             return Err(SettingError::ParseConfigError(err.to_string()));
         }

@@ -1,4 +1,4 @@
-use crate::unsafe_rbtree::{RBTreeNode, UnSafeRBTreeStorage};
+use crate::unsafe_rbtree::UnSafeRBTreeStorage;
 use dashmap::DashMap;
 use dnsproto::dnsname::DNSName;
 use dnsproto::label::Label;
@@ -434,7 +434,7 @@ impl SafeRBTreeStorage {
         }
         current
     }
-    pub fn get_additionals(&mut self, names: Vec<&DNSName>) -> Vec<Arc<RwLock<RRSet>>> {
+    pub fn get_additionals(&self, names: Vec<&DNSName>) -> Vec<Arc<RwLock<RRSet>>> {
         // TODO: if name is not in current zone , do we need to return the glue records, maybe ignore it.
         let mut results = vec![];
         for name in names.iter() {
@@ -448,7 +448,7 @@ impl SafeRBTreeStorage {
                 }
                 if let Some(result) = node.rr_sets.get(&DNSType::AAAA) {
                     results.push(result.value().clone());
-                }
+                };
             }
         }
         results
@@ -460,7 +460,7 @@ impl SafeRBTreeStorage {
         is_relative
     }
 
-    pub fn find(&mut self, name: &DNSName) -> Result<Arc<RwLock<SafeRBTreeNode>>, StorageError> {
+    pub fn find(&self, name: &DNSName) -> Result<Arc<RwLock<SafeRBTreeNode>>, StorageError> {
         let mut labels_count = name.label_count();
         if labels_count == 0 {
             return Ok(self.0.clone());
@@ -485,5 +485,24 @@ impl SafeRBTreeStorage {
             return Err(StorageError::DomainNotFoundError(name.to_string()));
         }
         Ok(current)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::safe_rbtree::{SafeRBTreeNode, SafeRBTreeStorage};
+    use dnsproto::dnsname::DNSName;
+
+    #[test]
+    fn test_get_additionals() {
+        let node = SafeRBTreeNode::new_root();
+
+        let zone = SafeRBTreeStorage::new(node);
+        let dnames = vec![
+            DNSName::new("ns1.google.com.", None).unwrap(),
+            DNSName::new("ns1.google.com.", None).unwrap(),
+        ];
+        let result = zone.get_additionals(dnames.iter().collect());
+        assert_eq!(result.len(), 0);
     }
 }
