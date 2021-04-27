@@ -60,6 +60,8 @@ fn process_message(
         return message.encode(from_udp);
     }
     // 1. find the best zone for this query
+    let best_zone = storage.find_best(dnsname);
+
     // 2. if not found
     //     2.1 because no subzone? then get the best zone name( using cut method )
     //     2.2 because not in this zone? then return refused status
@@ -88,9 +90,9 @@ fn process_message(
     //          9.3.1  find the soa record
     //          9.3.2  put the soa record to authority section
     // 10. add additional info
+
     match storage.search_rrset(dnsname, dnstype) {
         Ok(rrset) => {
-            // TODO:
             let rrset = rrset.read().unwrap().to_records();
             message.update_answer(rrset);
         }

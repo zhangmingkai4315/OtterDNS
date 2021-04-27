@@ -396,11 +396,14 @@ impl SafeRBTreeStorage {
             )),
         }
     }
-
-    pub fn find_best(&self, name: &DNSName) -> Arc<RwLock<SafeRBTreeNode>> {
+    // TODO: Write test for find best zone
+    pub fn find_best(&self, name: &DNSName) -> Option<Arc<RwLock<SafeRBTreeNode>>> {
+        if !self.is_own_domain(name) {
+            return None;
+        }
         let mut labels_count = name.label_count();
         if labels_count == 0 {
-            return self.0.clone();
+            return Some(self.0.clone());
         }
         let mut current = self.0.clone();
         for label in name.labels.iter().rev() {
@@ -412,14 +415,14 @@ impl SafeRBTreeStorage {
             /// subtree exist and has label node
             if let Some(node) = result {
                 if labels_count == 0 {
-                    return node.clone();
+                    return Some(node.clone());
                 }
                 current = node.clone();
                 continue;
             }
-            return current;
+            return Some(current);
         }
-        current
+        Some(current)
     }
     pub fn find_smallest(
         &self,
@@ -438,7 +441,7 @@ impl SafeRBTreeStorage {
         // TODO: if name is not in current zone , do we need to return the glue records, maybe ignore it.
         let mut results = vec![];
         for name in names.iter() {
-            if self.is_relative(name) == false {
+            if self.is_own_domain(name) == false {
                 continue;
             }
             if let Ok(result) = self.find(name) {
@@ -454,7 +457,7 @@ impl SafeRBTreeStorage {
         results
     }
 
-    pub fn is_relative(&self, name: &DNSName) -> bool {
+    pub fn is_own_domain(&self, name: &DNSName) -> bool {
         let zone = self.0.read().unwrap().get_name();
         let (is_relative, _) = name.is_relative(&zone);
         is_relative
@@ -493,6 +496,11 @@ mod test {
     use crate::safe_rbtree::{SafeRBTreeNode, SafeRBTreeStorage};
     use dnsproto::dnsname::DNSName;
 
+    fn get_example_zone() -> SafeRBTreeStorage {
+        let test_zone_file = "./test/example.zone";
+        SafeRBTreeStorage::new_zone_from_file(test_zone_file, None).unwrap()
+    }
+
     #[test]
     fn test_get_additionals() {
         let node = SafeRBTreeNode::new_root();
@@ -504,5 +512,31 @@ mod test {
         ];
         let result = zone.get_additionals(dnames.iter().collect());
         assert_eq!(result.len(), 0);
+    }
+
+    #[test]
+    fn test_find_best_zone() {
+        let zone = get_example_zone();
+        let find_result = zone.find_best(&DNSName::new("example.com.", None).unwrap());
+        assert_eq!(find_result.is_some(), true);
+        let find_result = find_result.unwrap();
+        assert_eq!(
+            find_result.read().unwrap().get_name().to_string(),
+            "example.com.".to_string()
+        );
+        let find_result = zone.find_best(&DNSName::new("notexist.example.com.", None).unwrap());
+        assert_eq!(find_result.is_some(), true);
+        let find_result = find_result.unwrap();
+        assert_eq!(
+            find_result.read().unwrap().get_name().to_string(),
+            "example.com.".to_string()
+        );
+        let find_result = zone.find_best(&DNSName::new("xay.com.", None).unwrap());
+        assert_eq!(find_result.is_some(), true);
+        let find_result = find_result.unwrap();
+        assert_eq!(
+            find_result.read().unwrap().get_name().to_string(),
+            "com.".to_string()
+        );
     }
 }

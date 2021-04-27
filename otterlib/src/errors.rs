@@ -107,6 +107,12 @@ impl From<std::io::Error> for DNSProtoErr {
     }
 }
 
+impl From<config::ConfigError> for SettingError {
+    fn from(err: config::ConfigError) -> Self {
+        SettingError::ValidationServerConfigError(err.to_string())
+    }
+}
+
 impl<I: std::fmt::Debug> From<nom::Err<(I, nom::error::ErrorKind)>> for DNSProtoErr {
     fn from(err_nom: nom::Err<(I, nom::error::ErrorKind)>) -> Self {
         match err_nom {
