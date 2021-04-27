@@ -22,6 +22,11 @@ pub enum StorageError {
     DNSTypeNotFoundError(String, String),
     #[error("storage not ready")]
     StorageNotReadyError,
+    #[error("zone file must start with soa record")]
+    NotStartWithSOARecord,
+
+    #[error("zone file has more than one soa record")]
+    TooManySOARecords,
     #[error("soa resource record not found")]
     SOAResourceError,
     #[error("can't add CNAME RR to a node that already has RRs present")]

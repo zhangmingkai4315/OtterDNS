@@ -114,16 +114,16 @@ impl DNSName {
 
     pub fn is_relative(&self, zone: &DNSName) -> (bool, usize) {
         let us_counter = self.label_count();
-        let them_counter = zone.label_count();
-        if us_counter < them_counter {
+        let zone_counter = zone.label_count();
+        if us_counter < zone_counter {
             return (false, 0);
         }
-        for i in 0..them_counter {
-            if self.labels[us_counter - i - 1] != zone.labels[them_counter - i - 1] {
+        for i in 0..zone_counter {
+            if self.labels[us_counter - i - 1] != zone.labels[zone_counter - i - 1] {
                 return (false, 0);
             }
         }
-        (true, us_counter - them_counter)
+        (true, us_counter - zone_counter)
     }
 
     pub fn to_binary(

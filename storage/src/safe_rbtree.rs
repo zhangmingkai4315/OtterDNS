@@ -1,19 +1,15 @@
-use crate::unsafe_rbtree::UnSafeRBTreeStorage;
 use dashmap::DashMap;
 use dnsproto::dnsname::DNSName;
 use dnsproto::label::Label;
-use dnsproto::meta::DNSType::A;
 use dnsproto::meta::{DNSType, RRSet, ResourceRecord};
 use dnsproto::zone::{ZoneFileParser, ZoneReader};
 use lazy_static::lazy_static;
 use otterlib::errors::{OtterError, StorageError};
-use std::cell::RefCell;
-use std::collections::btree_map::Iter;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
-use std::sync::{Arc, Mutex, RwLock, Weak};
+use std::sync::{Arc, RwLock, Weak};
 
 lazy_static! {
     static ref WILDCARD_LABEL: Label = Label::from_str("*").unwrap();
@@ -22,6 +18,7 @@ lazy_static! {
 #[derive(Debug)]
 pub struct SafeRBTreeNode {
     label: Label,
+    zone_cut: bool,
     pub(crate) rr_sets: DashMap<DNSType, Arc<RwLock<RRSet>>>,
     parent: Option<Weak<RwLock<SafeRBTreeNode>>>,
     subtree: Arc<RwLock<BTreeMap<Label, Arc<RwLock<SafeRBTreeNode>>>>>,
@@ -121,6 +118,7 @@ impl SafeRBTreeNode {
     pub fn new_root() -> SafeRBTreeNode {
         SafeRBTreeNode {
             label: Label::root(),
+            zone_cut: true,
             rr_sets: Default::default(),
             parent: None,
             subtree: Arc::new(RwLock::new(BTreeMap::new())),
@@ -241,6 +239,7 @@ impl SafeRBTreeNode {
     fn from_label(label: Label) -> Arc<RwLock<SafeRBTreeNode>> {
         Arc::new(RwLock::new(SafeRBTreeNode {
             label,
+            zone_cut: false,
             rr_sets: Default::default(),
             parent: None,
             subtree: Arc::new(RwLock::new(BTreeMap::new())),
@@ -277,19 +276,47 @@ impl SafeRBTreeStorage {
         &mut self,
         file: &str,
         default_origin: Option<String>,
-    ) -> Result<(), OtterError> {
+    ) -> Result<Arc<RwLock<SafeRBTreeNode>>, OtterError> {
         let parser = ZoneFileParser::new(file)?;
-        let zone_reader = ZoneReader::new(parser, default_origin);
-        for item in zone_reader {
+        let reader = ZoneReader::new(parser, default_origin);
+        let mut first_rr = None;
+        let mut start_point = None;
+        for item in reader {
             match item {
                 Ok(rr) => {
                     // insert rr record to zone node.
-                    self.insert_rr(rr)?;
+                    if first_rr.is_none() {
+                        if rr.get_type() != DNSType::SOA {
+                            return Err(OtterError::StorageError(
+                                StorageError::NotStartWithSOARecord,
+                            ));
+                        }
+                        first_rr = Some(rr.clone());
+                        start_point = Some(self.insert_rr(rr)?);
+                    // println!(
+                    //     "start point = {}",
+                    //     start_point
+                    //         .clone()
+                    //         .unwrap()
+                    //         .read()
+                    //         .unwrap()
+                    //         .get_name()
+                    //         .to_string()
+                    // );
+                    } else {
+                        if rr.get_type() == DNSType::SOA {
+                            return Err(OtterError::StorageError(StorageError::TooManySOARecords));
+                        }
+                        self.insert_rr(rr)?;
+                    }
                 }
                 Err(err) => return Err(OtterError::DNSProtoError(err)),
             }
         }
-        Ok(())
+        if first_rr.is_none() || start_point.is_none() {
+            return Err(OtterError::StorageError(StorageError::SOAResourceError));
+        }
+        Ok(start_point.unwrap().clone())
     }
 
     /// locate the dns name node from top zone root node. if the dns name is not found in this zone
@@ -362,11 +389,14 @@ impl SafeRBTreeStorage {
         Ok(current)
     }
 
-    pub fn insert_rr(&mut self, rr: ResourceRecord) -> Result<(), StorageError> {
+    pub fn insert_rr(
+        &mut self,
+        rr: ResourceRecord,
+    ) -> Result<Arc<RwLock<SafeRBTreeNode>>, StorageError> {
         let dname = rr.get_dname();
         let vnode = self.find_or_insert(dname)?;
         vnode.write().unwrap().add_rr(rr)?;
-        Ok(())
+        Ok(vnode.clone())
     }
     /// search will travel from top of tree down to the bottom.
     pub fn search_rrset(
@@ -498,7 +528,8 @@ mod test {
 
     fn get_example_zone() -> SafeRBTreeStorage {
         let test_zone_file = "./test/example.zone";
-        SafeRBTreeStorage::new_zone_from_file(test_zone_file, None).unwrap()
+        let storage = SafeRBTreeStorage::new_zone_from_file(test_zone_file, None).unwrap();
+        storage
     }
 
     #[test]
@@ -517,6 +548,7 @@ mod test {
     #[test]
     fn test_find_best_zone() {
         let zone = get_example_zone();
+        // eprintln!("{}", zone.0.read().unwrap().get_name().to_string());
         let find_result = zone.find_best(&DNSName::new("example.com.", None).unwrap());
         assert_eq!(find_result.is_some(), true);
         let find_result = find_result.unwrap();
@@ -531,6 +563,7 @@ mod test {
             find_result.read().unwrap().get_name().to_string(),
             "example.com.".to_string()
         );
+        // TODO: should return refused.
         let find_result = zone.find_best(&DNSName::new("xay.com.", None).unwrap());
         assert_eq!(find_result.is_some(), true);
         let find_result = find_result.unwrap();
