@@ -59,7 +59,35 @@ fn process_message(
     if terminator == true {
         return message.encode(from_udp);
     }
-
+    // 1. find the best zone for this query
+    // 2. if not found
+    //     2.1 because no subzone? then get the best zone name( using cut method )
+    //     2.2 because not in this zone? then return refused status
+    // 3. find best zone for the qname (with wildcard, and zone cut info collection)
+    // 4. set dns header aa = true
+    // 5. get the zone reference
+    // 6. search current domain in best zone and trace the zonecut if exist!
+    // 7. if zonecut exist :
+    //      7.1 set dns header aa = false
+    //      7.2 get the ns information put it to additional section
+    // 8. if not exist
+    //      8.1 then get the best zone's soa record
+    //      8.2 get the ttl soa minimum
+    //      8.3 set nxdomain
+    // 9. find the node
+    //      9.1 if CNAME exist then
+    //          9.1.1 if qtype is CNAME then return a cname record
+    //          9.1.2 if qtype is not CNAME then chase this query back to step 6:
+    //          9.1.3 when chase the CNAME if not belong to this zone we do not chase again
+    //          9.1.4 add any CNAME to the answer section
+    //      9.2 if query type exist
+    //          9.2.1 if query type is mx we also need to chase the mx record a/aaaa in the zone and
+    //                add to additional
+    //          9.2.2 add records to answer section
+    //      9.3. if query type not exist
+    //          9.3.1  find the soa record
+    //          9.3.2  put the soa record to authority section
+    // 10. add additional info
     match storage.search_rrset(dnsname, dnstype) {
         Ok(rrset) => {
             // TODO:
@@ -90,7 +118,7 @@ fn process_message(
     }
     // debug!(logger, "response message: {:?}", message);
     let message_byte = message.encode(from_udp)?;
-    // when query from udp and message size great than max_size
+    // when query from udp and message size great than max_size(maybe limit by edns size)
     if from_udp == true && message_byte.len() > (max_size as usize) {
         let tc_message = Message::new_tc_message_from_build_message(&mut message);
         Ok(tc_message.encode(from_udp)?)
