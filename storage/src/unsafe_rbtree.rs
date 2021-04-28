@@ -524,9 +524,6 @@ mod storage {
 
         let mut zone = UnSafeRBTreeStorage::new(zone);
         for (name, rr) in dnsnames {
-            let node = zone.find_or_insert(&name).unwrap();
-            // let mut borrow_node = node.deref().borrow_mut();
-
             if let Err(_e) = zone.insert_rr(rr) {
                 panic!("create example zone fail");
             }

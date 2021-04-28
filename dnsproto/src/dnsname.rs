@@ -13,7 +13,7 @@ use std::str::FromStr;
 
 use crate::utils::is_fqdn;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct DNSName {
     pub labels: Vec<Label>,
 }

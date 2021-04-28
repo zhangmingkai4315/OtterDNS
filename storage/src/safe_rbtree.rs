@@ -18,7 +18,7 @@ lazy_static! {
 #[derive(Debug)]
 pub struct SafeRBTreeNode {
     label: Label,
-    zone_cut: bool,
+    auth_data: bool,
     pub(crate) rr_sets: DashMap<DNSType, Arc<RwLock<RRSet>>>,
     parent: Option<Weak<RwLock<SafeRBTreeNode>>>,
     subtree: Arc<RwLock<BTreeMap<Label, Arc<RwLock<SafeRBTreeNode>>>>>,
@@ -61,11 +61,11 @@ impl Iterator for SafeZoneIterator {
                         self.parent_stack.push(parent.clone());
                         Some(next.clone())
                     } else {
+                        self.next = Some(parent.clone());
                         Some(next.clone())
                     };
 
                     // no more item in this tree shift to another sub tree
-                    self.next = Some(parent.clone());
                 }
                 Some(next)
             } else {
@@ -74,34 +74,6 @@ impl Iterator for SafeZoneIterator {
         }
     }
 }
-
-// //
-// impl Iterator for SafeZoneIterator {
-//     type Item = Arc<RwLock<RBTreeNode>>;
-//     fn next(&mut self) -> Option<Self::Item> {
-//         loop {
-//             if let Some(next) = self.next.take() {
-//                     if let Some(parent) = self.parent_stack.pop() {
-//                         if let Some(tree) = &parent.read().unwrap().subtree {
-//                             if let Some(v) = tree.read().unwrap() {
-//                                 self.next = Some((v.0.clone(), Some(v.1)));
-//                                 self.parent_stack.push((parent.0.clone(), parent.1));
-//                                 return Some(next);
-//                             }
-//                             // no more item in this tree shift to another sub tree
-//                             self.next = Some((parent.0.clone(), parent.1));
-//                             return Some(next);
-//                         }
-//                     }
-//                 } else {
-//                     return Some(next);
-//                 }
-//             } else {
-//                 return None;
-//             }
-//         }
-//     }
-// }
 
 impl Display for SafeRBTreeNode {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
@@ -118,7 +90,7 @@ impl SafeRBTreeNode {
     pub fn new_root() -> SafeRBTreeNode {
         SafeRBTreeNode {
             label: Label::root(),
-            zone_cut: true,
+            auth_data: false,
             rr_sets: Default::default(),
             parent: None,
             subtree: Arc::new(RwLock::new(BTreeMap::new())),
@@ -138,6 +110,7 @@ impl SafeRBTreeNode {
         };
     }
     pub fn add_rr(&mut self, rr: ResourceRecord) -> Result<(), StorageError> {
+        self.auth_data = true;
         match rr.get_type() {
             DNSType::RRSIG => {
                 self.rr_sets
@@ -239,7 +212,7 @@ impl SafeRBTreeNode {
     fn from_label(label: Label) -> Arc<RwLock<SafeRBTreeNode>> {
         Arc::new(RwLock::new(SafeRBTreeNode {
             label,
-            zone_cut: false,
+            auth_data: false,
             rr_sets: Default::default(),
             parent: None,
             subtree: Arc::new(RwLock::new(BTreeMap::new())),
@@ -248,7 +221,10 @@ impl SafeRBTreeNode {
 }
 
 #[derive(Debug, Clone)]
-pub struct SafeRBTreeStorage(Arc<RwLock<SafeRBTreeNode>>);
+pub struct SafeRBTreeStorage {
+    domain_tree: Arc<RwLock<SafeRBTreeNode>>,
+    fast_cache: DashMap<DNSName, Arc<RwLock<SafeRBTreeNode>>>,
+}
 
 unsafe impl Send for SafeRBTreeStorage {}
 
@@ -260,7 +236,10 @@ impl Default for SafeRBTreeStorage {
 
 impl SafeRBTreeStorage {
     pub fn new(node: SafeRBTreeNode) -> SafeRBTreeStorage {
-        SafeRBTreeStorage(Arc::new(RwLock::new(node)))
+        SafeRBTreeStorage {
+            domain_tree: Arc::new(RwLock::new(node)),
+            fast_cache: DashMap::new(),
+        }
     }
 
     pub fn new_zone_from_file(
@@ -293,16 +272,6 @@ impl SafeRBTreeStorage {
                         }
                         first_rr = Some(rr.clone());
                         start_point = Some(self.insert_rr(rr)?);
-                    // println!(
-                    //     "start point = {}",
-                    //     start_point
-                    //         .clone()
-                    //         .unwrap()
-                    //         .read()
-                    //         .unwrap()
-                    //         .get_name()
-                    //         .to_string()
-                    // );
                     } else {
                         if rr.get_type() == DNSType::SOA {
                             return Err(OtterError::StorageError(StorageError::TooManySOARecords));
@@ -326,7 +295,8 @@ impl SafeRBTreeStorage {
         &mut self,
         name: &DNSName,
     ) -> Result<Arc<RwLock<SafeRBTreeNode>>, StorageError> {
-        let current_name = &self.0.read().unwrap().get_name();
+        let current_name = &self.domain_tree.read().unwrap().get_name();
+        // domain not belong to this zone
         if !name.is_part_of(current_name) {
             return Err(StorageError::ZoneOutOfArea(
                 name.to_string(),
@@ -335,10 +305,10 @@ impl SafeRBTreeStorage {
         }
         let mut labels_count = name.label_count();
         if labels_count == 0 {
-            return Ok(self.0.clone());
+            return Ok(self.domain_tree.clone());
         }
         let mut parent_node = None;
-        let mut current = self.0.clone();
+        let mut current = self.domain_tree.clone();
 
         for label in name.labels.iter().rev() {
             labels_count -= 1;
@@ -417,8 +387,8 @@ impl SafeRBTreeStorage {
     }
 
     pub fn delete_rrset(&mut self, dtype: DNSType) -> Result<(), StorageError> {
-        let name = self.0.read().unwrap().get_name();
-        match self.0.write().unwrap().rr_sets.remove(&dtype) {
+        let name = self.domain_tree.read().unwrap().get_name();
+        match self.domain_tree.write().unwrap().rr_sets.remove(&dtype) {
             Some(_) => Ok(()),
             None => Err(StorageError::DNSTypeNotFoundError(
                 name.to_string(),
@@ -426,16 +396,16 @@ impl SafeRBTreeStorage {
             )),
         }
     }
-    // TODO: Write test for find best zone
+
     pub fn find_best(&self, name: &DNSName) -> Option<Arc<RwLock<SafeRBTreeNode>>> {
-        if !self.is_own_domain(name) {
-            return None;
-        }
         let mut labels_count = name.label_count();
         if labels_count == 0 {
-            return Some(self.0.clone());
+            if self.domain_tree.read().unwrap().auth_data != true {
+                return None;
+            }
+            return Some(self.domain_tree.clone());
         }
-        let mut current = self.0.clone();
+        let mut current = self.domain_tree.clone();
         for label in name.labels.iter().rev() {
             labels_count -= 1;
             let temp = current.clone();
@@ -445,12 +415,21 @@ impl SafeRBTreeStorage {
             /// subtree exist and has label node
             if let Some(node) = result {
                 if labels_count == 0 {
+                    if node.read().unwrap().auth_data != true {
+                        return None;
+                    }
                     return Some(node.clone());
                 }
                 current = node.clone();
                 continue;
             }
+            if current.read().unwrap().auth_data != true {
+                return None;
+            }
             return Some(current);
+        }
+        if self.domain_tree.read().unwrap().auth_data != true {
+            return None;
         }
         Some(current)
     }
@@ -458,11 +437,14 @@ impl SafeRBTreeStorage {
         &self,
         stack: &mut Vec<Arc<RwLock<SafeRBTreeNode>>>,
     ) -> Arc<RwLock<SafeRBTreeNode>> {
-        let current = self.0.clone();
+        let current = self.domain_tree.clone();
         let subtree = current.read().unwrap().subtree.clone();
         if let Some((_, val)) = subtree.read().unwrap().iter().next() {
             stack.push(current.clone());
-            let subtree = SafeRBTreeStorage(val.clone());
+            let subtree = SafeRBTreeStorage {
+                domain_tree: val.clone(),
+                fast_cache: DashMap::new(),
+            };
             return subtree.find_smallest(stack);
         }
         current
@@ -488,7 +470,7 @@ impl SafeRBTreeStorage {
     }
 
     pub fn is_own_domain(&self, name: &DNSName) -> bool {
-        let zone = self.0.read().unwrap().get_name();
+        let zone = self.domain_tree.read().unwrap().get_name();
         let (is_relative, _) = name.is_relative(&zone);
         is_relative
     }
@@ -496,9 +478,12 @@ impl SafeRBTreeStorage {
     pub fn find(&self, name: &DNSName) -> Result<Arc<RwLock<SafeRBTreeNode>>, StorageError> {
         let mut labels_count = name.label_count();
         if labels_count == 0 {
-            return Ok(self.0.clone());
+            if self.domain_tree.read().unwrap().auth_data != true {
+                return Err(StorageError::RefusedError);
+            }
+            return Ok(self.domain_tree.clone());
         }
-        let mut current = self.0.clone();
+        let mut current = self.domain_tree.clone();
         for label in name.labels.iter().rev() {
             labels_count -= 1;
             let temp = current.clone();
@@ -506,6 +491,9 @@ impl SafeRBTreeStorage {
             /// subtree exist and has label node
             if let Some(node) = subtree.read().unwrap().get(&label.clone()) {
                 if labels_count == 0 {
+                    if node.read().unwrap().auth_data != true {
+                        return Err(StorageError::RefusedError);
+                    }
                     return Ok(node.clone());
                 }
                 current = node.clone();
@@ -515,7 +503,13 @@ impl SafeRBTreeStorage {
                 return Ok(node.clone());
             }
             /// not found in subtree
+            if current.read().unwrap().auth_data != true {
+                return Err(StorageError::RefusedError);
+            }
             return Err(StorageError::DomainNotFoundError(name.to_string()));
+        }
+        if current.read().unwrap().auth_data != true {
+            return Err(StorageError::RefusedError);
         }
         Ok(current)
     }
@@ -525,6 +519,7 @@ impl SafeRBTreeStorage {
 mod test {
     use crate::safe_rbtree::{SafeRBTreeNode, SafeRBTreeStorage};
     use dnsproto::dnsname::DNSName;
+    use otterlib::errors::StorageError;
 
     fn get_example_zone() -> SafeRBTreeStorage {
         let test_zone_file = "./test/example.zone";
@@ -546,6 +541,26 @@ mod test {
     }
 
     #[test]
+    fn test_find_node() {
+        let zone = get_example_zone();
+        // in zone
+        let test_domain = &DNSName::new("example.com.", None).unwrap();
+        assert_eq!(zone.find(test_domain).is_ok(), true);
+        // in zone but not exist
+        let test_domain = &DNSName::new("not_exist.example.com.", None).unwrap();
+        assert_eq!(
+            zone.find(test_domain).unwrap_err(),
+            StorageError::DomainNotFoundError("not_exist.example.com.".to_string())
+        );
+        // out of zone
+        let test_domain = &DNSName::new("outofzone.com.", None).unwrap();
+        assert_eq!(
+            zone.find(test_domain).unwrap_err(),
+            StorageError::RefusedError
+        );
+    }
+
+    #[test]
     fn test_find_best_zone() {
         let zone = get_example_zone();
         // eprintln!("{}", zone.0.read().unwrap().get_name().to_string());
@@ -563,13 +578,21 @@ mod test {
             find_result.read().unwrap().get_name().to_string(),
             "example.com.".to_string()
         );
-        // TODO: should return refused.
-        let find_result = zone.find_best(&DNSName::new("xay.com.", None).unwrap());
+        let find_result = zone.find_best(&DNSName::new("www.notexist.example.com.", None).unwrap());
         assert_eq!(find_result.is_some(), true);
         let find_result = find_result.unwrap();
         assert_eq!(
             find_result.read().unwrap().get_name().to_string(),
-            "com.".to_string()
+            "example.com.".to_string()
         );
+
+        // should return refused.
+        let find_result = zone.find_best(&DNSName::new("xay.com.", None).unwrap());
+        assert_eq!(find_result.is_some(), false);
+
+        let find_result = zone.find_best(&DNSName::new("com.", None).unwrap());
+        assert_eq!(find_result.is_some(), false);
+        let find_result = zone.find_best(&DNSName::new(".", None).unwrap());
+        assert_eq!(find_result.is_some(), false);
     }
 }
