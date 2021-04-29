@@ -42,7 +42,7 @@ fn main() {
                 .long("udp-workers")
                 .default_value(default_workers_number.as_str())
                 .validator(|v| match usize::from_str(v.as_str()) {
-                    Ok(0..=256) => return Ok(()),
+                    Ok(0..=256) => Ok(()),
                     _ => Err(String::from(
                         "The workers value did not set correct [0, 256]",
                     )),
@@ -55,7 +55,7 @@ fn main() {
                 .long("tcp-workers")
                 .default_value(default_workers_number.as_str())
                 .validator(|v| match usize::from_str(v.as_str()) {
-                    Ok(0..=256) => return Ok(()),
+                    Ok(0..=256) => Ok(()),
                     _ => Err(String::from(
                         "The workers value did not set correct [0, 256]",
                     )),
@@ -68,7 +68,7 @@ fn main() {
                 .long("log-level")
                 .default_value("info")
                 .validator(|v| match v.to_lowercase().as_str() {
-                    "warn" | "error" | "info" | "debug" | "trace" => return Ok(()),
+                    "warn" | "error" | "info" | "debug" | "trace" => Ok(()),
                     _ => Err(String::from("unknown log level")),
                 })
                 .help("set the level of log output")

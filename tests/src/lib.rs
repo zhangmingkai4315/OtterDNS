@@ -12,6 +12,5 @@ pub fn create_dns_server() -> OtterServer {
         acl: None,
     };
     settings.zone.push(zone);
-    let mut servers = OtterServer::new(settings);
-    servers
+    OtterServer::new(settings)
 }

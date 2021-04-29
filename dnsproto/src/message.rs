@@ -67,7 +67,6 @@ impl Message {
             additional: vec![],
         }
     }
-
     pub fn new_tc_message_from_build_message(message: &mut Message) -> &mut Message {
         message.header.tc = true;
         message.answers.clear();
@@ -85,6 +84,16 @@ impl Message {
         message
     }
 
+    pub fn new_message_with_rcode(q_message: &Message, rcode: RCode) -> Message {
+        let mut header = q_message.header.clone();
+        header.qr = true;
+        header.ad = false;
+        header.aa = false;
+        header.ra = false;
+        header.r_code = rcode;
+        Message::new_with_header(header)
+    }
+
     /// new_message_from_query parse message and return a message
     /// return a message and bool(when true means something wrong and need terminate)
     pub fn new_message_from_query(
@@ -92,14 +101,8 @@ impl Message {
         from_udp: bool,
         max_edns_size: u16,
     ) -> (Message, u16, bool) {
-        let mut header = q_message.header.clone();
         let mut terminator = false;
-        header.qr = true;
-        header.ad = false;
-        header.aa = false;
-        header.ra = false;
-
-        let mut message = Message::new_with_header(header);
+        let mut message = Message::new_message_with_rcode(q_message, RCode::NoError);
         let mut max_size = max_edns_size;
         for additional in q_message.additional.iter() {
             match additional {

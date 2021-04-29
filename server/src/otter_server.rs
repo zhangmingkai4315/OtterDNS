@@ -1,18 +1,17 @@
 use crate::tcp_server::TCPServer;
 use crate::udp_server::UdpServer;
 use dnsproto::dnsname::DNSName;
-use dnsproto::message::{Message, Record};
-use dnsproto::meta::DNSType;
-use net2::unix::{UnixTcpBuilderExt, UnixUdpBuilderExt};
-use net2::{TcpBuilder, UdpBuilder};
+use dnsproto::message::Message;
+use dnsproto::meta::{DNSType, RCode};
+use net2::unix::UnixUdpBuilderExt;
+// use net2::{TcpBuilder, UdpBuilder};
 use otterlib::errors::OtterError;
 use otterlib::errors::{DNSProtoErr, NetworkError, StorageError};
 use otterlib::setting::{ExSetting, Settings};
 use std::net::SocketAddr;
 use std::result::Result::Err;
 use std::sync::Arc;
-use storage::safe_rbtree::SafeRBTreeStorage;
-use storage::unsafe_rbtree::RBTreeNode;
+use storage::storage::SafeRBTreeStorage;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, UdpSocket};
 use tokio::task::JoinHandle;
@@ -28,7 +27,7 @@ fn report_query_message(dnsname: &DNSName, dnstype: &DNSType, remote: &SocketAdd
         dnstype.to_string(),
         remote.to_string(),
         {
-            if from_udp == true {
+            if from_udp {
                 "udp".to_string()
             } else {
                 "tcp".to_string()
@@ -39,7 +38,7 @@ fn report_query_message(dnsname: &DNSName, dnstype: &DNSType, remote: &SocketAdd
 
 /// process_message is the main dns process logic function
 /// implements the rfc1034 and used for udp and tcp listeners
-/// but not axfr and ixfr.
+/// but not axfr and ixfr. if return err then just ignore the packet
 fn process_message(
     mut storage: SafeRBTreeStorage,
     message: &[u8],
@@ -49,6 +48,7 @@ fn process_message(
 ) -> Result<Vec<u8>, DNSProtoErr> {
     let parsed_message = Message::parse_dns_message(&message)?;
     if !parsed_message.is_query() {
+        // no need to process just drop packet
         return Err(DNSProtoErr::ValidQueryDomainErr);
     }
 
@@ -56,18 +56,26 @@ fn process_message(
     report_query_message(dnsname, dnstype, remote, from_udp);
     let (mut message, max_size, terminator) =
         Message::new_message_from_query(&parsed_message, from_udp, max_edns_size);
-    if terminator == true {
+    if terminator {
         return message.encode(from_udp);
     }
     // 1. find the best zone for this query
     let best_zone = storage.find_best(dnsname);
-
     // 2. if not found
     //     2.1 because no subzone? then get the best zone name( using cut method )
     //     2.2 because not in this zone? then return refused status
+    if best_zone.is_none() {
+        message.header.set_rcode(RCode::Refused);
+        return message.encode(from_udp);
+    }
     // 3. find best zone for the qname (with wildcard, and zone cut info collection)
+    // if query is a CNAME， we need do some loop job
     // 4. set dns header aa = true
+    message.header.set_aa(true);
     // 5. get the zone reference
+    let best_zone = best_zone.unwrap();
+    // loop {}
+
     // 6. search current domain in best zone and trace the zonecut if exist!
     // 7. if zonecut exist :
     //      7.1 set dns header aa = false
@@ -121,7 +129,7 @@ fn process_message(
     // debug!(logger, "response message: {:?}", message);
     let message_byte = message.encode(from_udp)?;
     // when query from udp and message size great than max_size(maybe limit by edns size)
-    if from_udp == true && message_byte.len() > (max_size as usize) {
+    if from_udp && message_byte.len() > (max_size as usize) {
         let tc_message = Message::new_tc_message_from_build_message(&mut message);
         Ok(tc_message.encode(from_udp)?)
     } else {
@@ -328,7 +336,7 @@ impl OtterServer {
                         servers_clone[index].tcp_listener.accept().await
                     {
                         let mut packet_length = [0u8; 2];
-                        let mut next_size: u16 = 0;
+                        let next_size: u16;
                         if let Ok(v) = stream.read_exact(&mut packet_length).await {
                             if v != 2 {
                                 continue;
@@ -338,8 +346,7 @@ impl OtterServer {
                         } else {
                             continue;
                         }
-                        let mut message: Vec<u8> = Vec::with_capacity(next_size as usize);
-                        message.resize(next_size as usize, 0);
+                        let mut message: Vec<u8> = vec![0u8; next_size as usize];
                         match stream.read_exact(message.as_mut_slice()).await {
                             Ok(vsize) => {
                                 let message = &message[0..vsize];

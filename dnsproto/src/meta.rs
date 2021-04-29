@@ -62,6 +62,12 @@ impl Header {
             additional_count: 0,
         }
     }
+    pub fn set_rcode(&mut self, rcode: RCode) {
+        self.r_code = rcode;
+    }
+    pub fn set_aa(&mut self, aa: bool) {
+        self.aa = aa;
+    }
     pub fn set_id(&mut self, id: u16) {
         self.id = id
     }

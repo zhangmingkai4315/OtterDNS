@@ -3,6 +3,7 @@ mod rbtree;
 pub mod unsafe_rbtree;
 #[macro_use]
 pub mod safe_rbtree;
+pub mod storage;
 // mod example;
 
 use dnsproto::dnsname::DNSName;
